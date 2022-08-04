@@ -1,1 +1,2 @@
+*.inc linguist-detectable=false
 dat/hi-poly/*.fbx filter=lfs diff=lfs merge=lfs -text
