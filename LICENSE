@@ -1,6 +1,8 @@
 MIT License
 
-Copyright (c) 2022 Carl Woffenden
+Copyright (c) 2022 Carl Woffenden (for the additional code; meshoptimizer is
+copyright Arseny Kapoulkine, see inc/meshoptimizer.h for details; and fast_obj
+is copyright Richard Knight, see inc/fast_obj.h for details)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

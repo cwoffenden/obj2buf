@@ -5,6 +5,8 @@
 
 #include <cstdlib>
 
+#include "meshoptimizer.h"
+
 /*
  * Load and convert.
  */
