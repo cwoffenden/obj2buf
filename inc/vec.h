@@ -9,6 +9,9 @@ struct Vec2
 {
 	T x;
 	T y;
+	operator T* () {
+		return &x;
+	}
 };
 
 template<typename T>
@@ -17,6 +20,9 @@ struct Vec3
 	T x;
 	T y;
 	T z;
+	operator T* () {
+		return &x;
+	}
 };
 
 template<typename T>
@@ -26,6 +32,9 @@ struct Vec4
 	T y;
 	T z;
 	T w;
+	operator T* () {
+		return &x;
+	}
 };
 
 typedef Vec2<float> vec2;
