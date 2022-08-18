@@ -134,13 +134,29 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 	unsigned vertBase = 0;
 	for (unsigned face = 0; face < obj->face_count; face++) {
 		unsigned faceVerts = obj->face_vertices[face];
+		unsigned polyStart = static_cast<unsigned>(verts.size());
 		for (unsigned vert = 0; vert < faceVerts; vert++) {
 			if (vert > 2) {
-				// For every extra vert, extend it as a fan from the previous tri
-				verts.push_back(verts[verts.size() - 3]);
-				verts.push_back(verts[verts.size() - 2]);
+				/*
+				 * We create fans for any faces with more than three verts (which will only
+				 * work for convex polys, but this should really be processing only tris or
+				 * quads). We create fans as [0, 1, 2], [2, 3, 0], [0, 3, 4], etc., with
+				 * each added tri using the last tri's vert as its starting point, not for
+				 * vert buffer locality, but for compression.
+				 */
+				if ((vert & 1) != 0) {
+					verts.push_back(verts[verts.size() - 1]);
+				} else {
+					verts.push_back(verts[polyStart]);
+					verts.push_back(verts[verts.size() - 3]);
+				}
 			}
 			verts.emplace_back(obj, &obj->indices[vertBase + vert]);
+			if (vert > 2) {
+				if ((vert & 1) != 0) {
+					verts.push_back(verts[polyStart]);
+				}
+			}
 		}
 		vertBase += faceVerts;
 	}
@@ -183,6 +199,7 @@ int main(int argc, const char* argv[]) {
 		fast_obj_destroy(obj);
 		process(mesh);
 		time = millis() - time;
+		printf("Vertices: %d, Indices %d\n", static_cast<int>(mesh.verts.size()), static_cast<int>(mesh.index.size()));
 		printf("Processing took: %dms\n", time);
 	} else {
 		printf("Error reading\n");
