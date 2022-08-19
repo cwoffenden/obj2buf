@@ -15,7 +15,7 @@
 #include "meshoptimizer.h"
 #include "fast_obj.h"
 
-#include "vec.h"
+#include "packedvertex.h"
 
 /**
  * \def DEFAULT_TEST_FOLDER
