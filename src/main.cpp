@@ -15,7 +15,7 @@
 #include "meshoptimizer.h"
 #include "fast_obj.h"
 
-#include "packedvertex.h"
+#include "vertexpacker.h"
 
 /**
  * \def DEFAULT_TEST_FOLDER
@@ -204,5 +204,23 @@ int main(int argc, const char* argv[]) {
 	} else {
 		printf("Error reading\n");
 	}
+	std::vector<uint8_t> temp(12);
+	VertexPacker out(temp.data(), temp.size());
+	out.add(-1.0f, VertexPacker::SINT08N);
+	out.add( 0.0f, VertexPacker::SINT08N);
+	out.add( 1.0f, VertexPacker::SINT08N);
+
+	out.add(-1.0f, VertexPacker::SINT08C);
+	out.add( 0.0f, VertexPacker::SINT08C);
+	out.add( 1.0f, VertexPacker::SINT08C);
+
+	out.add(-1.0f, VertexPacker::UINT08N);
+	out.add( 0.0f, VertexPacker::UINT08N);
+	out.add( 1.0f, VertexPacker::UINT08N);
+
+	out.add(-1.0f, VertexPacker::UINT08C);
+	out.add( 0.0f, VertexPacker::UINT08C);
+	out.add( 1.0f, VertexPacker::UINT08C);
+
 	return EXIT_SUCCESS;
 }
