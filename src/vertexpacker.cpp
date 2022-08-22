@@ -17,8 +17,10 @@ bool VertexPacker::add(float data, Storage const type) {
 		switch (type) {
 		case SINT08N:
 			/*
-			 * Note: we're using a pre-GL 4.2 full range normalisation whereby we can
-			 * never express 0.0 (127 = -0.004 and 128 = 0.004).
+			 * Note: we're using some made-up normalisation rule which, whilst the same
+			 * code has been in use for years, is incorrect. Investigate:
+			 *
+			 * https://www.khronos.org/opengl/wiki/Normalized_Integer#Signed
 			 */
 			data *= ((data < 0.0f) ? 0x0080 : 0x007F);
 			// fall through
