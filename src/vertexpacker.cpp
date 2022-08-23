@@ -59,8 +59,13 @@ static int32_t storePre42(float const val, VertexPacker::Storage const type) {
 		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
 	case VertexPacker::UINT16C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
-	default:
-		return val;
+	default: {
+		union {
+			float   f; // where we write
+			int32_t i; // where we read
+		} temp = {val};
+		return temp.i;
+	}
 	}
 }
 
