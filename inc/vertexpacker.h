@@ -12,7 +12,9 @@
 
 #include "vec.h"
 
-
+/**
+ * Writes packed vertex data to a buffer.
+ */
 class VertexPacker
 {
 public:
@@ -116,14 +118,31 @@ public:
 	 */
 	bool add(float const data, Storage const type);
 
+	/**
+	 * Starts adding to the stream from the beginning.
+	 */
+	void rewind();
+
 private:
+	/**
+	 * Not copyable.
+	 */
+	VertexPacker(const VertexPacker&) = delete;
+
+	/**
+	 * Not assignable.
+	 */
+	void operator =(const VertexPacker&) = delete;
+
+	//****************************************************************************/
+
 	/**
 	 * Determines whether \a type can be stored without going out of bounds.
 	 *
 	 * \param[in] type data type to store
 	 * \return \c true if there is sufficient storage space in the underlying buffer
 	 */
-	bool canFit(Storage const type) const;
+	bool hasFreeSpace(Storage const type) const;
 
 	/**
 	 * Start of the packed data.
