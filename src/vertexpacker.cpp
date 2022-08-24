@@ -19,9 +19,12 @@ static inline T clamp(T const val, T const min, T const max) {
 
 /**
  * Helper to store a signed float in the range \c -1 to \c 1 as a normalised
- * integer. This follows the rules for OpenGL pre-4.2, in that all of the
- * available integer range is used but zero cannot be stored exactly.
+ * integer, following the rules for legacy OpenGL (desktop pre-4.2 and ES
+ * pre-3.0) in that all of the available integer range is used but zero cannot
+ * be stored exactly.
  *
+ * \note See the OpenGL specification for component conversions, e.g. GL 3.0
+ * Colors and Coloring table 2.10, or the ES 2.0 2.1.2 Data Conversions.
  * \note Values outside of \c -1 to \c 1 will overflow (see \c #clamp()).
  *
  * \param[in] val float value to convert
@@ -30,21 +33,41 @@ static inline T clamp(T const val, T const min, T const max) {
  * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Alternate_mapping
  */
 template<int Bits>
-static inline int32_t signedPre42(float const val) {
+static inline int32_t signedLegacy(float const val) {
 	return static_cast<int32_t>(round((val * ((1 << Bits) - 1) - 1) / 2.0f));
 }
 
 /**
- * Helper to encode a float using the \c VertexPacker#Storage rules for OpenGL
- * pre-4.2 (see \c signedPre42()).
+ * Helper to store a signed float in the range \c -1 to \c 1 as a normalised
+ * integer, following the rules for modern OpenGL (desktop 4.2 onwards and ES
+ * 3.0 onwards).
+ *
+ * \note See the OpenGL specification for component conversions, e.g. ES 3.0
+ * 2.1.6.1 Conversion from Normalized Fixed-Point to Floating-Point.
+ * \note Values outside of \c -1 to \c 1 will overflow (see \c #clamp()).
+ *
+ * \param[in] val float value to convert
+ * \tparam Bits bit-depth to use (e.g. \c 8 for bytes)
+ *
+ * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Signed
+ *
+template<int Bits>
+static inline int32_t signedModern(float const val) {
+
+}
+ */
+
+/**
+ * Helper to encode a float using the \c VertexPacker#Storage rules for legacy
+ * OpenGL (desktop pre-4.2 and ES pre-3.0, see \c signedLegacy()).
  *
  * \param[in] val float value to convert
  * \param[in] type storage type (and rules to follow)
  */
-static int32_t storePre42(float const val, VertexPacker::Storage const type) {
+static int32_t storeLegacy(float const val, VertexPacker::Storage const type) {
 	switch (type) {
 	case VertexPacker::SINT08N:
-		return clamp<int32_t>(signedPre42<8>(val), INT8_MIN, INT8_MAX);
+		return clamp<int32_t>(signedLegacy<8>(val), INT8_MIN, INT8_MAX);
 	case VertexPacker::SINT08C:
 		return clamp<int32_t>(int32_t(round(val)), INT8_MIN, INT8_MAX);
 	case VertexPacker::UINT08N:
@@ -52,9 +75,9 @@ static int32_t storePre42(float const val, VertexPacker::Storage const type) {
 	case VertexPacker::UINT08C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT8_MAX);
 	case VertexPacker::SINT16N:
-		return clamp<int32_t>(signedPre42<16>(val), INT16_MIN, INT16_MAX);
+		return clamp<int32_t>(signedLegacy<16>(val), INT16_MIN, INT16_MAX);
 	case VertexPacker::SINT16C:
-		return clamp<int32_t>(int32_t(round(val)),  INT16_MIN, INT16_MAX);
+		return clamp<int32_t>(int32_t(round(val)), INT16_MIN, INT16_MAX);
 	case VertexPacker::UINT16N:
 		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
 	case VertexPacker::UINT16C:
@@ -78,7 +101,7 @@ VertexPacker::VertexPacker(void* const root, unsigned const size)
 
 bool VertexPacker::add(float const data, Storage const type) {
 	if (hasFreeSpace(type)) {
-		int32_t temp = storePre42(data, type);
+		int32_t temp = storeLegacy(data, type);
 		switch (type) {
 		case SINT08N:
 		case SINT08C:
