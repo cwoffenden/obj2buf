@@ -117,9 +117,10 @@ static unsigned millis() {
 }
 
 /**
- * Extracts the mesh data.
+ * Extracts the mesh data as vertex and index buffers.
  *
  * \param[in] obj valid \c fast_obj content
+ * \param[out] mesh destination for the \c .obj file content
  */
 void extract(fastObjMesh* obj, ObjMesh& mesh) {
 	// No objects or groups, just one big triangle mesh from the file
@@ -142,7 +143,7 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 				 * work for convex polys, but this should really be processing only tris or
 				 * quads). We create fans as [0, 1, 2], [2, 3, 0], [0, 3, 4], etc., with
 				 * each added tri using the last tri's vert as its starting point, not for
-				 * vert buffer locality, but for compression.
+				 * vert buffer locality but for compression.
 				 */
 				if ((vert & 1) != 0) {
 					verts.push_back(verts[verts.size() - 1]);
@@ -163,7 +164,7 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 	// Generate the indices
 	std::vector<unsigned> remap(maxVerts);
 	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
-	// Now create the buffers we'll be working with
+	// Now create the buffers we'll be working with (overwriting any existing data)
 	mesh.resize(numVerts, maxVerts);
 	meshopt_remapIndexBuffer (mesh.index.data(), NULL, maxVerts, remap.data());
 	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
@@ -174,8 +175,8 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
  */
 void process(ObjMesh& mesh) {
 	meshopt_optimizeVertexCache(mesh.index.data(), mesh.index.data(), mesh.index.size(), mesh.verts.size());
-	meshopt_optimizeOverdraw(mesh.index.data(), mesh.index.data(), mesh.index.size(), mesh.verts[0].posn, mesh.verts.size(), sizeof(ObjVertex), 1.01f);
-	meshopt_optimizeVertexFetch(mesh.verts.data(), mesh.index.data(), mesh.index.size(), mesh.verts.data(), mesh.verts.size(), sizeof(ObjVertex));
+	meshopt_optimizeOverdraw   (mesh.index.data(), mesh.index.data(), mesh.index.size(), mesh.verts[0].posn, mesh.verts.size(), sizeof(ObjVertex), 1.01f);
+	meshopt_optimizeVertexFetch(mesh.verts.data(), mesh.index.data(), mesh.index.size(), mesh.verts.data(),  mesh.verts.size(), sizeof(ObjVertex));
 }
 
 /**

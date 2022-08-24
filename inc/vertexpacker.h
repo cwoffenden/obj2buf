@@ -92,14 +92,14 @@ public:
 	 * \param[in] root start of the \e block where the vertex data will be stored
 	 * \param[in] size number of bytes (used only for bounds tests in debug builds)
 	 */
-	VertexPacker(uint8_t* const root, unsigned const size);
+	VertexPacker(void* const root, unsigned const size);
 
 #if SIZE_MAX > UINT_MAX
 	/**
 	 * \copydoc VertexPacker(uint8_t*,unsigned)
 	 */
 	inline
-	VertexPacker(uint8_t* const root, size_t const size) : VertexPacker(root, static_cast<unsigned>(size)) {}
+	VertexPacker(void* const root, size_t const size) : VertexPacker(root, static_cast<unsigned>(size)) {}
 #endif
 
 	/**
