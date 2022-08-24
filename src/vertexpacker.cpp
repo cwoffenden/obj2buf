@@ -71,10 +71,10 @@ static int32_t storePre42(float const val, VertexPacker::Storage const type) {
 
 //*****************************************************************************/
 
-VertexPacker::VertexPacker(uint8_t* const root, unsigned const size)
-	: root(root)
-	, next(root)
-	, over(root + size) {}
+VertexPacker::VertexPacker(void* const root, unsigned const size)
+	: root(static_cast<uint8_t*>(root))
+	, next(static_cast<uint8_t*>(root))
+	, over(static_cast<uint8_t*>(root) + size) {}
 
 bool VertexPacker::add(float const data, Storage const type) {
 	if (hasFreeSpace(type)) {
