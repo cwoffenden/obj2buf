@@ -137,7 +137,7 @@ VertexPacker::VertexPacker(void* const root, unsigned const size, unsigned const
 bool VertexPacker::add(float const data, Storage const type) {
 	if (hasFreeSpace(type)) {
 		int32_t temp;
-		if ((opts & SIGNED_LEGACY) == 0) {
+		if ((opts & OPTS_SIGNED_LEGACY) == 0) {
 			temp = storeModern(data, type);
 		} else {
 			temp = storeLegacy(data, type);
@@ -154,7 +154,7 @@ bool VertexPacker::add(float const data, Storage const type) {
 		case UINT16N:
 		case UINT16C:
 		case FLOAT16:
-			if ((opts & BIG_ENDIAN) == 0) {
+			if ((opts & OPTS_BIG_ENDIAN) == 0) {
 				*next++ = (temp >>  0) & 0xFF;
 				*next++ = (temp >>  8) & 0xFF;
 			} else {
@@ -163,7 +163,7 @@ bool VertexPacker::add(float const data, Storage const type) {
 			}
 			break;
 		default:
-			if ((opts & BIG_ENDIAN) == 0) {
+			if ((opts & OPTS_BIG_ENDIAN) == 0) {
 				*next++ = (temp >>  0) & 0xFF;
 				*next++ = (temp >>  8) & 0xFF;
 				*next++ = (temp >> 16) & 0xFF;
