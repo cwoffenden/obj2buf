@@ -87,19 +87,40 @@ public:
 	};
 
 	/**
+	 * Packing options.
+	 */
+	enum Options {
+		/**
+		 * Default packing: little endian, normalised signed values preserve
+		 * zero (which is the case for current hardware and graphics APIs).
+		 */
+		DEFAULT = 0,
+		/**
+		 * Multi-byte values are stored as big endian.
+		 */
+		BIG_ENDIAN = 1,
+		/**
+		 * Normalised signed values are compatible with older APIs, where the
+		 * full range of bits is used but zero cannot be represented.
+		 */
+		SIGNED_LEGACY = 2,
+	};
+
+	/**
 	 * Creates a new empty packer.
 	 *
 	 * \param[in] root start of the \e block where the vertex data will be stored
 	 * \param[in] size number of bytes (used only for bounds tests in debug builds)
+	 * \param[in] opts packing options (set once before any data are added)
 	 */
-	VertexPacker(void* const root, unsigned const size);
+	VertexPacker(void* const root, unsigned const size, unsigned const opts = VertexPacker::DEFAULT);
 
 #if SIZE_MAX > UINT_MAX
 	/**
-	 * \copydoc VertexPacker(uint8_t*,unsigned)
+	 * \copydoc VertexPacker(uint8_t*,unsigned,unsigned)
 	 */
 	inline
-	VertexPacker(void* const root, size_t const size) : VertexPacker(root, static_cast<unsigned>(size)) {}
+	VertexPacker(void* const root, size_t const size, unsigned const opts = VertexPacker::DEFAULT) : VertexPacker(root, static_cast<unsigned>(size), opts) {}
 #endif
 
 	/**
@@ -150,12 +171,18 @@ private:
 	uint8_t* const root;
 
 	/**
-	 * Next available byte.
+	 * Next available byte (the initial address being \c #root, the final though
+	 * unwritable address being \c #over).
 	 */
 	uint8_t* next;
 
 	/**
 	 * Address \e after the last byte of the data allocation.
 	 */
-	uint8_t* const over;
+	const uint8_t* const over;
+
+	/**
+	 * A bitfield of the packer's \c #Options.
+	 */
+	unsigned const opts;
 };
