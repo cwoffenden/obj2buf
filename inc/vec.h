@@ -23,6 +23,40 @@ struct Vec3
 	operator T* () {
 		return &x;
 	}
+	Vec3 operator +(const Vec3& vec) const {
+		return Vec3({
+			x + vec.x,
+			y + vec.y,
+			z + vec.z
+		});
+	}
+	Vec3 operator -(const Vec3& vec) const {
+		return Vec3({
+			x - vec.x,
+			y - vec.y,
+			z - vec.z
+		});
+	}
+	/**
+	 * Component-wise minimum of two vectors.
+	 */
+	static Vec3 min(const Vec3& a, const Vec3& b) {
+		return Vec3({
+			a.x < b.x ? a.x : b.x,
+			a.y < b.y ? a.y : b.y,
+			a.z < b.z ? a.z : b.z
+		});
+	}
+	/**
+	 * Component-wise maximum of two vectors.
+	 */
+	static Vec3 max(const Vec3& a, const Vec3& b) {
+		return Vec3({
+			a.x > b.x ? a.x : b.x,
+			a.y > b.y ? a.y : b.y,
+			a.z > b.z ? a.z : b.z
+		});
+	}
 };
 
 template<typename T>
