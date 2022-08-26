@@ -37,6 +37,12 @@ struct Vec3
 			z - vec.z
 		});
 	}
+	Vec3& operator *=(T const val) {
+		x *= val;
+		y *= val;
+		z *= val;
+		return *this;
+	}
 	/**
 	 * Component-wise minimum of two vectors.
 	 */

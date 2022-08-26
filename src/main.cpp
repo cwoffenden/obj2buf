@@ -186,12 +186,8 @@ void scale(const ObjMesh& mesh) {
 	}
 	vec3 scale  = maxPosn - minPosn;
 	vec3 offset = maxPosn + minPosn;
-	scale.x  *= 0.5f;
-	scale.y  *= 0.5f;
-	scale.z  *= 0.5f;
-	offset.x *= 0.5f;
-	offset.y *= 0.5f;
-	offset.z *= 0.5f;
+	scale  *= 0.5f;
+	offset *= 0.5f;
 	printf("Min pos: {%0.4f, %0.4f, %0.4f}\n", minPosn.x, minPosn.y, minPosn.z);
 	printf("Max pos: {%0.4f, %0.4f, %0.4f}\n", maxPosn.x, maxPosn.y, maxPosn.z);
 	printf("Scale:   {%0.4f, %0.4f, %0.4f}\n", scale.x,   scale.y,   scale.z);
