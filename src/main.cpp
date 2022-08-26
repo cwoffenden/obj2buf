@@ -82,7 +82,13 @@ struct ObjMesh
 		verts.resize(numVerts);
 		index.resize(numIndex);
 	}
+	/**
+	 * Collection of (usually) unique vertices referenced by \c #index.
+	 */
 	std::vector<ObjVertex> verts;
+	/**
+	 * Collection of indices into \c #verts.
+	 */
 	std::vector<unsigned>  index;
 };
 
@@ -170,6 +176,27 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
 }
 
+void scale(const ObjMesh& mesh) {
+	vec3 minPosn({ FLT_MAX,  FLT_MAX,  FLT_MAX});
+	vec3 maxPosn({-FLT_MAX, -FLT_MAX, -FLT_MAX});
+	for (std::vector<ObjVertex>::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
+		minPosn = vec3::min(minPosn, it->posn);
+		maxPosn = vec3::max(maxPosn, it->posn);
+	}
+	vec3 scale  = maxPosn - minPosn;
+	vec3 offset = maxPosn + minPosn;
+	scale.x  *= 0.5f;
+	scale.y  *= 0.5f;
+	scale.z  *= 0.5f;
+	offset.x *= 0.5f;
+	offset.y *= 0.5f;
+	offset.z *= 0.5f;
+	printf("Min pos: {%0.4f, %0.4f, %0.4f}\n", minPosn.x, minPosn.y, minPosn.z);
+	printf("Max pos: {%0.4f, %0.4f, %0.4f}\n", maxPosn.x, maxPosn.y, maxPosn.z);
+	printf("Scale:   {%0.4f, %0.4f, %0.4f}\n", scale.x,   scale.y,   scale.z);
+	printf("Offset:  {%0.4f, %0.4f, %0.4f}\n", offset.x,  offset.y,  offset.z);
+}
+
 /**
  * Optimise (and eventually export) the mesh.
  */
@@ -202,11 +229,14 @@ int main(int argc, const char* argv[]) {
 		time = millis() - time;
 		printf("Vertices: %d, Indices %d\n", static_cast<int>(mesh.verts.size()), static_cast<int>(mesh.index.size()));
 		printf("Processing took: %dms\n", time);
+		scale(mesh);
 	} else {
 		printf("Error reading\n");
 	}
+	/*
 	std::vector<uint8_t> temp(12);
 	VertexPacker out(temp.data(), temp.size());
+	
 	out.add(-1.0f, VertexPacker::SINT08N);
 	out.add( 0.0f, VertexPacker::SINT08N);
 	out.add( 1.0f, VertexPacker::SINT08N);
@@ -222,6 +252,6 @@ int main(int argc, const char* argv[]) {
 	out.add(-1.0f, VertexPacker::UINT08C);
 	out.add( 0.0f, VertexPacker::UINT08C);
 	out.add( 1.0f, VertexPacker::UINT08C);
-
+	 */
 	return EXIT_SUCCESS;
 }
