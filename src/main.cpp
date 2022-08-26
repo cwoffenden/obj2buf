@@ -5,6 +5,7 @@
  * \todo read again the HemiOct16 details, page 27 here: https://jcgt.org/published/0003/02/01/paper.pdf
  */
 
+#include <cfloat>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
