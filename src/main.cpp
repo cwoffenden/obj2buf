@@ -75,7 +75,9 @@ struct ObjMesh
 	/**
 	 * Creates a zero-sized buffer.
 	 */
-	ObjMesh() = default;
+	ObjMesh()
+		: scale (1, 1, 1)
+		, offset(0, 0, 0) {};
 	/**
 	 * Resizes the buffers (usually as a prelude to filling them).
 	 */
@@ -91,6 +93,14 @@ struct ObjMesh
 	 * Collection of indices into \c #verts.
 	 */
 	std::vector<unsigned>  index;
+	/**
+	 * Scale to apply to each vertex position when drawing (the default is \c 1).
+	 */
+	vec3 scale;
+	/**
+	 * Offset to apply to each vertex position when drawing (the default is \c 0).
+	 */
+	vec3 offset;
 };
 
 /**
@@ -177,21 +187,24 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
 }
 
-void scale(const ObjMesh& mesh) {
+/**
+ * Scale the mesh positions so that each is normalised between \c -1 and \c 1.
+ */
+void scale(ObjMesh& mesh) {
+	// Get min and max for each component
 	vec3 minPosn({ FLT_MAX,  FLT_MAX,  FLT_MAX});
 	vec3 maxPosn({-FLT_MAX, -FLT_MAX, -FLT_MAX});
-	for (std::vector<ObjVertex>::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
+	for (std::vector<ObjVertex>::iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
 		minPosn = vec3::min(minPosn, it->posn);
 		maxPosn = vec3::max(maxPosn, it->posn);
 	}
-	vec3 scale  = maxPosn - minPosn;
-	vec3 offset = maxPosn + minPosn;
-	scale  *= 0.5f;
-	offset *= 0.5f;
-	printf("Min pos: {%0.4f, %0.4f, %0.4f}\n", minPosn.x, minPosn.y, minPosn.z);
-	printf("Max pos: {%0.4f, %0.4f, %0.4f}\n", maxPosn.x, maxPosn.y, maxPosn.z);
-	printf("Scale:   {%0.4f, %0.4f, %0.4f}\n", scale.x,   scale.y,   scale.z);
-	printf("Offset:  {%0.4f, %0.4f, %0.4f}\n", offset.x,  offset.y,  offset.z);
+	// Which gives the global mesh scale and offset
+	mesh.scale  = (maxPosn - minPosn) * 0.5f;
+	mesh.offset = (maxPosn + minPosn) * 0.5f;
+	// Apply to each vert to normalise
+	for (std::vector<ObjVertex>::iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
+		it->posn = (it->posn - mesh.offset) / mesh.scale;
+	}
 }
 
 /**
@@ -222,11 +235,11 @@ int main(int argc, const char* argv[]) {
 		printf("Parsing...\n");
 		extract(obj, mesh);
 		fast_obj_destroy(obj);
+		scale(mesh);
 		process(mesh);
 		time = millis() - time;
 		printf("Vertices: %d, Indices %d\n", static_cast<int>(mesh.verts.size()), static_cast<int>(mesh.index.size()));
 		printf("Processing took: %dms\n", time);
-		scale(mesh);
 	} else {
 		printf("Error reading\n");
 	}
