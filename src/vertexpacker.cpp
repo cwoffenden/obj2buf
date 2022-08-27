@@ -3,6 +3,8 @@
 #include <cmath>
 #include <algorithm>
 
+#include "minifloat.h"
+
 /**
  * Helper to constrain a value between upper and lower bounds.
  *
@@ -81,6 +83,8 @@ static int32_t storeLegacy(float const val, VertexPacker::Storage const type) {
 		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
 	case VertexPacker::UINT16C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
+	case VertexPacker::FLOAT16:
+		 return static_cast<int32_t>(utils::floatToHalf(val));
 	default: {
 		union {
 			float   f; // where we write
@@ -116,6 +120,8 @@ static int32_t storeModern(float const val, VertexPacker::Storage const type) {
 		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
 	case VertexPacker::UINT16C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
+	case VertexPacker::FLOAT16:
+		return static_cast<int32_t>(utils::floatToHalf(val));
 	default: {
 		union {
 			float   f; // where we write
