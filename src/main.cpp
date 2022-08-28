@@ -8,7 +8,6 @@
 #include <cfloat>
 #include <cstdlib>
 #include <cstdio>
-#include <cstring>
 
 #include <chrono>
 #include <vector>
@@ -16,6 +15,7 @@
 #include "meshoptimizer.h"
 #include "fast_obj.h"
 
+#include "tooloptions.h"
 #include "vertexpacker.h"
 
 /**
@@ -102,26 +102,6 @@ struct ObjMesh
 	 */
 	vec3 offset;
 };
-
-/**
- * Helper to extract the filename from a path.
- *
- * \param[in] path full path
- * \return the file at the end of the path (or an empty string if there is no file)
- */
-static const char* extractName(const char* path) {
-	const char* found = nullptr;
-	if (path) {
-		found = strrchr(path, '/');
-		if (!found) {
-			 found = strrchr(path, '\\');
-		}
-		if (found && strlen(found) > 0) {
-			return found + 1;
-		}
-	}
-	return path;
-}
 
 /**
  * Helper to return the current time in milliseconds.
@@ -223,12 +203,12 @@ int main(int argc, const char* argv[]) {
 	const char* file = DEFAULT_TEST_FILE;
 	if (argc < 2) {
 		if (argc == 1) {
-			printf("Usage: %s in.obj [out.dat]\n", extractName(argv[0]));
+			printf("Usage: %s in.obj [out.dat]\n", ToolOptions::extractFilename(argv[0]));
 		}
 	} else {
 		file = argv[1];
 	}
-	printf("Opening file: %s\n", extractName(file));
+	printf("Opening file: %s\n", ToolOptions::extractFilename(file));
 	unsigned time = millis();
 	if (fastObjMesh* obj = fast_obj_read(file)) {
 		ObjMesh mesh;
