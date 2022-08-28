@@ -1,11 +1,24 @@
 #include "minifloat.h"
 
-/*
- * Note: all of the CPU specifics removed and only the fallback code remains.
+/**
+ * \def HAS_BUILTIN_FLOAT16
+ * The original code has multiple CPU specific versions for float16, with only
+ * the fallback path remaining. Here we try to determine whether the compiler
+ * has builtin support for the standard _Float16 storage type, in which case we
+ * use that.
+ *
+ * \note Testing on a Mac M1 with Clang shows the builtin version to be faster
+ * in debug but not in release (10% slower in release). Still, we take the
+ * builtin since testing was on one device and, in theory, the compiler should
+ * be using FC16 and other hardware instructions to enable 16-bit floats. To be
+ * confirmed.
  */
-
-using namespace utils;
-
+#define __STDC_WANT_IEC_60559_TYPES_EXT__
+#include <cfloat>
+#ifdef FLT16_DIG
+#define HAS_BUILTIN_FLOAT16
+static_assert(sizeof(_Float16) == sizeof(utils::float16), "Compiler's builtin _Float16 size mismatch");
+#else
 namespace impl {
 /**
  * Helper to convert single-precision floats to IEEE 754 half-precision.
@@ -88,7 +101,7 @@ public:
 	 * \return equivalent half-precision float
 	 */
 	inline
-	float16 convert(float const val) const {
+	utils::float16 convert(float const val) const {
 		/*
 		 * We grab the single-precision bits and use them directly.
 		 */
@@ -96,8 +109,8 @@ public:
 			float    f; // where we write
 			uint32_t u; // where we read
 		} bits = {val};
-		return static_cast<float16>(base[(bits.u >> 23) & 0x1FF] |
-			((bits.u & 0x7FFFFF) >> shft[(bits.u >> 23) & 0x1FF]));
+		return static_cast<utils::float16>(base[(bits.u >> 23) & 0x1FF] |
+				   ((bits.u & 0x7FFFFF) >> shft[(bits.u >> 23) & 0x1FF]));
 	}
 
 private:
@@ -176,7 +189,7 @@ public:
 	 * \return equivalent single-precision float
 	 */
 	inline
-	float convert(float16 const val) const {
+	float convert(utils::float16 const val) const {
 		/*
 		 * Similarly to the conversion above, we apply the conversion directly
 		 * to the float bits. Note that the mantissa table also contain a bias
@@ -263,29 +276,32 @@ static FloatToHalfConv const floatToHalfConv;
  */
 static HalfToFloatConv const halfToFloatConv;
 }
+#endif
 
-//******************************* Public API ********************************/
+//******************************** Public API *********************************/
 
-float16 utils::floatToHalf(float const val) {
+utils::float16 utils::floatToHalf(float const val) {
+#ifdef HAS_BUILTIN_FLOAT16
+	union {
+		_Float16 f; // where we write
+		uint16_t u; // where we read
+	} bits = {
+		static_cast<_Float16>(val)
+	};
+	return bits.u;
+#else
 	return impl::floatToHalfConv.convert(val);
+#endif
 }
 
-float utils::halfToFloat(float16 const val) {
+float utils::halfToFloat(utils::float16 const val) {
+#ifdef HAS_BUILTIN_FLOAT16
+	union {
+		uint16_t u; // where we write
+		_Float16 f; // where we read
+	} bits = {val};
+	return bits.f;
+#else
 	return impl::halfToFloatConv.convert(val);
-}
-
-//***************************************************************************/
-
-float16* utils::floatToHalf(const float* src, unsigned len, float16* dst) {
-	for (; len > 0; len--) {
-		*dst++ = floatToHalf(*src++);
-	}
-	return dst;
-}
-
-float* utils::halfToFloat(const float16* src, unsigned len, float* dst) {
-	for (; len > 0; len--) {
-		*dst++ = halfToFloat(*src++);
-	}
-	return dst;
+#endif
 }
