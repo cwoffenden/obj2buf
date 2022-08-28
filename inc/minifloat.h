@@ -111,28 +111,6 @@ namespace utils {
 
 	//@{
 	/**
-	 * Converts multiple single-precision floats to half-precision.
-	 *
-	 * \param[in] src pointer to the single-precision source
-	 * \param[in] len number of entries to convert
-	 * \param[out] dst destination pointer for the resulting conversion
-	 * \return pointer to the next \c float16 after the converted entries
-	 */
-	float16* floatToHalf(const float* src, unsigned len, float16* dst);
-
-	/**
-	 * Converts multiple half-precision floats to single-precision.
-	 *
-	 * \param[in] src pointer to the half-precision source
-	 * \param[in] len number of entries to convert
-	 * \param[out] dst destination pointer for the resulting conversion
-	 * \return pointer to the next \c float after the converted entries
-	 */
-	float* halfToFloat(const float16* src, unsigned len, float* dst);
-	//@}
-
-	//@{
-	/**
 	 * Tests whether \a val is a \e NaN (not-a-number), e.g. \c 0/0.
 	 *
 	 * \param[in] val half-precision float to test
