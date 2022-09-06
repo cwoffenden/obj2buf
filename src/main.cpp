@@ -17,6 +17,7 @@
 
 #include "tooloptions.h"
 #include "vertexpacker.h"
+#include "minifloat.h"
 
 /**
  * \def DEFAULT_TEST_FOLDER
@@ -196,10 +197,115 @@ void process(ObjMesh& mesh) {
 	meshopt_optimizeVertexFetch(mesh.verts.data(), mesh.index.data(), mesh.index.size(), mesh.verts.data(),  mesh.verts.size(), sizeof(ObjVertex));
 }
 
+#ifdef _MSC_VER
+#include <DirectXMath.h>
+#endif
+#include <cmath>
+utils::float16 native32To16(float val) {
+#if defined(__GNUC__) || defined(__llvm__)
+	union {
+		_Float16 f; // where we write
+		uint16_t u; // where we read
+	} bits = {
+		static_cast<_Float16>(val)
+	};
+	return bits.u;
+#else
+	return DirectX::PackedVector::XMConvertFloatToHalf(val);
+#endif
+}
+float native16To32(utils::float16 val) {
+#if defined(__GNUC__) || defined(__llvm__)
+	union {
+		uint16_t u; // where we write
+		_Float16 f; // where we read
+	} bits = {
+		val
+	};
+	return static_cast<float>(bits.f);
+#else
+	return DirectX::PackedVector::XMConvertHalfToFloat(val);
+#endif
+}
+
+struct FloatStats {
+	unsigned floats;
+	unsigned errors;
+	unsigned wayOff;
+	unsigned minVal;
+	unsigned maxVal;
+	FloatStats()
+		: floats(0)
+		, errors(0)
+		, wayOff(0)
+		, minVal(UINT_MAX)
+		, maxVal(0) {}
+	void compare(utils::float16 known, utils::float16 target) {
+		floats++;
+		if (known != target) {
+			errors++;
+			if (abs(known - target) > 1) {
+				wayOff++;
+			}
+		}
+		if (known < minVal) {
+			minVal = known;
+		}
+		if (known > maxVal) {
+			maxVal = known;
+		}
+	}
+	// compares comparison a float with both the native and our implementation
+	void compare(float val) {
+		compare(native32To16(val), utils::floatToHalf(val));
+	}
+	// converts a float16 back to float32 then calls compare(float)
+	void compare(utils::float16 target) {
+		compare(native16To32(target));
+	}
+	void print() {
+		printf("Total floats: %d\n", floats);
+		printf("Total errors: %d\n", errors);
+		printf("Way off entries %d\n", wayOff);
+		printf("Error rate: %.3f%%\n", errors * 100.0 / floats);
+		printf("Range: 0x%04X - 0x%04X\n", minVal, maxVal);
+	}
+};
+
+void testMinifloat() {
+	FloatStats stats;
+	// big numbers
+	for (float n = -FLT16_MAX; n <= FLT16_MAX; n += 0.0025f) {
+		stats.compare(n);
+	}
+	// small numbers
+	for (float n = -1.0f; n <= 1.0f; n += 0.000001f) {
+		stats.compare(n);
+	}
+	// zeroes, infs and NaN
+	stats.compare(0.0f);
+	stats.compare(-0.0f);
+	stats.compare(HUGE_VALF);
+	stats.compare(-HUGE_VALF);
+	stats.compare(NAN);
+	// All variants, including signalling NaNs
+	for (int n = 0; n <= 0xFFFF; n++) {
+		stats.compare(static_cast<utils::float16>(n));
+	}
+	stats.print();
+}
+
 /**
  * Load and convert.
  */
 int main(int argc, const char* argv[]) {
+	(void) argc;
+	(void) argv;
+	unsigned time = millis();
+	testMinifloat();
+	time = millis() - time;
+	printf("Processing took: %dms\n", time);
+	/*
 	const char* file = DEFAULT_TEST_FILE;
 	if (argc < 2) {
 		if (argc == 1) {
@@ -223,6 +329,7 @@ int main(int argc, const char* argv[]) {
 	} else {
 		printf("Error reading\n");
 	}
+	 */
 	/*
 	std::vector<uint8_t> temp(12);
 	VertexPacker out(temp.data(), temp.size());
