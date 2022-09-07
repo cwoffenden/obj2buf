@@ -4,6 +4,44 @@
  */
 #pragma once
 
+/**
+ * \def VEC3_SIMPLE_OPERATOR_WITH_VECTOR
+ * Helper to emit code for the simple operators such as \c +, \c -, etc., for
+ * the \c vec3 type with a vector parameter. For example, with a \c + as its
+ * parameter the macro will output:
+ * \code
+ *	Vec3 operator +(const Vec3& vec) const {
+ *		return Vec3(
+ *			x + vec.x,
+ *			y + vec.y,
+ *			z + vec.z
+ *		);
+ *	}
+ * \endcode
+ */
+#ifndef VEC3_SIMPLE_OPERATOR_WITH_VECTOR
+#define VEC3_SIMPLE_OPERATOR_WITH_VECTOR(op) Vec3 operator op(const Vec3& vec) const {return Vec3(x op vec.x, y op vec.y, z op vec.z);}
+#endif
+
+/**
+ * \def VEC3_SIMPLE_OPERATOR_WITH_VECTOR
+ * Helper to emit code for the simple operators such as \c +, \c -, etc., for
+ * the \c vec3 type with a scalar parameter. For example, with a \c + as its
+ * parameter the macro will output:
+ * \code
+ *	Vec3 operator +(T const val) const {
+ *		return Vec3(
+ *			x + val,
+ *			y + val,
+ *			z + val
+ *		);
+ *	}
+ * \endcode
+ */
+#ifndef VEC3_SIMPLE_OPERATOR_WITH_SCALAR
+#define VEC3_SIMPLE_OPERATOR_WITH_SCALAR(op) Vec3 operator op(T   const   val) const {return Vec3(x op val,   y op val,   z op val  );}
+#endif
+
 template<typename T>
 struct Vec2
 {
@@ -13,6 +51,7 @@ struct Vec2
 		return &x;
 	}
 };
+
 
 template<typename T>
 struct Vec3
@@ -28,41 +67,11 @@ struct Vec3
 	operator T* () {
 		return &x;
 	}
-	Vec3 operator +(const Vec3& vec) const {
-		return Vec3(
-			x + vec.x,
-			y + vec.y,
-			z + vec.z
-		);
-	}
-	Vec3 operator -(const Vec3& vec) const {
-		return Vec3(
-			x - vec.x,
-			y - vec.y,
-			z - vec.z
-		);
-	}
-	Vec3 operator *(const Vec3& vec) const {
-		return Vec3(
-			x * vec.x,
-			y * vec.y,
-			z * vec.z
-		);
-	}
-	Vec3 operator *(T const val) const {
-		return Vec3(
-			x * val,
-			y * val,
-			z * val
-		);
-	}
-	Vec3 operator /(const Vec3& vec) const {
-		return Vec3(
-			x / vec.x,
-			y / vec.y,
-			z / vec.z
-		);
-	}
+	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(+)
+	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(-)
+	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(*)
+	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(/)
+	VEC3_SIMPLE_OPERATOR_WITH_SCALAR(*)
 	/**
 	 * Component-wise minimum of two vectors.
 	 */
