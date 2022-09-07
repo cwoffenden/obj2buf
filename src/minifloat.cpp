@@ -36,6 +36,10 @@ public:
 	 * Creates the look-up tables for the conversion \e to half-precision.
 	 * \n
 	 * This should run once and be stored.
+	 *
+	 * \note Most of the shifts are all one less than in the original paper, the
+	 * exceptions being for truncating to zero and pushing to infinity (since we
+	 * don't want the additional rounding \c 1 adding).
 	 */
 	FloatToHalfConv() {
 		for (int n = 0, e = -127; n < 256; n++, e++) {
@@ -56,7 +60,7 @@ public:
 					 */
 					base[n | 0x100] = (base[n] = (0x0400 >> (-e - 14))) | 0x8000;
 					shft[n | 0x000] =
-					shft[n | 0x100] = static_cast<uint8_t>(-e - 1);
+					shft[n | 0x100] = static_cast<uint8_t>(-e - 2);
 				} else {
 					if (e <= 15) {
 						/*
@@ -65,7 +69,7 @@ public:
 						 */
 						base[n | 0x100] = (base[n] = static_cast<uint16_t>((e + 15) << 10)) | 0x8000;
 						shft[n | 0x000] =
-						shft[n | 0x100] = 13;
+						shft[n | 0x100] = 12;
 					} else {
 						if (e < 128) {
 							/*
@@ -81,11 +85,15 @@ public:
 							/*
 							 * Keep infinity and NaNs (the remaining floats),
 							 * preserving as many mantissa bits as possible.
+							 *
+							 * TODO: the edge-case here is that some of the NaNs
+							 * get slightly changed, but since all the signaling
+							 * NaNs are changed anyway it can be ignored.
 							 */
 							base[n | 0x000] = 0x7C00;
 							base[n | 0x100] = 0xFC00;
 							shft[n | 0x000] =
-							shft[n | 0x100] = 13;
+							shft[n | 0x100] = 12;
 						}
 					}
 				}
@@ -132,7 +140,7 @@ public:
 			uint32_t u; // where we read
 		} bits = {val};
 		uint32_t sExp8 =  bits.u >> 23;
-		uint32_t mnt11 = (bits.u & 0x007FFFFF) >> (shft[sExp8] - 1);
+		uint32_t mnt11 = (bits.u & 0x007FFFFF) >> shft[sExp8];
 		return static_cast<utils::float16>((base[sExp8] | (mnt11 >> 1)) + (mnt11 & 1));
 	}
 
