@@ -1,13 +1,23 @@
 #include "minifloat.h"
 
 /**
- * \def HAS_BUILTIN_FLOAT16
+ * \def MF_HAS_X64_OR_ARM64
+ * If defined this is a regular 64-bit Intel or ARM CPU (and not Power or
+ * something more esoteric).
+ */
+#if defined(_M_X64) || defined(__x86_64__) || defined(_M_ARM64) || defined(__aarch64__)
+#define MF_HAS_X64_OR_ARM64
+#endif
+
+/**
+ * \def MF_HAS_BUILTIN_FLOAT16
  * The original code had multiple CPU specific versions for \c float16, with
  * only the fallback path remaining. Here we try to determine whether the
- * compiler has builtin support for the standard \c _Float16 storage type, in
- * which case we use that.
+ * compiler has builtin support for the standard \c _Float16 storage type and we
+ * know the ABI support exists (which isn't guaranteed for non-mainstream CPUs),
+ * in which case we use that.
  *
- * \def HAS_BUILTIN_DXMATH
+ * \def MF_HAS_BUILTIN_DX_MATH
  * Failing \c _Float16, on MSVC we opt for the DirectXMath F16C/Neon intrinsic
  * implementations. If that's not available we finally use the fallback.
  *
@@ -15,12 +25,12 @@
  */
 #define __STDC_WANT_IEC_60559_TYPES_EXT__
 #include <cfloat>
-#ifdef FLT16_DIG
-#define HAS_BUILTIN_FLOAT16
+#if defined(FLT16_DIG) && defined(MF_HAS_X64_OR_ARM64)
+#define MF_HAS_BUILTIN_FLOAT16
 static_assert(sizeof(_Float16) == sizeof(utils::float16), "Compiler's builtin _Float16 size mismatch");
 #else
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(__x86_64__) || defined(_M_ARM64) || defined(__aarch64__))
-#define HAS_BUILTIN_DXMATH
+#if defined(_MSC_VER) && defined(MF_HAS_X64_OR_ARM64)
+#define MF_HAS_BUILTIN_DX_MATH
 #if defined(_M_X64) || defined(__x86_64__)
 #define _XM_F16C_INTRINSICS_
 #else
@@ -323,7 +333,7 @@ static HalfToFloatConv const halfToFloatConv;
 //******************************** Public API *********************************/
 
 utils::float16 utils::floatToHalf(float const val) {
-#ifdef HAS_BUILTIN_FLOAT16
+#ifdef MF_HAS_BUILTIN_FLOAT16
 	union {
 		_Float16 f; // where we write
 		uint16_t u; // where we read
@@ -332,7 +342,7 @@ utils::float16 utils::floatToHalf(float const val) {
 	};
 	return bits.u;
 #else
-#ifdef HAS_BUILTIN_DXMATH
+#ifdef MF_HAS_BUILTIN_DX_MATH
 	return DirectX::PackedVector::XMConvertFloatToHalf(val);
 #else
 	return impl::floatToHalfConv.convert(val);
@@ -341,14 +351,14 @@ utils::float16 utils::floatToHalf(float const val) {
 }
 
 float utils::halfToFloat(utils::float16 const val) {
-#ifdef HAS_BUILTIN_FLOAT16
+#ifdef MF_HAS_BUILTIN_FLOAT16
 	union {
 		uint16_t u; // where we write
 		_Float16 f; // where we read
 	} bits = {val};
 	return bits.f;
 #else
-#ifdef HAS_BUILTIN_DXMATH
+#ifdef MF_HAS_BUILTIN_DX_MATH
 	return DirectX::PackedVector::XMConvertHalfToFloat(val);
 #else
 	return impl::halfToFloatConv.convert(val);
