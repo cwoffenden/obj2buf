@@ -2,22 +2,31 @@
 
 /**
  * \def HAS_BUILTIN_FLOAT16
- * The original code has multiple CPU specific versions for float16, with only
- * the fallback path remaining. Here we try to determine whether the compiler
- * has builtin support for the standard _Float16 storage type, in which case we
- * use that.
+ * The original code had multiple CPU specific versions for \c float16, with
+ * only the fallback path remaining. Here we try to determine whether the
+ * compiler has builtin support for the standard \c _Float16 storage type, in
+ * which case we use that.
  *
- * \note Testing on a Mac M1 with Clang shows the builtin version to be faster
- * in debug but not in release (10% slower in release). Still, we take the
- * builtin since testing was on one device and, in theory, the compiler should
- * be using FC16 and other hardware instructions to enable 16-bit floats. To be
- * confirmed.
+ * \def HAS_BUILTIN_DXMATH
+ * Failing \c _Float16, on MSVC we opt for the DirectXMath F16C/Neon intrinsic
+ * implementations. If that's not available we finally use the fallback.
+ *
+ * \todo put the original F16C and Neon implementation back
  */
 #define __STDC_WANT_IEC_60559_TYPES_EXT__
 #include <cfloat>
 #ifdef FLT16_DIG
 #define HAS_BUILTIN_FLOAT16
 static_assert(sizeof(_Float16) == sizeof(utils::float16), "Compiler's builtin _Float16 size mismatch");
+#else
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(__x86_64__) || defined(_M_ARM64) || defined(__aarch64__))
+#define HAS_BUILTIN_DXMATH
+#if defined(_M_X64) || defined(__x86_64__)
+#define _XM_F16C_INTRINSICS_
+#else
+#define _XM_ARM_NEON_INTRINSICS_
+#endif
+#include <DirectXPackedVector.h>
 #else
 namespace impl {
 /**
@@ -307,6 +316,8 @@ static FloatToHalfConv const floatToHalfConv;
  */
 static HalfToFloatConv const halfToFloatConv;
 }
+
+#endif
 #endif
 
 //******************************** Public API *********************************/
@@ -321,7 +332,11 @@ utils::float16 utils::floatToHalf(float const val) {
 	};
 	return bits.u;
 #else
+#ifdef HAS_BUILTIN_DXMATH
+	return DirectX::PackedVector::XMConvertFloatToHalf(val);
+#else
 	return impl::floatToHalfConv.convert(val);
+#endif
 #endif
 }
 
@@ -333,6 +348,10 @@ float utils::halfToFloat(utils::float16 const val) {
 	} bits = {val};
 	return bits.f;
 #else
+#ifdef HAS_BUILTIN_DXMATH
+	return DirectX::PackedVector::XMConvertHalfToFloat(val);
+#else
 	return impl::halfToFloatConv.convert(val);
+#endif
 #endif
 }

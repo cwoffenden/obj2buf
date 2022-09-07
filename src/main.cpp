@@ -198,7 +198,7 @@ void process(ObjMesh& mesh) {
 }
 
 #ifdef _MSC_VER
-#include <directxpackedvector.h>
+#include <DirectXPackedVector.h>
 #endif
 #include <cmath>
 utils::float16 native32To16(float val) {
@@ -290,7 +290,7 @@ void testMinifloat() {
 	stats.compare(NAN);
 	// All variants, including signalling NaNs
 	for (int n = 0; n <= 0xFFFF; n++) {
-	//	stats.compare(static_cast<utils::float16>(n));
+		stats.compare(static_cast<utils::float16>(n));
 	}
 	stats.print();
 }
