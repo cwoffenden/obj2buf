@@ -201,6 +201,15 @@ void process(ObjMesh& mesh) {
  */
 int main(int argc, const char* argv[]) {
 	const char* file = DEFAULT_TEST_FILE;
+	ToolOptions opts;
+	int fileIdx = opts.parseArgs(argv, argc);
+	if (fileIdx < argc) {
+		file = argv[fileIdx];
+	}
+	printf("Opening file: %s\n", ToolOptions::filename(file));
+
+	/*
+	const char* file = DEFAULT_TEST_FILE;
 	if (argc < 2) {
 		if (argc == 1) {
 			printf("Usage: %s in.obj [out.dat]\n", ToolOptions::extractFilename(argv[0]));
@@ -208,7 +217,6 @@ int main(int argc, const char* argv[]) {
 	} else {
 		file = argv[1];
 	}
-	printf("Opening file: %s\n", ToolOptions::extractFilename(file));
 	unsigned time = millis();
 	if (fastObjMesh* obj = fast_obj_read(file)) {
 		ObjMesh mesh;
@@ -223,6 +231,7 @@ int main(int argc, const char* argv[]) {
 	} else {
 		printf("Error reading\n");
 	}
+	 */
 	/*
 	std::vector<uint8_t> temp(12);
 	VertexPacker out(temp.data(), temp.size());

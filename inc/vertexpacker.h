@@ -40,22 +40,29 @@ public:
 		SINT08C,
 		/**
 		 * Unsigned \c byte (normalised to fit the range \c 0.0 to \c 1.0).
+		 *
+		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of four components.
 		 */
 		UINT08N,
 		/**
 		 * Unsigned \c byte (clamped to the range \c 0 to \c 255).
 		 *
+		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of four components.
 		 * \note Incompatible with D3D index buffers (use \c #UINT16C).
 		 */
 		UINT08C,
 		/**
 		 * Signed \c short (normalised to fit the range \c -1.0 to \c +1.0).
 		 * Stored as two consecutive bytes.
+		 *
+		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of two components.
 		 */
 		SINT16N,
 		/**
 		 * Signed \c short (clamped to the range \c -32768 to \c +32767).
 		 * Stored as two consecutive bytes.
+		 *
+		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of two components.
 		 */
 		SINT16C,
 		/**
@@ -73,8 +80,8 @@ public:
 		 */
 		UINT16C,
 		/**
-		 * Half-precision \c float (IEEE 754-2008 format). Stored as two
-		 * consecutive bytes.
+		 * Half-precision \c float (IEEE 754-2008 format). Stored as two consecutive
+		 * bytes.
 		 *
 		 * \note Hardware support should be queried before using.
 		 */
@@ -84,6 +91,10 @@ public:
 		 * consecutive bytes.
 		 */
 		FLOAT32,
+		/**
+		 * No storage type was specified (so the default \c #FLOAT32 should be used).
+		 */
+		NONE,
 	};
 
 	/**

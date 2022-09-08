@@ -143,16 +143,16 @@ public:
 		 * reside. This fails on sub-0.01 percent of entries, but nearly half of these
 		 * are in 0x0000-0xFFFF roundtrip range, so this idea was dropped.
 		 *
-		 * In the end, the rounding method chosen also adds the LSB from beyond the 10
-		 * bits mantissa range, but as an integer (which still correctly wraps into the
-		 * exponent). This gets us within a reasonable margin of a full IEEE
-		 * implementation with just a few instruction over the Fox Toolkit method,
+		 * In the end, the rounding method chosen here also adds the LSB from beyond
+		 * the 10 bits mantissa range, but as an integer (which still correctly wraps
+		 * into the exponent). This gets us within a reasonable margin of a full IEEE
+		 * implementation with just a few instructions over the Fox Toolkit method
 		 * without the rounding. Testing the entire 0x0000-0xFFFF range gives an exact
 		 * result, and the rest of 48M values tested have an off-by-1 LSB for 3244 of
 		 * the entries, so all of the nearest even mentioned at the start, plus one.
 		 *
 		 * Testing shows it to be on-par with Clang's ARM implementation (which has,
-		 * one would assume, CPU specific instructions).
+		 * one would assume, CPU specific instructions for F16C and Neon).
 		 */
 		union {
 			float    f; // where we write
