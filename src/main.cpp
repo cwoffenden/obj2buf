@@ -108,7 +108,7 @@ struct ObjMesh
  *
  * \return elapsed time in milliseconds (only valid for calculating time differences)
  */
-static unsigned millis() {
+/*static*/ unsigned millis() {
 	return static_cast<unsigned>(std::chrono::duration_cast<std::chrono::milliseconds>(
 						  std::chrono::steady_clock::now().time_since_epoch()).count());
 }
