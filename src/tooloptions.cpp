@@ -5,32 +5,38 @@
 #include <cstdio>
 
 /**
- * Helper to convert a string data type to a storage type. \c byte becomes \c
- * SINT08N (signed 8-bit int), etc.
+ * Helper to convert a string data type to a storage type. \c b becomes \c
+ * SINT08N (signed 8-bit int), \c ub becomes \c UINT08N (unsigned 8-bit int),
+ * etc.
  *
  * \param[in] type string data type
- * \return appropriate storage type (or \c NONE if a match could not be made)
+ * \return appropriate storage type (or \c EXCLUDE if a match could not be made)
  */
 static VertexPacker::Storage parseType(const char* const type) {
-	if (type && strlen(type) > 1 && type[0] != '-') {
-		if (strncmp(type, "by", 2) == 0) {
+	if (type && strlen(type) > 0) {
+		switch (type[0]) {
+		case 'b':
 			return VertexPacker::SINT08N;
-		}
-		if (strncmp(type, "sh", 2) == 0) {
+		case 's':
 			return VertexPacker::SINT16N;
-		}
-		if (strncmp(type, "ha", 2) == 0) {
+		case 'h':
 			return VertexPacker::FLOAT16;
-		}
-		if (strncmp(type, "fl", 2) == 0) {
+		case 'f':
 			return VertexPacker::FLOAT32;
-		}
-		if (strncmp(type, "no", 2) == 0) {
-			return VertexPacker::NONE;
+		case 'n':
+		case 'x':
+			return VertexPacker::EXCLUDE;
+		default:
+			if (strncmp(type, "ub", 2) == 0) {
+				return VertexPacker::UINT08N;
+			}
+			if (strncmp(type, "us", 2) == 0) {
+				return VertexPacker::UINT16N;
+			}
 		}
 		fprintf(stderr, "Unknown data type: %s\n", type);
 	}
-	return VertexPacker::NONE;
+	return VertexPacker::EXCLUDE;
 }
 
 /**
@@ -43,8 +49,12 @@ static const char* stringType(VertexPacker::Storage const type) {
 	switch (type) {
 	case VertexPacker::SINT08N:
 		return "byte";
+	case VertexPacker::UINT08N:
+		return "unsigned byte";
 	case VertexPacker::SINT16N:
 		return "short";
+	case VertexPacker::UINT16N:
+		return "unsigned short";
 	case VertexPacker::FLOAT16:
 		return "half";
 	case VertexPacker::FLOAT32:
@@ -100,35 +110,38 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		case 'n': // normals
 			if (next + 2 < argc) {
 				norm = parseType(argv[++next]);
-				if (norm == VertexPacker::NONE) {
-					opts |= OPTS_NO_NORMALS;
+				if (norm == VertexPacker::EXCLUDE) {
+					opts |= OPTS_SKIP_NORMALS;
 				}
 			} else {
+				fprintf(stderr, "Type parameter required\n");
 				help();
 			}
 			break;
 		case 'p': // positions
 			if (next + 2 < argc) {
 				posn = parseType(argv[++next]);
-				if (posn == VertexPacker::NONE) {
-					opts |= OPTS_NO_POSITIONS;
+				if (posn == VertexPacker::EXCLUDE) {
+					opts |= OPTS_SKIP_POSITIONS;
 				}
 			} else {
+				fprintf(stderr, "Type parameter required\n");
 				help();
 			}
 			break;
 		case 'u': // UVs
 			if (next + 2 < argc) {
 				text = parseType(argv[++next]);
-				if (text == VertexPacker::NONE) {
-					opts |= OPTS_NO_TEXURE_UVS;
+				if (text == VertexPacker::EXCLUDE) {
+					opts |= OPTS_SKIP_TEXURE_UVS;
 				}
 			} else {
+				fprintf(stderr, "Type parameter required\n");
 				help();
 			}
 			break;
 		case 'x':
-			 opts |= OPTS_NORMALS_XY;
+			 opts |= OPTS_NORMALS_XY_ONLY;
 			 break;
 		case 'h':
 			if (strcmp(arg + 1, "help") == 0) {
@@ -155,14 +168,14 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 }
 
 void ToolOptions::dump() const {
-	printf("Positions:   %s\n", (opts & OPTS_NO_POSITIONS)  ? "skipped" : stringType(posn));
-	printf("Normals:     %s",   (opts & OPTS_NO_NORMALS)    ? "skipped" : stringType(norm));
-	if (opts & (OPTS_NORMALS_XY | OPTS_NORMALS_HEMI_OCT)) {
-		printf(" (encoding: %s)", (opts & OPTS_NORMALS_XY)  ? "XY" : "hemi-oct");
+	printf("Positions:   %s\n", (opts & OPTS_SKIP_POSITIONS)  ? "skipped" : stringType(posn));
+	printf("Normals:     %s",   (opts & OPTS_SKIP_NORMALS)    ? "skipped" : stringType(norm));
+	if (opts & (OPTS_NORMALS_XY_ONLY | OPTS_NORMALS_HEMI_OCT)) {
+		printf(" (encoding: %s)", (opts & OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
 	}
 	printf("\n");
-	printf("Texture UVs: %s\n", (opts & OPTS_NO_TEXURE_UVS) ? "skipped" : stringType(text));
-	printf("Endianness:  %s\n", (opts & OPTS_BIG_ENDIAN)    ? "big" : "little");
+	printf("Texture UVs: %s\n", (opts & OPTS_SKIP_TEXURE_UVS) ? "skipped" : stringType(text));
+	printf("Endianness:  %s\n", (opts & OPTS_BIG_ENDIAN)      ? "big" : "little");
 }
 
 const char* ToolOptions::filename(const char* const path) {

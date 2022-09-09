@@ -92,9 +92,10 @@ public:
 		 */
 		FLOAT32,
 		/**
-		 * No storage type was specified (so the default \c #FLOAT32 should be used).
+		 * Flag to mark as excluded from writing (but fallsback to \c #FLOAT32
+		 * if used).
 		 */
-		NONE,
+		EXCLUDE,
 	};
 
 	/**
