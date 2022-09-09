@@ -32,19 +32,19 @@ public:
 		/**
 		 * Do \e not write positions.
 		 */
-		OPTS_NO_POSITIONS = 1,
+		OPTS_SKIP_POSITIONS = 1,
 		/**
 		 * Do \e not write normals.
 		 */
-		OPTS_NO_NORMALS = 2,
+		OPTS_SKIP_NORMALS = 2,
 		/**
 		 * Do \e not write texture UVs.
 		 */
-		OPTS_NO_TEXURE_UVS = 4,
+		OPTS_SKIP_TEXURE_UVS = 4,
 		/**
-		 * Normals are written as X- and Y-coordinates.
+		 * Normals are written as X- and Y-coordinates (recovering the Z at runtime).
 		 */
-		OPTS_NORMALS_XY = 8,
+		OPTS_NORMALS_XY_ONLY = 8,
 		/**
 		 * Normals are hemi-oct encoded.
 		 */
