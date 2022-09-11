@@ -40,6 +40,28 @@ static VertexPacker::Storage parseType(const char* const type) {
 }
 
 /**
+ * Helper to help \c parseType(const char*) to extract the current argument's type.
+ *
+ * \param[in] argv command-line arguments as passed-in from \c main, \e minus the application name
+ * \param[in] argc number of entries in \a argv
+ * \param[in,out] next index of the current argument being processed
+ * \param[in,out] opts options bitfield to store \a flag if the parsed value is to \c EXCLUDE
+ * \return appropriate storage type (or \c FLOAT32 if none was supplied)
+ */
+static VertexPacker::Storage parseType(const char* const argv[], int const argc, int& next, unsigned& opts, unsigned const flag) {
+	VertexPacker::Storage type = VertexPacker::FLOAT32;
+	if (next + 2 < argc) {
+		type = parseType(argv[++next]);
+		if (type == VertexPacker::EXCLUDE) {
+			opts |= flag;
+		}
+	} else {
+		fprintf(stderr, "Not enough parameters (defaulting to float)\n");
+	}
+	return type;
+}
+
+/**
  * Helper to convert the storage type to a string.
  *
  * \param[in] type storage type
@@ -108,37 +130,13 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 			 help();
 			 break;
 		case 'n': // normals
-			if (next + 2 < argc) {
-				norm = parseType(argv[++next]);
-				if (norm == VertexPacker::EXCLUDE) {
-					opts |= OPTS_SKIP_NORMALS;
-				}
-			} else {
-				fprintf(stderr, "Type parameter required\n");
-				help();
-			}
+			norm = parseType(argv, argc, next, opts, OPTS_SKIP_NORMALS);
 			break;
 		case 'p': // positions
-			if (next + 2 < argc) {
-				posn = parseType(argv[++next]);
-				if (posn == VertexPacker::EXCLUDE) {
-					opts |= OPTS_SKIP_POSITIONS;
-				}
-			} else {
-				fprintf(stderr, "Type parameter required\n");
-				help();
-			}
+			posn = parseType(argv, argc, next, opts, OPTS_SKIP_POSITIONS);
 			break;
 		case 'u': // UVs
-			if (next + 2 < argc) {
-				text = parseType(argv[++next]);
-				if (text == VertexPacker::EXCLUDE) {
-					opts |= OPTS_SKIP_TEXURE_UVS;
-				}
-			} else {
-				fprintf(stderr, "Type parameter required\n");
-				help();
-			}
+			text = parseType(argv, argc, next, opts, OPTS_SKIP_TEXURE_UVS);
 			break;
 		case 'x':
 			 opts |= OPTS_NORMALS_XY_ONLY;
@@ -150,6 +148,12 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 				opts |= OPTS_NORMALS_HEMI_OCT;
 			}
 			break;
+		case 'a': // ASCII
+			 opts |= OPTS_ASCII_FILE;
+			 break;
+		case 'z': // Zstd compression
+			 opts |= OPTS_COMPRESS_ZSTD;
+			 break;
 		case 'b': // big endian
 			opts |= OPTS_BIG_ENDIAN;
 			break;
@@ -160,7 +164,7 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		next++;
 	} else {
 		/*
-		 * We choose "-1 - next" to return "parsing stopped at 0".
+		 * We choose "-1 - next" to return "parsing stopped at 'next'".
 		 */
 		next = -1 - next;
 	}
@@ -168,14 +172,20 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 }
 
 void ToolOptions::dump() const {
-	printf("Positions:   %s\n", (opts & OPTS_SKIP_POSITIONS)  ? "skipped" : stringType(posn));
-	printf("Normals:     %s",   (opts & OPTS_SKIP_NORMALS)    ? "skipped" : stringType(norm));
-	if (opts & (OPTS_NORMALS_XY_ONLY | OPTS_NORMALS_HEMI_OCT)) {
-		printf(" (encoding: %s)", (opts & OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
+	printf("Positions:   %s",   (opts & OPTS_SKIP_POSITIONS)  ? "N/A"     : stringType(posn));
+	if (opts & OPTS_POSITIONS_SCALE) {
+		printf(" (apply %s)",   (opts & OPTS_SCALE_NO_BIAS)   ? "scale"   : "scale & bias");
 	}
 	printf("\n");
-	printf("Texture UVs: %s\n", (opts & OPTS_SKIP_TEXURE_UVS) ? "skipped" : stringType(text));
-	printf("Endianness:  %s\n", (opts & OPTS_BIG_ENDIAN)      ? "big" : "little");
+	printf("Normals:     %s",   (opts & OPTS_SKIP_NORMALS)    ? "N/A"     : stringType(norm));
+	if (opts & (OPTS_NORMALS_XY_ONLY | OPTS_NORMALS_HEMI_OCT)) {
+		printf(" (as %s)",      (opts & OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
+	}
+	printf("\n");
+	printf("Texture UVs: %s\n", (opts & OPTS_SKIP_TEXURE_UVS) ? "N/A"     : stringType(text));
+	printf("File format: %s\n", (opts & OPTS_ASCII_FILE)      ? "ASCII"   : "binary");
+	printf("Compression: %s\n", (opts & OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
+	printf("Endianness:  %s\n", (opts & OPTS_BIG_ENDIAN)      ? "big"     : "little");
 }
 
 const char* ToolOptions::filename(const char* const path) {
@@ -194,11 +204,21 @@ const char* ToolOptions::filename(const char* const path) {
 
 void ToolOptions::help(const char* const path) {
 	const char* name = filename(path);
-	printf("Usage: %s [-p type] [-n type] [-u type] [-b] input.obj [output.dat]\n", (name) ? name : "obj2buf");
-	printf("\t-p vertex positions datatype\n");
-	printf("\t-n vertex normals datatype\n");
-	printf("\t-u vertex texture UVs datatype\n");
-	printf("\ttype is byte|short|half|float|none (where none emits no data)\n");
-	printf("\t-b writes bytes in big endian order\n");
+	if (!name) {
+		 name = "obj2buf";
+	}
+	printf("Usage: %s [-p|n|u type] [-s|sb] [-e|ex] [-a|z|b] in.obj [out.dat]\n", name);
+	printf("\t-p vertex positions type\n");
+	printf("\t-n vertex normals type\n");
+	printf("\t-u vertex texture UVs type\n");
+	printf("\t(where type is byte|short|half|float|none (none emits no data))\n");
+	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
+	printf("\t-sb as -s but without a bias, keeping the origin at zero\n");
+	printf("\t-e encodes normals in XY as hemi-oct\n");
+	printf("\t-ex as -e but as raw XY without the Z\n");
+	printf("\t-a writes the output as ASCII instead of binary\n");
+	printf("\t-z compresses the output using Zstd\n");
+	printf("\t-b writes multi-byte values in big endian order\n");
+	printf("The default is float positions, normals and UVs, as uncompressed LE binary\n");
 	exit(EXIT_FAILURE);
 }

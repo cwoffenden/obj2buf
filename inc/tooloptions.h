@@ -42,17 +42,33 @@ public:
 		 */
 		OPTS_SKIP_TEXURE_UVS = 4,
 		/**
+		 * Scale the positions so all coordinates fit in the range \c -1 to \c 1.
+		 */
+		OPTS_POSITIONS_SCALE = 8,
+		/**
+		 * Maintain the origin for \c OPTS_POSITIONS_SCALE at zero.
+		 */
+		OPTS_SCALE_NO_BIAS = 16,
+		/**
 		 * Normals are written as X- and Y-coordinates (recovering the Z at runtime).
 		 */
-		OPTS_NORMALS_XY_ONLY = 8,
+		OPTS_NORMALS_XY_ONLY = 32,
 		/**
 		 * Normals are hemi-oct encoded.
 		 */
-		OPTS_NORMALS_HEMI_OCT = 16,
+		OPTS_NORMALS_HEMI_OCT = 64,
 		/**
-		 * Output is big endian.
+		 * The output file is ASCII (instead of binary).
 		 */
-		OPTS_BIG_ENDIAN = 32,
+		OPTS_ASCII_FILE = 128,
+		/**
+		 * The output is Zstd compressed.
+		 */
+		OPTS_COMPRESS_ZSTD = 256,
+		/**
+		 * The output byte order is big endian.
+		 */
+		OPTS_BIG_ENDIAN = 512,
 	};
 
 	/**
