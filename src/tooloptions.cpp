@@ -125,37 +125,40 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 	const char* arg = argv[next];
 	if (arg && strlen(arg) > 1 && arg[0] == '-') {
 		switch (arg[1]) {
-		case '?': // help
+		case 'h': // help
+		case '?':
 		case '-':
-			 help();
-			 break;
-		case 'n': // normals
-			norm = parseType(argv, argc, next, opts, OPTS_SKIP_NORMALS);
+			help();
 			break;
 		case 'p': // positions
 			posn = parseType(argv, argc, next, opts, OPTS_SKIP_POSITIONS);
 			break;
+		case 'n': // normals
+			norm = parseType(argv, argc, next, opts, OPTS_SKIP_NORMALS);
+			break;
 		case 'u': // UVs
 			text = parseType(argv, argc, next, opts, OPTS_SKIP_TEXURE_UVS);
 			break;
-		case 'x':
-			 opts |= OPTS_NORMALS_XY_ONLY;
-			 break;
-		case 'h':
-			if (strcmp(arg + 1, "help") == 0) {
-				help();
-			} else {
-				opts |= OPTS_NORMALS_HEMI_OCT;
+		case 's': // scaled positions
+			opts |= OPTS_POSITIONS_SCALE;
+			if (strcmp(arg + 1, "sb") == 0) {
+				opts |= OPTS_SCALE_NO_BIAS;
+			}
+			break;
+		case 'e': // encoded normals
+			opts |= OPTS_NORMALS_ENCODED;
+			if (strcmp(arg + 1, "ez") == 0) {
+				opts |= OPTS_NORMALS_XY_ONLY;
 			}
 			break;
 		case 'a': // ASCII
-			 opts |= OPTS_ASCII_FILE;
-			 break;
-		case 'z': // Zstd compression
-			 opts |= OPTS_COMPRESS_ZSTD;
-			 break;
+			opts |= OPTS_ASCII_FILE;
+			break;
 		case 'b': // big endian
 			opts |= OPTS_BIG_ENDIAN;
+			break;
+		case 'c': // compression
+			opts |= OPTS_COMPRESS_ZSTD;
 			break;
 		default:
 			fprintf(stderr, "Unknown argument: %s\n", arg);
@@ -178,14 +181,14 @@ void ToolOptions::dump() const {
 	}
 	printf("\n");
 	printf("Normals:     %s",   (opts & OPTS_SKIP_NORMALS)    ? "N/A"     : stringType(norm));
-	if (opts & (OPTS_NORMALS_XY_ONLY | OPTS_NORMALS_HEMI_OCT)) {
+	if (opts & OPTS_NORMALS_ENCODED) {
 		printf(" (as %s)",      (opts & OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
 	}
 	printf("\n");
 	printf("Texture UVs: %s\n", (opts & OPTS_SKIP_TEXURE_UVS) ? "N/A"     : stringType(text));
 	printf("File format: %s\n", (opts & OPTS_ASCII_FILE)      ? "ASCII"   : "binary");
-	printf("Compression: %s\n", (opts & OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
 	printf("Endianness:  %s\n", (opts & OPTS_BIG_ENDIAN)      ? "big"     : "little");
+	printf("Compression: %s\n", (opts & OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
 }
 
 const char* ToolOptions::filename(const char* const path) {
@@ -207,18 +210,18 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|n|u type] [-s|sb] [-e|ex] [-a|z|b] in.obj [out.dat]\n", name);
+	printf("Usage: %s [-p|n|u type] [-s|sb] [-e|ez] [-a|b|c] in.obj [out.dat]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-n vertex normals type\n");
 	printf("\t-u vertex texture UVs type\n");
 	printf("\t(where type is byte|short|half|float|none (none emits no data))\n");
 	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
 	printf("\t-sb as -s but without a bias, keeping the origin at zero\n");
-	printf("\t-e encodes normals in XY as hemi-oct\n");
-	printf("\t-ex as -e but as raw XY without the Z\n");
+	printf("\t-e encodes normals in two components as hemi-oct\n");
+	printf("\t-ez as -e but as raw XY without the Z\n");
 	printf("\t-a writes the output as ASCII instead of binary\n");
-	printf("\t-z compresses the output using Zstd\n");
 	printf("\t-b writes multi-byte values in big endian order\n");
+	printf("\t-c compresses the output buffer using Zstandard\n");
 	printf("The default is float positions, normals and UVs, as uncompressed LE binary\n");
 	exit(EXIT_FAILURE);
 }

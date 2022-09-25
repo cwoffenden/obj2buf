@@ -50,25 +50,25 @@ public:
 		 */
 		OPTS_SCALE_NO_BIAS = 16,
 		/**
+		 * Normals are hemi-oct encoded (reconstituting X, Y and Z at runtime).
+		 */
+		OPTS_NORMALS_ENCODED = 32,
+		/**
 		 * Normals are written as X- and Y-coordinates (recovering the Z at runtime).
 		 */
-		OPTS_NORMALS_XY_ONLY = 32,
-		/**
-		 * Normals are hemi-oct encoded.
-		 */
-		OPTS_NORMALS_HEMI_OCT = 64,
+		OPTS_NORMALS_XY_ONLY = 64,
 		/**
 		 * The output file is ASCII (instead of binary).
 		 */
 		OPTS_ASCII_FILE = 128,
 		/**
-		 * The output is Zstd compressed.
-		 */
-		OPTS_COMPRESS_ZSTD = 256,
-		/**
 		 * The output byte order is big endian.
 		 */
-		OPTS_BIG_ENDIAN = 512,
+		OPTS_BIG_ENDIAN = 256,
+		/**
+		 * The output is buffer is compressed (as Zstandard)
+		 */
+		OPTS_COMPRESS_ZSTD = 512,
 	};
 
 	/**

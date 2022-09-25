@@ -3,6 +3,7 @@
  * Wavefront \c .obj to packed buffer.
  *
  * \todo read again the HemiOct16 details, page 27 here: https://jcgt.org/published/0003/02/01/paper.pdf
+ * \todo and compare with https://gist.github.com/Niadb/794ea32f856820bc7e4f5a67c4246791
  */
 
 #include <cfloat>
