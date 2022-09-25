@@ -77,8 +77,8 @@ struct ObjMesh
 	 * Creates a zero-sized buffer.
 	 */
 	ObjMesh()
-		: scale (1, 1, 1)
-		, offset(0, 0, 0) {};
+		: scale(1, 1, 1)
+		, bias (0, 0, 0) {};
 	/**
 	 * Resizes the buffers (usually as a prelude to filling them).
 	 */
@@ -101,7 +101,7 @@ struct ObjMesh
 	/**
 	 * Offset to apply to each vertex position when drawing (the default is \c 0).
 	 */
-	vec3 offset;
+	vec3 bias;
 };
 
 /**
@@ -170,8 +170,11 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 
 /**
  * Scale the mesh positions so that each is normalised between \c -1 and \c 1.
+ *
+ * \param[in] unbiased  \c true if the origin should be maintained at zero (otherwise a bias is applied to make the most of the normalised range)
  */
-void scale(ObjMesh& mesh) {
+void scale(ObjMesh& mesh, bool const unbiased = false) {
+	(void) unbiased;
 	// Get min and max for each component
 	vec3 minPosn({ FLT_MAX,  FLT_MAX,  FLT_MAX});
 	vec3 maxPosn({-FLT_MAX, -FLT_MAX, -FLT_MAX});
@@ -180,11 +183,11 @@ void scale(ObjMesh& mesh) {
 		maxPosn = vec3::max(maxPosn, it->posn);
 	}
 	// Which gives the global mesh scale and offset
-	mesh.scale  = (maxPosn - minPosn) * 0.5f;
-	mesh.offset = (maxPosn + minPosn) * 0.5f;
+	mesh.scale = (maxPosn - minPosn) * 0.5f;
+	mesh.bias  = (maxPosn + minPosn) * 0.5f;
 	// Apply to each vert to normalise
 	for (std::vector<ObjVertex>::iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
-		it->posn = (it->posn - mesh.offset) / mesh.scale;
+		it->posn = (it->posn - mesh.bias) / mesh.scale;
 	}
 }
 

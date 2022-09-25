@@ -80,8 +80,8 @@ public:
 		 */
 		UINT16C,
 		/**
-		 * Half-precision \c float (IEEE 754-2008 format). Stored as two consecutive
-		 * bytes.
+		 * Half-precision \c float (IEEE 754-2008 format). Stored as two
+		 * consecutive bytes.
 		 *
 		 * \note Hardware support should be queried before using.
 		 */
@@ -140,7 +140,7 @@ public:
 	 */
 	~VertexPacker() = default;
 
-	//****************************************************************************/
+	//*************************************************************************/
 
 	/**
 	 * Adds a number to the data stream, converting to the fit as requested.
@@ -167,7 +167,7 @@ private:
 	 */
 	void operator =(const VertexPacker&) = delete;
 
-	//****************************************************************************/
+	//*************************************************************************/
 
 	/**
 	 * Determines whether \a type can be stored without going out of bounds.
