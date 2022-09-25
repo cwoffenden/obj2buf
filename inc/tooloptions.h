@@ -26,7 +26,8 @@ public:
 	enum Options {
 		/**
 		 * Default options: write positions, normals and UVs; normals have three
-		 * components (plus padding); data are written in little endian ordering.
+		 * components (plus padding); data are written as uncompressed binary in
+		 * little endian ordering.
 		 */
 		OPTS_DEFAULT = 0,
 		/**
@@ -42,11 +43,13 @@ public:
 		 */
 		OPTS_SKIP_TEXURE_UVS = 4,
 		/**
-		 * Scale the positions so all coordinates fit in the range \c -1 to \c 1.
+		 * Scale the positions so all coordinates fit in the range \c -1 to \c 1
+		 * (see \c #OPTS_SCALE_NO_BIAS, since the default is to apply a bias to
+		 * make full use of the underlying data format's range).
 		 */
 		OPTS_POSITIONS_SCALE = 8,
 		/**
-		 * Maintain the origin for \c OPTS_POSITIONS_SCALE at zero.
+		 * Maintain the origin for \c #OPTS_POSITIONS_SCALE at zero.
 		 */
 		OPTS_SCALE_NO_BIAS = 16,
 		/**
@@ -54,7 +57,8 @@ public:
 		 */
 		OPTS_NORMALS_ENCODED = 32,
 		/**
-		 * Normals are written as X- and Y-coordinates (recovering the Z at runtime).
+		 * Normals are written as X- and Y-coordinates (recovering the Z at
+		 * runtime).
 		 */
 		OPTS_NORMALS_XY_ONLY = 64,
 		/**
@@ -66,14 +70,19 @@ public:
 		 */
 		OPTS_BIG_ENDIAN = 256,
 		/**
-		 * The output is buffer is compressed (as Zstandard)
+		 * The output buffer is compressed (as Zstandard)
 		 */
 		OPTS_COMPRESS_ZSTD = 512,
 	};
 
 	/**
-	 * Storage type to use when writing the positions. The default is three 32-bit
-	 * \c float&nbsp;s (12 bytes).
+	 * Storage type to use when writing the positions. The default is three
+	 * 32-bit \c float&nbsp;s (12 bytes).
+	 *
+	 * \note The \c Storage formats for 8- and 16-bit integers are here as \e
+	 * normalised (because of how the type options are set) but when writing
+	 * they are changed to the required \e clamped equivalent if \c #opts
+	 * doesn't have Options#OPTS_POSITIONS_SCALE set.
 	 */
 	VertexPacker::Storage posn;
 
@@ -84,8 +93,8 @@ public:
 	VertexPacker::Storage norm;
 
 	/**
-	 * Storage type to use when writing the texture UVs. The default is two 32-bit
-	 * \c float&nbsp;s (8 bytes).
+	 * Storage type to use when writing the texture UVs. The default is two
+	 * 32-bit \c float&nbsp;s (8 bytes).
 	 */
 	VertexPacker::Storage text;
 

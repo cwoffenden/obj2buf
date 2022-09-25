@@ -28,10 +28,10 @@ static VertexPacker::Storage parseType(const char* const type) {
 			return VertexPacker::EXCLUDE;
 		default:
 			if (strncmp(type, "ub", 2) == 0) {
-				return VertexPacker::UINT08N;
+				return VertexPacker::UINT08C;
 			}
 			if (strncmp(type, "us", 2) == 0) {
-				return VertexPacker::UINT16N;
+				return VertexPacker::UINT16C;
 			}
 		}
 		fprintf(stderr, "Unknown data type: %s\n", type);
@@ -70,12 +70,16 @@ static VertexPacker::Storage parseType(const char* const argv[], int const argc,
 static const char* stringType(VertexPacker::Storage const type) {
 	switch (type) {
 	case VertexPacker::SINT08N:
+	case VertexPacker::SINT08C:
 		return "byte";
 	case VertexPacker::UINT08N:
+	case VertexPacker::UINT08C:
 		return "unsigned byte";
 	case VertexPacker::SINT16N:
+	case VertexPacker::SINT16C:
 		return "short";
 	case VertexPacker::UINT16N:
+	case VertexPacker::UINT16C:
 		return "unsigned short";
 	case VertexPacker::FLOAT16:
 		return "half";
