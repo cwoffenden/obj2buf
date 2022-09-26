@@ -4,6 +4,8 @@
 out/
 build/
 
+# Eclipse CDT
 .project
 .cproject
+.settings
 
