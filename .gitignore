@@ -3,3 +3,7 @@
 .vs/
 out/
 build/
+
+.project
+.cproject
+
