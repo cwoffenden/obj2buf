@@ -1,11 +1,17 @@
+# Mac Finder
 .DS_Store
 
+# Visual Studio
 .vs/
-out/
-build/
 
 # Eclipse CDT
 .project
 .cproject
-.settings
+.settings/
 
+# CLion
+.idea/
+
+# Build folders
+out/
+build/
