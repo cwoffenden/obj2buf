@@ -141,7 +141,7 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 			norm = parseType(argv, argc, next, opts, OPTS_SKIP_NORMALS);
 			break;
 		case 'u': // UVs
-			text = parseType(argv, argc, next, opts, OPTS_SKIP_TEXURE_UVS);
+			text = parseType(argv, argc, next, opts, OPTS_SKIP_TEXTURE_UVS);
 			break;
 		case 's': // scaled positions
 			opts |= OPTS_POSITIONS_SCALE;
@@ -179,20 +179,20 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 }
 
 void ToolOptions::dump() const {
-	printf("Positions:   %s",   (opts & OPTS_SKIP_POSITIONS)  ? "N/A"     : stringType(posn));
+	printf("Positions:   %s",   (opts & OPTS_SKIP_POSITIONS)   ? "N/A"     : stringType(posn));
 	if (opts & OPTS_POSITIONS_SCALE) {
-		printf(" (apply %s)",   (opts & OPTS_SCALE_NO_BIAS)   ? "scale"   : "scale & bias");
+		printf(" (apply %s)",   (opts & OPTS_SCALE_NO_BIAS)    ? "scale"   : "scale & bias");
 	}
 	printf("\n");
-	printf("Normals:     %s",   (opts & OPTS_SKIP_NORMALS)    ? "N/A"     : stringType(norm));
+	printf("Normals:     %s",   (opts & OPTS_SKIP_NORMALS)     ? "N/A"     : stringType(norm));
 	if (opts & OPTS_NORMALS_ENCODED) {
-		printf(" (as %s)",      (opts & OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
+		printf(" (as %s)",      (opts & OPTS_NORMALS_XY_ONLY)  ? "XY-only" : "hemi-oct");
 	}
 	printf("\n");
-	printf("Texture UVs: %s\n", (opts & OPTS_SKIP_TEXURE_UVS) ? "N/A"     : stringType(text));
-	printf("File format: %s\n", (opts & OPTS_ASCII_FILE)      ? "ASCII"   : "binary");
-	printf("Endianness:  %s\n", (opts & OPTS_BIG_ENDIAN)      ? "big"     : "little");
-	printf("Compression: %s\n", (opts & OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
+	printf("Texture UVs: %s\n", (opts & OPTS_SKIP_TEXTURE_UVS) ? "N/A"     : stringType(text));
+	printf("File format: %s\n", (opts & OPTS_ASCII_FILE)       ? "ASCII"   : "binary");
+	printf("Endianness:  %s\n", (opts & OPTS_BIG_ENDIAN)       ? "big"     : "little");
+	printf("Compression: %s\n", (opts & OPTS_COMPRESS_ZSTD)    ? "Zstd"    : "none");
 }
 
 const char* ToolOptions::filename(const char* const path) {
