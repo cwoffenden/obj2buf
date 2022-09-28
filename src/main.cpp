@@ -21,6 +21,24 @@
 #include "vertexpacker.h"
 
 /**
+ * \def DEFAULT_TEST_FOLDER
+ * \e Horrible workaround for launching from a CMake project in Xcode and MSVS
+ * (Xcode needs the relative path, VS knows to launch from the \c dat folder,
+ * which doesn't appear to be exposed in Xcode).
+ */
+#ifndef _MSC_VER
+#define DEFAULT_TEST_FOLDER "../../dat/"
+#else
+#define DEFAULT_TEST_FOLDER
+#endif
+
+/**
+ * \def DEFAULT_TEST_FILE
+ * Default .obj file to load if none is supplied.
+ */
+#define DEFAULT_TEST_FILE DEFAULT_TEST_FOLDER "bunny.obj"
+
+/**
  * Container for the vertex data extracted from an \c obj file.
  */
 struct ObjVertex
@@ -154,13 +172,13 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 /**
  * Opens an \c .obj file and extract its content into \a mesh.
  *
- * \param[in] srcFile filename of the \c .obj file
+ * \param[in] srcPath filename of the \c .obj file
  * \param[out] mesh destination for the \c .obj file content
  * \return \c true if the file was valid and \a mesh has its content
  */
-bool open(const char* const srcFile, ObjMesh& mesh) {
-	if (srcFile) {
-		if (fastObjMesh* obj = fast_obj_read(srcFile)) {
+bool open(const char* const srcPath, ObjMesh& mesh) {
+	if (srcPath) {
+		if (fastObjMesh* obj = fast_obj_read(srcPath)) {
 			extract(obj, mesh);
 			fast_obj_destroy(obj);
 			return true;
@@ -210,47 +228,61 @@ void optimise(ObjMesh& mesh) {
 int main(int argc, const char* argv[]) {
 	ObjMesh mesh;
 	// Gather files and tool options
-	const char* srcFile = nullptr;
-	const char* dstFile = nullptr;
+	const char* srcPath = DEFAULT_TEST_FILE;
+	const char* dstPath = nullptr;
 	ToolOptions opts;
-	int fileIdx = opts.parseArgs(argv, argc);
-	if (fileIdx < argc) {
-		srcFile = argv[fileIdx];
-		if (fileIdx + 1 < argc) {
-			dstFile = argv[fileIdx + 1];
+	int srcIdx = opts.parseArgs(argv, argc);
+	if (srcIdx < argc) {
+		srcPath = argv[srcIdx];
+		if (srcIdx + 1 < argc) {
+			dstPath = argv[srcIdx + 1];
 		}
 	}
 	// Now we start
-	if (open(srcFile, mesh)) {
-		// Perform a scale/bias if requested
-		if (opts.opts & ToolOptions::OPTS_POSITIONS_SCALE) {
-			scale(mesh, opts.opts & ToolOptions::OPTS_SCALE_NO_BIAS);
-		}
-		// Perform the various optimisations
-		optimise(mesh);
-		printf("Vertices: %d, Indices %d\n", static_cast<int>(mesh.verts.size()), static_cast<int>(mesh.index.size()));
-		(void) dstFile;
+	if (!open(srcPath, mesh)) {
+		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
+		return EXIT_FAILURE;
 	}
-
-	/*
-	std::vector<uint8_t> temp(12);
-	VertexPacker out(temp.data(), temp.size());
-	
-	out.add(-1.0f, VertexPacker::SINT08N);
-	out.add( 0.0f, VertexPacker::SINT08N);
-	out.add( 1.0f, VertexPacker::SINT08N);
-
-	out.add(-1.0f, VertexPacker::SINT08C);
-	out.add( 0.0f, VertexPacker::SINT08C);
-	out.add( 1.0f, VertexPacker::SINT08C);
-
-	out.add(-1.0f, VertexPacker::UINT08N);
-	out.add( 0.0f, VertexPacker::UINT08N);
-	out.add( 1.0f, VertexPacker::UINT08N);
-
-	out.add(-1.0f, VertexPacker::UINT08C);
-	out.add( 0.0f, VertexPacker::UINT08C);
-	out.add( 1.0f, VertexPacker::UINT08C);
-	 */
-	return EXIT_SUCCESS;
+	// Perform an in-place scale/bias if requested
+	if ((opts.opts & ToolOptions::OPTS_POSITIONS_SCALE)) {
+		scale(mesh, opts.opts & ToolOptions::OPTS_SCALE_NO_BIAS);
+	}
+	// Then the various optimisations
+	optimise(mesh);
+	printf("Vertices: %d\n", static_cast<int>(mesh.verts.size()));
+	printf("Indices:  %d\n", static_cast<int>(mesh.index.size()));
+	// Maximum buffer size: vert posn, norm, uv + indices
+	size_t const maxBufBytes = mesh.verts.size() * sizeof(float) * (3 + 3 + 2)
+							 + mesh.index.size() * sizeof(uint32_t);
+	std::vector<uint8_t> backing(maxBufBytes);
+	// Tool options to packer options
+	unsigned packOpts = VertexPacker::OPTS_DEFAULT;
+	if ((opts.opts & ToolOptions::OPTS_BIG_ENDIAN)) {
+		packOpts |= VertexPacker::OPTS_BIG_ENDIAN;
+	}
+	if ((opts.opts & ToolOptions::OPTS_SIGNED_LEGACY)) {
+		packOpts |= VertexPacker::OPTS_SIGNED_LEGACY;
+	}
+	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
+	for (std::vector<ObjVertex>::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
+		if (!(opts.opts & ToolOptions::OPTS_SKIP_POSITIONS)) {
+			packer.add(it->posn, VertexPacker::FLOAT32);
+		}
+		if (!(opts.opts & ToolOptions::OPTS_SKIP_NORMALS)) {
+			packer.add(it->norm, VertexPacker::FLOAT32);
+		}
+		if (!(opts.opts & ToolOptions::OPTS_SKIP_TEXTURE_UVS)) {
+			packer.add(it->uv_0, VertexPacker::FLOAT32);
+		}
+	}
+	printf("Vertex buffer bytes: %d\n", static_cast<int>(packer.bytes()));
+	if (FILE* dstFile = fopen(dstPath, "w")) {
+		fwrite(backing.data(), 1, packer.bytes(), dstFile);
+		if (fclose(dstFile) == 0) {
+			return EXIT_SUCCESS;
+		}
+	} else {
+		fprintf(stderr, "Unable to write: %s\n", (dstPath) ? dstPath : "null");
+	}
+	return EXIT_FAILURE;
 }

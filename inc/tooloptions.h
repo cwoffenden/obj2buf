@@ -73,6 +73,11 @@ public:
 		 * The output buffer is compressed (as Zstandard)
 		 */
 		OPTS_COMPRESS_ZSTD = 512,
+		/**
+		 * Normalised signed values are compatible with older APIs, where the
+		 * full range of bits is used but zero cannot be represented.
+		 */
+		 OPTS_SIGNED_LEGACY = 1024,
 	};
 
 	/**

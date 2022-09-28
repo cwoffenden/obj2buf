@@ -15,3 +15,7 @@
 # Build folders
 out/
 build/
+
+# Generated test files
+dat/*.bin
+dat/*.inc

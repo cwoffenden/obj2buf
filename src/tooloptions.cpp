@@ -164,6 +164,9 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		case 'c': // compression
 			opts |= OPTS_COMPRESS_ZSTD;
 			break;
+		case 'l': // legacy GL signing rule
+			opts |= OPTS_SIGNED_LEGACY;
+			break;
 		default:
 			fprintf(stderr, "Unknown argument: %s\n", arg);
 			help();
@@ -193,6 +196,7 @@ void ToolOptions::dump() const {
 	printf("File format: %s\n", (opts & OPTS_ASCII_FILE)       ? "ASCII"   : "binary");
 	printf("Endianness:  %s\n", (opts & OPTS_BIG_ENDIAN)       ? "big"     : "little");
 	printf("Compression: %s\n", (opts & OPTS_COMPRESS_ZSTD)    ? "Zstd"    : "none");
+	printf("Signed rule: %s\n", (opts & OPTS_SIGNED_LEGACY)    ? "legacy"  : "modern");
 }
 
 const char* ToolOptions::filename(const char* const path) {
@@ -214,7 +218,7 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|n|u type] [-s|sb] [-e|ez] [-a|b|c] in.obj [out.dat]\n", name);
+	printf("Usage: %s [-p|n|u type] [-s|sb] [-e|ez] [-a|b|c|l] in.obj [out.bin]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-n vertex normals type\n");
 	printf("\t-u vertex texture UVs type\n");
@@ -226,6 +230,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-a writes the output as ASCII instead of binary\n");
 	printf("\t-b writes multi-byte values in big endian order\n");
 	printf("\t-c compresses the output buffer using Zstandard\n");
+	printf("\t-l use the legacy OpenGL rule for normalised signed values\n");
 	printf("The default is float positions, normals and UVs, as uncompressed LE binary\n");
 	exit(EXIT_FAILURE);
 }
