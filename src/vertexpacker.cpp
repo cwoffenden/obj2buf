@@ -186,8 +186,36 @@ bool VertexPacker::add(float const data, Storage const type) {
 	return false;
 }
 
+bool VertexPacker::add(const vec2& data, Storage const type) {
+	bool failed = false;
+	failed |= !add(data.x, type);
+	failed |= !add(data.y, type);
+	return !failed;
+}
+
+bool VertexPacker::add(const vec3& data, Storage const type) {
+	bool failed = false;
+	failed |= !add(data.x, type);
+	failed |= !add(data.y, type);
+	failed |= !add(data.z, type);
+	return !failed;
+}
+
+bool VertexPacker::add(const vec4& data, Storage const type) {
+	bool failed = false;
+	failed |= !add(data.x, type);
+	failed |= !add(data.y, type);
+	failed |= !add(data.z, type);
+	failed |= !add(data.w, type);
+	return !failed;
+}
+
 void VertexPacker::rewind() {
 	next = root;
+}
+
+size_t VertexPacker::bytes() const {
+	return static_cast<size_t>(next - root);
 }
 
 bool VertexPacker::hasFreeSpace(Storage const type) const {

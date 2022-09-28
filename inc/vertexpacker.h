@@ -143,18 +143,52 @@ public:
 	//*************************************************************************/
 
 	/**
-	 * Adds a number to the data stream, converting to the fit as requested.
+	 * Adds a value to the data stream, converting and storing to \a type.
 	 *
-	 * \param[in] data value to convert add
+	 * \param[in] data value to add
 	 * \param[in] type conversion and byte storage
 	 * \return \c true if adding was successful (\c false if no more storage space is available)
 	 */
 	bool add(float const data, Storage const type);
 
 	/**
+	 * Adds two values to the data stream, converting and storing to \a type.
+	 *
+	 * \param[in] data values to add
+	 * \param[in] type conversion and byte storage
+	 * \return \c true if adding was successful (\c false if no more storage space is available)
+	 */
+	bool add(const vec2& data, Storage const type);
+
+	/**
+	 * Adds three values to the data stream, converting and storing to \a type.
+	 *
+	 * \param[in] data values to add
+	 * \param[in] type conversion and byte storage
+	 * \return \c true if adding was successful (\c false if no more storage space is available)
+	 */
+	bool add(const vec3& data, Storage const type);
+
+	/**
+	 * Adds four values to the data stream, converting and storing to \a type.
+	 *
+	 * \param[in] data values to add
+	 * \param[in] type conversion and byte storage
+	 * \return \c true if adding was successful (\c false if no more storage space is available)
+	 */
+	bool add(const vec4& data, Storage const type);
+
+	/**
 	 * Starts adding to the stream from the beginning.
 	 */
 	void rewind();
+
+	/**
+	 * Returns the number of bytes added to the underlying storage.
+	 *
+	 * \return the number of bytes added
+	 */
+	size_t bytes() const;
 
 private:
 	/**
