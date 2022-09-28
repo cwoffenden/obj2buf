@@ -229,7 +229,7 @@ int main(int argc, const char* argv[]) {
 		// Perform the various optimisations
 		optimise(mesh);
 		printf("Vertices: %d, Indices %d\n", static_cast<int>(mesh.verts.size()), static_cast<int>(mesh.index.size()));
-
+		(void) dstFile;
 	}
 
 	/*
