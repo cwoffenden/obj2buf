@@ -223,6 +223,58 @@ void optimise(ObjMesh& mesh) {
 }
 
 /**
+ * Helper to write a buffer to a file.
+ *
+ * \param[in] dstPath filename of the destination file
+ * \param[in] data start of the raw data
+ * \param[in] size number of bytes to write
+ * \return \c true if writing the requested number of bytes was successful
+ */
+bool write(const char* const dstPath, const void* const data, size_t const size) {
+	if (dstPath && data) {
+		if (FILE *dstFile = fopen(dstPath, "wb")) {
+			size_t wrote = fwrite(data, 1, size, dstFile);
+			if (fclose(dstFile) == 0) {
+				return wrote == size;
+			}
+		}
+	}
+	return false;
+}
+
+/**
+ * Helper to write a buffer to a file with optional Zstandard compression.
+ *
+ * \param[in] dstPath filename of the destination file
+ * \param[in] data start of the raw data
+ * \param[in] size number of bytes to write
+ * \param[in] zstd \c true if the file should be compressed with Zstandard
+ * \return \c true if writing the requested number of bytes was successful
+ */
+bool write(const char* const dstPath, const void* const data, size_t const size, bool const zstd) {
+	bool success = false;
+	if (data) {
+		if (zstd) {
+			/*
+			 * We use the simple API to compress in one go the entire buffer.
+			 */
+			size_t bounds = ZSTD_compressBound(size);
+			void* compBuf = malloc(bounds);
+			if (compBuf) {
+				size_t compSize = ZSTD_compress(compBuf, bounds, data, size, ZSTD_maxCLevel());
+				if (!ZSTD_isError(compSize)) {
+					success = write(dstPath, compBuf, compSize);
+				}
+				free(compBuf);
+			}
+		} else {
+			success = write(dstPath, data, size);
+		}
+	}
+	return success;
+}
+
+/**
  * Load and convert.
  */
 int main(int argc, const char* argv[]) {
@@ -276,13 +328,12 @@ int main(int argc, const char* argv[]) {
 		}
 	}
 	printf("Vertex buffer bytes: %d\n", static_cast<int>(packer.bytes()));
-	if (FILE* dstFile = fopen(dstPath, "w")) {
-		fwrite(backing.data(), 1, packer.bytes(), dstFile);
-		if (fclose(dstFile) == 0) {
-			return EXIT_SUCCESS;
-		}
-	} else {
+
+	bool zstd = (opts.opts & ToolOptions::OPTS_COMPRESS_ZSTD);
+	//bool text = (opts.opts & ToolOptions::OPTS_ASCII_FILE);
+	if (!write(dstPath, backing.data(), packer.bytes(), zstd)) {
 		fprintf(stderr, "Unable to write: %s\n", (dstPath) ? dstPath : "null");
+		return EXIT_FAILURE;
 	}
-	return EXIT_FAILURE;
+	return EXIT_SUCCESS;
 }
