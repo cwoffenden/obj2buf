@@ -41,7 +41,7 @@ public:
 		/**
 		 * Do \e not write texture UVs.
 		 */
-		OPTS_SKIP_TEXURE_UVS = 4,
+		OPTS_SKIP_TEXTURE_UVS = 4,
 		/**
 		 * Scale the positions so all coordinates fit in the range \c -1 to \c 1
 		 * (see \c #OPTS_SCALE_NO_BIAS, since the default is to apply a bias to
