@@ -256,13 +256,16 @@ bool write(const char* const dstPath, const void* const data, size_t const size,
 	if (data) {
 		if (zstd) {
 			/*
-			 * We use the simple API to compress in one go the entire buffer.
+			 * We use the simple API to compress the entire buffer in one go
+			 * (with a mono-threaded Zstd).
 			 */
 			size_t bounds = ZSTD_compressBound(size);
 			void* compBuf = malloc(bounds);
 			if (compBuf) {
 				size_t compSize = ZSTD_compress(compBuf, bounds, data, size, ZSTD_maxCLevel());
-				if (!ZSTD_isError(compSize)) {
+				if (ZSTD_isError(compSize)) {
+					fprintf(stderr, "Compression failed: %s\n", ZSTD_getErrorName(compSize));
+				} else {
 					success = write(dstPath, compBuf, compSize);
 				}
 				free(compBuf);
