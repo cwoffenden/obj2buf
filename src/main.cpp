@@ -13,29 +13,12 @@
 #include <chrono>
 #include <vector>
 
-#include "meshoptimizer.h"
 #include "fast_obj.h"
+#include "meshoptimizer.h"
+#include "zstd.h"
 
 #include "tooloptions.h"
 #include "vertexpacker.h"
-
-/**
- * \def DEFAULT_TEST_FOLDER
- * \e Horrible workaround for launching from a CMake project in Xcode and MSVS
- * (Xcode needs the relative path, VS knows to launch from the \c dat folder,
- * which doesn't appear to be exposed in Xcode).
- */
-#ifndef _MSC_VER
-#define DEFAULT_TEST_FOLDER "../../dat/"
-#else
-#define DEFAULT_TEST_FOLDER
-#endif
-
-/**
- * \def DEFAULT_TEST_FILE
- * Default .obj file to load if none is supplied.
- */
-#define DEFAULT_TEST_FILE DEFAULT_TEST_FOLDER "bunny.obj"
 
 /**
  * Container for the vertex data extracted from an \c obj file.
@@ -169,8 +152,27 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 }
 
 /**
+ * Opens an \c .obj file and extract its content into \a mesh.
+ *
+ * \param[in] srcFile filename of the \c .obj file
+ * \param[out] mesh destination for the \c .obj file content
+ * \return \c true if the file was valid and \a mesh has its content
+ */
+bool open(const char* const srcFile, ObjMesh& mesh) {
+	if (srcFile) {
+		if (fastObjMesh* obj = fast_obj_read(srcFile)) {
+			extract(obj, mesh);
+			fast_obj_destroy(obj);
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
  * Scale the mesh positions so that each is normalised between \c -1 and \c 1.
  *
+ * \param[in,out] mesh mesh to in-place scale
  * \param[in] unbiased  \c true if the origin should be maintained at zero (otherwise a bias is applied to make the most of the normalised range)
  */
 void scale(ObjMesh& mesh, bool const unbiased = false) {
@@ -192,9 +194,11 @@ void scale(ObjMesh& mesh, bool const unbiased = false) {
 }
 
 /**
- * Optimise (and eventually export) the mesh.
+ * Run meshopt's various processes.
+ *
+ * \param[in,out] mesh mesh to in-place optimise
  */
-void process(ObjMesh& mesh) {
+void optimise(ObjMesh& mesh) {
 	meshopt_optimizeVertexCache(mesh.index.data(), mesh.index.data(), mesh.index.size(), mesh.verts.size());
 	meshopt_optimizeOverdraw   (mesh.index.data(), mesh.index.data(), mesh.index.size(), mesh.verts[0].posn, mesh.verts.size(), sizeof(ObjVertex), 1.01f);
 	meshopt_optimizeVertexFetch(mesh.verts.data(), mesh.index.data(), mesh.index.size(), mesh.verts.data(),  mesh.verts.size(), sizeof(ObjVertex));
@@ -204,38 +208,30 @@ void process(ObjMesh& mesh) {
  * Load and convert.
  */
 int main(int argc, const char* argv[]) {
-	const char* file = DEFAULT_TEST_FILE;
+	ObjMesh mesh;
+	// Gather files and tool options
+	const char* srcFile = nullptr;
+	const char* dstFile = nullptr;
 	ToolOptions opts;
 	int fileIdx = opts.parseArgs(argv, argc);
 	if (fileIdx < argc) {
-		file = argv[fileIdx];
-	}
-	printf("Opening file: %s\n", ToolOptions::filename(file));
-
-	/*
-	const char* file = DEFAULT_TEST_FILE;
-	if (argc < 2) {
-		if (argc == 1) {
-			printf("Usage: %s in.obj [out.dat]\n", ToolOptions::extractFilename(argv[0]));
+		srcFile = argv[fileIdx];
+		if (fileIdx + 1 < argc) {
+			dstFile = argv[fileIdx + 1];
 		}
-	} else {
-		file = argv[1];
 	}
-	unsigned time = millis();
-	if (fastObjMesh* obj = fast_obj_read(file)) {
-		ObjMesh mesh;
-		printf("Parsing...\n");
-		extract(obj, mesh);
-		fast_obj_destroy(obj);
-		scale(mesh);
-		process(mesh);
-		time = millis() - time;
+	// Now we start
+	if (open(srcFile, mesh)) {
+		// Perform a scale/bias if requested
+		if (opts.opts & ToolOptions::OPTS_POSITIONS_SCALE) {
+			scale(mesh, opts.opts & ToolOptions::OPTS_SCALE_NO_BIAS);
+		}
+		// Perform the various optimisations
+		optimise(mesh);
 		printf("Vertices: %d, Indices %d\n", static_cast<int>(mesh.verts.size()), static_cast<int>(mesh.index.size()));
-		printf("Processing took: %dms\n", time);
-	} else {
-		printf("Error reading\n");
+
 	}
-	 */
+
 	/*
 	std::vector<uint8_t> temp(12);
 	VertexPacker out(temp.data(), temp.size());
