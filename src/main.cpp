@@ -15,6 +15,7 @@
 
 #include "fast_obj.h"
 #include "meshoptimizer.h"
+#include "mikktspace.h"
 #include "zstd.h"
 
 #include "tooloptions.h"
