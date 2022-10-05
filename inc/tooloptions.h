@@ -104,6 +104,18 @@ public:
 	VertexPacker::Storage text;
 
 	/**
+	 * Storage type to use when writing the tangents. The default is exclude
+	 * tangents (and by extension bitangents).
+	 */
+	VertexPacker::Storage tans;
+
+	/**
+	 * Storage type to use when writing the bitangents. The default is exclude
+	 * bitangents (and by extension tangents).
+	 */
+	VertexPacker::Storage btan;
+
+	/**
 	 * A bitfield of the tool's \c #Options (see \c #OPTS_DEFAULT).
 	 */
 	unsigned opts;
@@ -115,6 +127,8 @@ public:
 		: posn(VertexPacker::FLOAT32)
 		, norm(VertexPacker::FLOAT32)
 		, text(VertexPacker::FLOAT32)
+		, tans(VertexPacker::EXCLUDE)
+		, btan(VertexPacker::EXCLUDE)
 		, opts(OPTS_DEFAULT) {}
 
 	/**
