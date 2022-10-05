@@ -13,7 +13,6 @@
 #include <chrono>
 #include <vector>
 
-#include "fast_obj.h"
 #include "meshoptimizer.h"
 #include "zstd.h"
 
@@ -130,6 +129,7 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 		}
 		vertBase += faceVerts;
 	}
+	ObjVertex::generateTangents(verts);
 	// Generate the indices
 	std::vector<unsigned> remap(maxVerts);
 	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
