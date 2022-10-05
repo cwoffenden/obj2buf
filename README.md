@@ -2,7 +2,7 @@
 
 [![CMake macOS/Windows/Linux](/../../actions/workflows/cmake-desktop.yml/badge.svg)](/../../actions/workflows/cmake-desktop.yml)
 
-This is mostly a wrapper around [meshoptimizer](//github.com/zeux/meshoptimizer) and [fast_obj](//github.com/thisistherk/fast_obj). It reads in an `.obj` file and outputs an interleaved buffer (with optional [Zstandard](//github.com/facebook/zstd) compression).
+This is mostly a wrapper around [meshoptimizer](//github.com/zeux/meshoptimizer), [fast_obj](//github.com/thisistherk/fast_obj) and [MikkTSpace](//github.com/mmikk/MikkTSpace). It reads in an `.obj` file and outputs an interleaved buffer (with optional [Zstandard](//github.com/facebook/zstd) compression).
 
 ```
 Usage: obj2buf [-p|n|u type] [-s|sb] [-e|ez] [-a|b|c|l] in.obj [out.bin]
