@@ -11,14 +11,12 @@
 #include <cstdio>
 
 #include <chrono>
-#include <vector>
 
 #include "meshoptimizer.h"
 #include "zstd.h"
 
 #include "objvertex.h"
 #include "tooloptions.h"
-#include "vertexpacker.h"
 
 /**
  * The \c obj file as a vertex and index data.
