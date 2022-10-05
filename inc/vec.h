@@ -48,7 +48,12 @@ struct Vec2
 	T x;
 	T y;
     Vec2() {}
-	operator T* () {
+	Vec2& operator =(T const val) {
+		x = val;
+		y = val;
+		return *this;
+	}
+	operator T*() {
 		return &x;
 	}
 };
@@ -65,7 +70,13 @@ struct Vec3
 		: x(x)
 		, y(y)
 		, z(z) {}
-	operator T* () {
+	Vec3& operator =(T const val) {
+		x = val;
+		y = val;
+		z = val;
+		return *this;
+	}
+	operator T*() {
 		return &x;
 	}
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(+)
@@ -102,7 +113,14 @@ struct Vec4
 	T y;
 	T z;
 	T w;
-	operator T* () {
+	Vec4& operator =(T const val) {
+		x = val;
+		y = val;
+		z = val;
+		w = val;
+		return *this;
+	}
+	operator T*() {
 		return &x;
 	}
 };
