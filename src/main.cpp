@@ -21,24 +21,6 @@
 #include "vertexpacker.h"
 
 /**
- * \def DEFAULT_TEST_FOLDER
- * \e Horrible workaround for launching from a CMake project in Xcode and MSVS
- * (Xcode needs the relative path, VS knows to launch from the \c dat folder,
- * which doesn't appear to be exposed in Xcode).
- */
-#ifndef _MSC_VER
-#define DEFAULT_TEST_FOLDER "../../dat/"
-#else
-#define DEFAULT_TEST_FOLDER
-#endif
-
-/**
- * \def DEFAULT_TEST_FILE
- * Default .obj file to load if none is supplied.
- */
-#define DEFAULT_TEST_FILE DEFAULT_TEST_FOLDER "bunny.obj"
-
-/**
  * The \c obj file as a vertex and index data.
  */
 struct ObjMesh
@@ -59,11 +41,11 @@ struct ObjMesh
 	/**
 	 * Collection of (usually) unique vertices referenced by \c #index.
 	 */
-	std::vector<ObjVertex> verts;
+	ObjVertex::Container verts;
 	/**
 	 * Collection of indices into \c #verts.
 	 */
-	std::vector<unsigned>  index;
+	std::vector<unsigned> index;
 	/**
 	 * Scale to apply to each vertex position when drawing (the default is \c 1).
 	 */
@@ -107,11 +89,12 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 		for (unsigned vert = 0; vert < faceVerts; vert++) {
 			if (vert > 2) {
 				/*
-				 * We create fans for any faces with more than three verts (which will only
-				 * work for convex polys, but this should really be processing only tris or
-				 * quads). We create fans as [0, 1, 2], [2, 3, 0], [0, 3, 4], etc., with
-				 * each added tri using the last tri's vert as its starting point, not for
-				 * vert buffer locality but for compression.
+				 * We create fans for any faces with more than three verts
+				 * (which will only work for convex polys, but this should
+				 * really be processing only tris or quads). We create fans as
+				 * [0, 1, 2], [2, 3, 0], [0, 3, 4], etc., with each added tri
+				 * using the last tri's vert as its starting point, not for vert
+				 * buffer locality but for ease of compression.
 				 */
 				if ((vert & 1) != 0) {
 					verts.push_back(verts[verts.size() - 1]);
@@ -253,7 +236,7 @@ bool write(const char* const dstPath, const void* const data, size_t const size,
 int main(int argc, const char* argv[]) {
 	ObjMesh mesh;
 	// Gather files and tool options
-	const char* srcPath = DEFAULT_TEST_FILE;
+	const char* srcPath = nullptr;
 	const char* dstPath = nullptr;
 	ToolOptions opts;
 	int srcIdx = opts.parseArgs(argv, argc);
