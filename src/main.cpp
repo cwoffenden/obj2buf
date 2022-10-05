@@ -15,9 +15,9 @@
 
 #include "fast_obj.h"
 #include "meshoptimizer.h"
-#include "mikktspace.h"
 #include "zstd.h"
 
+#include "objvertex.h"
 #include "tooloptions.h"
 #include "vertexpacker.h"
 
@@ -38,37 +38,6 @@
  * Default .obj file to load if none is supplied.
  */
 #define DEFAULT_TEST_FILE DEFAULT_TEST_FOLDER "bunny.obj"
-
-/**
- * Container for the vertex data extracted from an \c obj file.
- */
-struct ObjVertex
-{
-	/**
-	 * Uninitialised vertex data.
-	 */
-	ObjVertex() = default;
-	/**
-	 * Constructs a single vertex from the \c obj data, extracting the relevant
-	 * position, normal and UV data.
-	 *
-	 * \param[in] obj the \c fast_obj file
-	 * \param[in] idx current face index being processed
-	 */
-	ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
-		posn.x = obj->positions[idx->p * 3 + 0];
-		posn.y = obj->positions[idx->p * 3 + 1];
-		posn.z = obj->positions[idx->p * 3 + 2];
-		norm.x = obj->normals  [idx->n * 3 + 0];
-		norm.y = obj->normals  [idx->n * 3 + 1];
-		norm.z = obj->normals  [idx->n * 3 + 2];
-		uv_0.x = obj->texcoords[idx->t * 2 + 0];
-		uv_0.y = obj->texcoords[idx->t * 2 + 1];
-	}
-	vec3 posn;
-	vec3 norm;
-	vec2 uv_0;
-};
 
 /**
  * The \c obj file as a vertex and index data.
@@ -124,7 +93,7 @@ struct ObjMesh
  */
 void extract(fastObjMesh* obj, ObjMesh& mesh) {
 	// No objects or groups, just one big triangle mesh from the file
-	std::vector<ObjVertex> verts;
+	ObjVertex::Container verts;
 	// Content should be in tris but we're going to create fans from any polys
 	unsigned maxVerts = 0;
 	for (unsigned face = 0; face < obj->face_count; face++) {
@@ -292,6 +261,8 @@ int main(int argc, const char* argv[]) {
 		srcPath = argv[srcIdx];
 		if (srcIdx + 1 < argc) {
 			dstPath = argv[srcIdx + 1];
+		} else {
+		    dstPath = "out.bin";
 		}
 	}
 	// Now we start
