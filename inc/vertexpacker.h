@@ -152,6 +152,11 @@ public:
 	bool add(float const data, Storage const type);
 
 	/**
+	 * \copydoc #add(float,Storage)
+	 */
+	bool add(int const data, Storage const type);
+
+	/**
 	 * Adds two values to the data stream, converting and storing to \a type.
 	 *
 	 * \param[in] data values to add

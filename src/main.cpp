@@ -321,6 +321,7 @@ int main(int argc, const char* argv[]) {
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SIGNED_LEGACY)) {
 		packOpts |= VertexPacker::OPTS_SIGNED_LEGACY;
 	}
+	// Pack the vertex data
 	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
 	for (std::vector<ObjVertex>::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
 		if (opts.posn != VertexPacker::EXCLUDE) {
@@ -332,8 +333,15 @@ int main(int argc, const char* argv[]) {
 		if (opts.text != VertexPacker::EXCLUDE) {
 			packer.add(it->uv_0, VertexPacker::FLOAT32);
 		}
+		if (opts.tans != VertexPacker::EXCLUDE) {
+			packer.add(it->tans, VertexPacker::FLOAT32);
+			packer.add(it->btan, VertexPacker::FLOAT32);
+		}
 	}
 	printf("Vertex buffer bytes: %d\n", static_cast<int>(packer.bytes()));
+	// Add the indices
+
+	// Write the result
 	bool written = write(dstPath, backing.data(), packer.bytes(),
 		O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_ASCII_FILE),
 		O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_COMPRESS_ZSTD));

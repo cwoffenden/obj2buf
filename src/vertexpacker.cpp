@@ -132,6 +132,52 @@ static int32_t storeModern(float const val, VertexPacker::Storage const type) {
 	}
 }
 
+/**
+ * Helper to bypass encoding for clamped 8- and 16-bit integers and clamp them
+ * as-is. All other types are converted to floats and processed through \c
+ * #storeLegacy(float,VertexPacker::Storage).
+ *
+ * \param[in] val integer value to convert
+ * \param[in] type storage type (and rules to follow)
+ */
+static int32_t storeLegacy(int const val, VertexPacker::Storage const type) {
+	switch (type) {
+	case VertexPacker::SINT08C:
+		return clamp<int32_t>(val, INT8_MIN, INT8_MAX);
+	case VertexPacker::UINT08C:
+		return clamp<int32_t>(val, 0, UINT8_MAX);
+	case VertexPacker::SINT16C:
+		return clamp<int32_t>(val, INT16_MIN, INT16_MAX);
+	case VertexPacker::UINT16C:
+		return clamp<int32_t>(val, 0, UINT16_MAX);
+	default:
+		return storeLegacy(static_cast<float>(val), type);
+	}
+}
+
+/**
+ * Helper to bypass encoding for clamped 8- and 16-bit integers and clamp them
+ * as-is. All other types are converted to floats and processed through \c
+ * #storeModern(float,VertexPacker::Storage).
+ *
+ * \param[in] val integer value to convert
+ * \param[in] type storage type (and rules to follow)
+ */
+static int32_t storeModern(int const val, VertexPacker::Storage const type) {
+	switch (type) {
+	case VertexPacker::SINT08C:
+		return clamp<int32_t>(val, INT8_MIN, INT8_MAX);
+	case VertexPacker::UINT08C:
+		return clamp<int32_t>(val, 0, UINT8_MAX);
+	case VertexPacker::SINT16C:
+		return clamp<int32_t>(val, INT16_MIN, INT16_MAX);
+	case VertexPacker::UINT16C:
+		return clamp<int32_t>(val, 0, UINT16_MAX);
+	default:
+		return storeModern(static_cast<float>(val), type);
+	}
+}
+
 //*****************************************************************************/
 
 VertexPacker::VertexPacker(void* const root, unsigned const size, unsigned const opts)
@@ -179,6 +225,47 @@ bool VertexPacker::add(float const data, Storage const type) {
 				*next++ = (temp >> 16) & 0xFF;
 				*next++ = (temp >>  8) & 0xFF;
 				*next++ = (temp >>  0) & 0xFF;
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
+bool VertexPacker::add(int const data, Storage const type) {
+	if (hasFreeSpace(type)) {
+		int temp = 0;
+		switch (type) {
+		case SINT08C:
+		case UINT08C:
+		case SINT16C:
+		case UINT16C:
+			if ((opts & OPTS_SIGNED_LEGACY) == 0) {
+				temp = storeModern(data, type);
+			} else {
+				temp = storeLegacy(data, type);
+			}
+			break;
+		default:
+			/*
+			 * For anything other than 8- and 16-bit clamped types we treat the
+			 * value as a float.
+			 */
+			return add(static_cast<float>(data), type);
+		}
+		switch (type) {
+		case SINT08C:
+		case UINT08C:
+			*next++ = temp & 0xFF;
+			break;
+		default:
+			if ((opts & OPTS_BIG_ENDIAN) == 0) {
+				*next++ = (temp >> 0) & 0xFF;
+				*next++ = (temp >> 8) & 0xFF;
+			}
+			else {
+				*next++ = (temp >> 8) & 0xFF;
+				*next++ = (temp >> 0) & 0xFF;
 			}
 		}
 		return true;
