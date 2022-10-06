@@ -45,16 +45,12 @@ static VertexPacker::Storage parseType(const char* const type) {
  * \param[in] argv command-line arguments as passed-in from \c main, \e minus the application name
  * \param[in] argc number of entries in \a argv
  * \param[in,out] next index of the current argument being processed
- * \param[in,out] opts options bitfield to store \a flag if the parsed value is to \c EXCLUDE
  * \return appropriate storage type (or \c FLOAT32 if none was supplied)
  */
-static VertexPacker::Storage parseType(const char* const argv[], int const argc, int& next, unsigned& opts, unsigned const flag) {
+static VertexPacker::Storage parseType(const char* const argv[], int const argc, int& next) {
 	VertexPacker::Storage type = VertexPacker::FLOAT32;
 	if (next + 2 < argc) {
 		type = parseType(argv[++next]);
-		if (type == VertexPacker::EXCLUDE) {
-			opts |= flag;
-		}
 	} else {
 		fprintf(stderr, "Not enough parameters (defaulting to float)\n");
 	}
@@ -135,37 +131,43 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 			help();
 			break;
 		case 'p': // positions
-			posn = parseType(argv, argc, next, opts, OPTS_SKIP_POSITIONS);
+			posn = parseType(argv, argc, next);
 			break;
 		case 'n': // normals
-			norm = parseType(argv, argc, next, opts, OPTS_SKIP_NORMALS);
+			norm = parseType(argv, argc, next);
 			break;
 		case 'u': // UVs
-			text = parseType(argv, argc, next, opts, OPTS_SKIP_TEXTURE_UVS);
+			text = parseType(argv, argc, next);
+			break;
+		case 't': // UVs
+			tans = parseType(argv, argc, next);
 			break;
 		case 's': // scaled positions
-			opts |= OPTS_POSITIONS_SCALE;
+			O2B_SET_OPT(opts, OPTS_POSITIONS_SCALE);
 			if (strcmp(arg + 1, "sb") == 0) {
-				opts |= OPTS_SCALE_NO_BIAS;
+				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
 			}
 			break;
 		case 'e': // encoded normals
-			opts |= OPTS_NORMALS_ENCODED;
-			if (strcmp(arg + 1, "ez") == 0) {
-				opts |= OPTS_NORMALS_XY_ONLY;
+			O2B_SET_OPT(opts, OPTS_NORMALS_ENCODED);
+			if (strcmp(arg + 1, "exy") == 0) {
+				O2B_SET_OPT(opts, OPTS_NORMALS_XY_ONLY);
 			}
 			break;
+		case 'b': // bitangents as sign-only
+			O2B_SET_OPT(opts, OPTS_BITANGENTS_SIGN);
+			break;
 		case 'a': // ASCII
-			opts |= OPTS_ASCII_FILE;
+			O2B_SET_OPT(opts, OPTS_ASCII_FILE);
 			break;
-		case 'b': // big endian
-			opts |= OPTS_BIG_ENDIAN;
+		case 'o': // big endian order
+			O2B_SET_OPT(opts, OPTS_BIG_ENDIAN);
 			break;
-		case 'c': // compression
-			opts |= OPTS_COMPRESS_ZSTD;
+		case 'z': // Zstd
+			O2B_SET_OPT(opts, OPTS_COMPRESS_ZSTD);
 			break;
 		case 'l': // legacy GL signing rule
-			opts |= OPTS_SIGNED_LEGACY;
+			O2B_SET_OPT(opts, OPTS_SIGNED_LEGACY);
 			break;
 		default:
 			fprintf(stderr, "Unknown argument: %s\n", arg);
@@ -182,21 +184,26 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 }
 
 void ToolOptions::dump() const {
-	printf("Positions:   %s",   (opts & OPTS_SKIP_POSITIONS)   ? "N/A"     : stringType(posn));
-	if (opts & OPTS_POSITIONS_SCALE) {
-		printf(" (apply %s)",   (opts & OPTS_SCALE_NO_BIAS)    ? "scale"   : "scale & bias");
+	printf("Positions:   %s",   stringType(posn));
+	if (O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
+		printf(" (apply %s)",   O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)   ? "scale"   : "scale & bias");
 	}
 	printf("\n");
-	printf("Normals:     %s",   (opts & OPTS_SKIP_NORMALS)     ? "N/A"     : stringType(norm));
-	if (opts & OPTS_NORMALS_ENCODED) {
-		printf(" (as %s)",      (opts & OPTS_NORMALS_XY_ONLY)  ? "XY-only" : "hemi-oct");
+	printf("Normals:     %s",   stringType(norm));
+	if (O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
+		printf(" (as %s)",      O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
 	}
 	printf("\n");
-	printf("Texture UVs: %s\n", (opts & OPTS_SKIP_TEXTURE_UVS) ? "N/A"     : stringType(text));
-	printf("File format: %s\n", (opts & OPTS_ASCII_FILE)       ? "ASCII"   : "binary");
-	printf("Endianness:  %s\n", (opts & OPTS_BIG_ENDIAN)       ? "big"     : "little");
-	printf("Compression: %s\n", (opts & OPTS_COMPRESS_ZSTD)    ? "Zstd"    : "none");
-	printf("Signed rule: %s\n", (opts & OPTS_SIGNED_LEGACY)    ? "legacy"  : "modern");
+	printf("Texture UVs: %s\n", stringType(text));
+	printf("Tangents:    %s",   stringType(tans));
+	if (O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN)) {
+		printf(" (bitangents as sign)");
+	}
+	printf("\n");
+	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)      ? "ASCII"   : "binary");
+	printf("Endianness:  %s\n", O2B_HAS_OPT(opts, OPTS_BIG_ENDIAN)      ? "big"     : "little");
+	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
+	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)   ? "legacy"  : "modern");
 }
 
 const char* ToolOptions::filename(const char* const path) {
@@ -218,19 +225,22 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|n|u type] [-s|sb] [-e|ez] [-a|b|c|l] in.obj [out.bin]\n", name);
+	printf("Usage: %s [-p|n|u|t type] [-s|sb] [-e|exy] [-b] [-o|l|z|a] in.obj [out.bin]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-n vertex normals type\n");
 	printf("\t-u vertex texture UVs type\n");
+	printf("\t-t tangents type (defaulting to none)\n");
 	printf("\t(where type is byte|short|half|float|none (none emits no data))\n");
 	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
 	printf("\t-sb as -s but without a bias, keeping the origin at zero\n");
-	printf("\t-e encodes normals in two components as hemi-oct\n");
-	printf("\t-ez as -e but as raw XY without the Z\n");
-	printf("\t-a writes the output as ASCII instead of binary\n");
-	printf("\t-b writes multi-byte values in big endian order\n");
-	printf("\t-c compresses the output buffer using Zstandard\n");
+	printf("\t-e encodes normals (and tangents) in two components as hemi-oct\n");
+	printf("\t-exy as -e but as raw XY without the Z\n");
+	printf("\t-b store only the sign for bitangents\n");
+	printf("\t(where possible packing the sign where any padding would normally go)\n");
+	printf("\t-o writes multi-byte values in big endian order\n");
 	printf("\t-l use the legacy OpenGL rule for normalised signed values\n");
+	printf("\t-z compresses the output buffer using Zstandard\n");
+	printf("\t-a writes the output as ASCII hex instead of binary\n");
 	printf("The default is float positions, normals and UVs, as uncompressed LE binary\n");
 	exit(EXIT_FAILURE);
 }
