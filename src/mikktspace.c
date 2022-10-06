@@ -454,11 +454,11 @@ static void GenerateSharedVerticesIndexList(int piTriList_in_and_out[], const SM
 	// Generate bounding box
 	int * piHashTable=NULL, * piHashCount=NULL, * piHashOffsets=NULL, * piHashCount2=NULL;
 	STmpVert * pTmpVert = NULL;
-	int i=0, iChannel=0, k=0, e=0;
+	int iChannel=0, k=0, e=0;
 	int iMaxCount=0;
 	SVec3 vMin = GetPosition(pContext, 0), vMax = vMin, vDim;
 	float fMin, fMax;
-	for (i=1; i<(iNrTrianglesIn*3); i++)
+	for (int i=1; i<(iNrTrianglesIn*3); i++)
 	{
 		const int index = piTriList_in_and_out[i];
 
@@ -506,7 +506,7 @@ static void GenerateSharedVerticesIndexList(int piTriList_in_and_out[], const SM
 	memset(piHashCount2, 0, sizeof(int)*g_iCells);
 
 	// count amount of elements in each cell unit
-	for (i=0; i<(iNrTrianglesIn*3); i++)
+	for (int i=0; i<(iNrTrianglesIn*3); i++)
 	{
 		const int index = piTriList_in_and_out[i];
 		const SVec3 vP = GetPosition(pContext, index);
@@ -521,7 +521,7 @@ static void GenerateSharedVerticesIndexList(int piTriList_in_and_out[], const SM
 		piHashOffsets[k]=piHashOffsets[k-1]+piHashCount[k-1];
 
 	// insert vertices
-	for (i=0; i<(iNrTrianglesIn*3); i++)
+	for (int i=0; i<(iNrTrianglesIn*3); i++)
 	{
 		const int index = piTriList_in_and_out[i];
 		const SVec3 vP = GetPosition(pContext, index);
@@ -809,12 +809,12 @@ static int GenerateInitialVerticesIndexList(STriInfo pTriInfos[], int piTriList_
 				const SVec3 T1 = GetTexCoord(pContext, i1);
 				const SVec3 T2 = GetTexCoord(pContext, i2);
 				const SVec3 T3 = GetTexCoord(pContext, i3);
-				const float distSQ_02 = LengthSquared(vsub(T2,T0));
-				const float distSQ_13 = LengthSquared(vsub(T3,T1));
+				const float distSQ_T02 = LengthSquared(vsub(T2,T0));
+				const float distSQ_T13 = LengthSquared(vsub(T3,T1));
 				tbool bQuadDiagIs_02;
-				if (distSQ_02<distSQ_13)
+				if (distSQ_T02<distSQ_T13)
 					bQuadDiagIs_02 = TTRUE;
-				else if (distSQ_13<distSQ_02)
+				else if (distSQ_T13<distSQ_T02)
 					bQuadDiagIs_02 = TFALSE;
 				else
 				{
@@ -822,10 +822,10 @@ static int GenerateInitialVerticesIndexList(STriInfo pTriInfos[], int piTriList_
 					const SVec3 P1 = GetPosition(pContext, i1);
 					const SVec3 P2 = GetPosition(pContext, i2);
 					const SVec3 P3 = GetPosition(pContext, i3);
-					const float distSQ_02 = LengthSquared(vsub(P2,P0));
-					const float distSQ_13 = LengthSquared(vsub(P3,P1));
+					const float distSQ_P02 = LengthSquared(vsub(P2,P0));
+					const float distSQ_P13 = LengthSquared(vsub(P3,P1));
 
-					bQuadDiagIs_02 = distSQ_13<distSQ_02 ? TFALSE : TTRUE;
+					bQuadDiagIs_02 = (distSQ_P13<distSQ_P02) ? TFALSE : TTRUE;
 				}
 
 				if (bQuadDiagIs_02)
@@ -1226,7 +1226,7 @@ static tbool GenerateTSpaces(STSpace psTspace[], const STriInfo pTriInfos[], con
 	for (g=0; g<iNrActiveGroups; g++)
 	{
 		const SGroup * pGroup = &pGroups[g];
-		int iUniqueSubGroups = 0, s=0;
+		int iUniqueSubGroups = 0;
 
 		for (i=0; i<pGroup->iNrFaces; i++)	// triangles
 		{
@@ -1311,8 +1311,7 @@ static tbool GenerateTSpaces(STSpace psTspace[], const STriInfo pTriInfos[], con
 				if (pIndices==NULL)
 				{
 					// clean up and return false
-					int s=0;
-					for (s=0; s<iUniqueSubGroups; s++)
+					for (int s=0; s<iUniqueSubGroups; s++)
 						free(pUniSubGroups[s].pTriMembers);
 					free(pUniSubGroups);
 					free(pTmpMembers);
@@ -1351,7 +1350,7 @@ static tbool GenerateTSpaces(STSpace psTspace[], const STriInfo pTriInfos[], con
 		}
 
 		// clean up and offset iUniqueTspaces
-		for (s=0; s<iUniqueSubGroups; s++)
+		for (int s=0; s<iUniqueSubGroups; s++)
 			free(pUniSubGroups[s].pTriMembers);
 		iUniqueTspaces += iUniqueSubGroups;
 	}
@@ -1502,8 +1501,8 @@ static void BuildNeighborsFast(STriInfo pTriInfos[], SEdge * pEdges, const int p
 {
 	// build array of edges
 	unsigned int uSeed = INTERNAL_RND_SORT_SEED;				// could replace with a random seed?
-	int iEntries=0, iCurStartIndex=-1, f=0, i=0;
-	for (f=0; f<iNrTrianglesIn; f++)
+	int iEntries=0, iCurStartIndex=-1, i=0;
+	for (int f=0; f<iNrTrianglesIn; f++)
 		for (i=0; i<3; i++)
 		{
 			const int i0 = piTriListIn[f*3+i];
@@ -1565,13 +1564,13 @@ static void BuildNeighborsFast(STriInfo pTriInfos[], SEdge * pEdges, const int p
 		if (bUnassigned_A)
 		{
 			// get true index ordering
-			int j=i+1, t;
+			int j=i+1;
 			tbool bNotFound = TTRUE;
 			while (j<iEntries && i0==pEdges[j].i0 && i1==pEdges[j].i1 && bNotFound)
 			{
 				tbool bUnassigned_B;
 				int i0_B, i1_B;
-				t = pEdges[j].f;
+				int t = pEdges[j].f;
 				// flip i0_B and i1_B
 				GetEdge(&i1_B, &i0_B, &edgenum_B, &piTriListIn[t*3], pEdges[j].i0, pEdges[j].i1);	// resolve index ordering and edge_num
 				//assert(!(i0_A==i1_B && i1_A==i0_B));
@@ -1664,7 +1663,12 @@ static void QuickSortEdges(SEdge * pSortBuffer, int iLeft, int iRight, const int
 
 	// Random
 	t=uSeed&31;
-	t=(uSeed<<t)|(uSeed>>(32-t));
+	// See https://github.com/mmikk/MikkTSpace/pull/3/files
+	if (t) {
+		t=(uSeed<<t)|(uSeed>>(32-t));
+	} else {
+		t=uSeed;
+	}
 	uSeed=uSeed+t+3;
 	// Random end
 
@@ -1780,8 +1784,8 @@ static void DegenPrologue(STriInfo pTriInfos[], int piTriList_out[], const int i
 			tbool bJustADegenerate = TTRUE;
 			while (bJustADegenerate && iNextGoodTriangleSearchIndex<iTotTris)
 			{
-				const tbool bIsGood = (pTriInfos[iNextGoodTriangleSearchIndex].iFlag&MARK_DEGENERATE)==0 ? TTRUE : TFALSE;
-				if (bIsGood) bJustADegenerate=TFALSE;
+				const tbool bIsNextGood = (pTriInfos[iNextGoodTriangleSearchIndex].iFlag&MARK_DEGENERATE)==0 ? TTRUE : TFALSE;
+				if (bIsNextGood) bJustADegenerate=TFALSE;
 				else ++iNextGoodTriangleSearchIndex;
 			}
 
@@ -1819,7 +1823,7 @@ static void DegenPrologue(STriInfo pTriInfos[], int piTriList_out[], const int i
 
 static void DegenEpilogue(STSpace psTspace[], STriInfo pTriInfos[], int piTriListIn[], const SMikkTSpaceContext * pContext, const int iNrTrianglesIn, const int iTotTris)
 {
-	int t=0, i=0;
+	int t=0;
 	// deal with degenerate triangles
 	// punishment for degenerate triangles is O(N^2)
 	for (t=iNrTrianglesIn; t<iTotTris; t++)
@@ -1830,7 +1834,7 @@ static void DegenEpilogue(STSpace psTspace[], STriInfo pTriInfos[], int piTriLis
 
 		if (!bSkip)
 		{
-			for (i=0; i<3; i++)
+			for (int i=0; i<3; i++)
 			{
 				const int index1 = piTriListIn[t*3+i];
 				// search through the good triangles
