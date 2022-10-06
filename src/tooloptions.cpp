@@ -142,6 +142,9 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		case 't': // UVs
 			tans = parseType(argv, argc, next);
 			break;
+		case 'i': // Indices
+			idxs = parseType(argv, argc, next);
+			break;
 		case 's': // scaled positions
 			O2B_SET_OPT(opts, OPTS_POSITIONS_SCALE);
 			if (strcmp(arg + 1, "sb") == 0) {
@@ -200,6 +203,7 @@ void ToolOptions::dump() const {
 		printf(" (bitangents as sign)");
 	}
 	printf("\n");
+	printf("Indices:     %s", stringType(idxs));
 	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)      ? "ASCII"   : "binary");
 	printf("Endianness:  %s\n", O2B_HAS_OPT(opts, OPTS_BIG_ENDIAN)      ? "big"     : "little");
 	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
@@ -225,12 +229,14 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|n|u|t type] [-s|sb] [-e|exy] [-b] [-o|l|z|a] in.obj [out.bin]\n", name);
+	printf("Usage: %s [-p|n|u|t|i type] [-s|sb] [-e|exy] [-b] [-o|l|z|a] in.obj [out.bin]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-n vertex normals type\n");
 	printf("\t-u vertex texture UVs type\n");
 	printf("\t-t tangents type (defaulting to none)\n");
-	printf("\t(where type is byte|short|half|float|none (none emits no data))\n");
+	printf("\t-i index buffer type (defaulting to shorts)\n");
+	printf("\t(vertex types are byte|short|half|float|none (none emits no data))\n");
+	printf("\t(index types are byte|short|none (none emits unindexed triangles))\n");
 	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
 	printf("\t-sb as -s but without a bias, keeping the origin at zero\n");
 	printf("\t-e encodes normals (and tangents) in two components as hemi-oct\n");

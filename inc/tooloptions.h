@@ -129,6 +129,11 @@ public:
 	VertexPacker::Storage tans;
 
 	/**
+	 * Storage type for the index buffer. The default is shorts.
+	 */
+	VertexPacker::Storage idxs;
+
+	/**
 	 * A bitfield of the tool's \c #Options (see \c #OPTS_DEFAULT).
 	 */
 	unsigned opts;
@@ -141,6 +146,7 @@ public:
 		, norm(VertexPacker::FLOAT32)
 		, text(VertexPacker::FLOAT32)
 		, tans(VertexPacker::EXCLUDE)
+		, idxs(VertexPacker::UINT16C)
 		, opts(OPTS_DEFAULT) {}
 
 	/**
