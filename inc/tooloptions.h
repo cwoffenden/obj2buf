@@ -7,6 +7,30 @@
 #include "vertexpacker.h"
 
 /**
+ * Helper to set \c ToolOptions#opts (or any options flag variable) from an \c
+ * Options ordinal. E.g.:
+ * \code
+ *	O2B_SET_OPT(myVar, OPTS_POSITIONS_SCALE)
+ * \endcode
+ */
+#ifndef O2B_SET_OPT
+#define O2B_SET_OPT(var, ordinal) var |= (1 << ordinal)
+#endif
+
+/**
+ * Evaluates to \c true if \c ToolOptions#opts (or any options flag variable)
+ * has an \c Options ordinal set. E.g.:
+ * \code
+ *	if (O2B_HAS_OPT(myVar, OPTS_POSITIONS_SCALE)) {
+ *		// Scale the vertex positions
+ *	}
+ * \endcode
+ */
+#ifndef O2B_HAS_OPT
+#define O2B_HAS_OPT(var, ordinal) ((var & (1 << ordinal)) != 0)
+#endif
+
+/**
  * Tool options specific to writing an interleaved buffer. Usage:
  * \code
  *	int main(int argc, const char* argv[]) {
@@ -21,63 +45,58 @@ class ToolOptions
 {
 public:
 	/**
-	 * Additional tool output options.
+	 * Additional tool output options. These values are the ordinals, requiring
+	 * conversion to the bitpattern via \c OPT_TO_FLAG.
 	 */
 	enum Options {
 		/**
-		 * Default options: write positions, normals and UVs; normals have three
-		 * components (plus padding); data are written as uncompressed binary in
-		 * little endian ordering.
+		 * Default options: normals have three components (plus padding); data
+		 * are written as uncompressed binary in little endian ordering.
 		 */
 		OPTS_DEFAULT = 0,
-		/**
-		 * Do \e not write positions.
-		 */
-		OPTS_SKIP_POSITIONS = 1,
-		/**
-		 * Do \e not write normals.
-		 */
-		OPTS_SKIP_NORMALS = 2,
-		/**
-		 * Do \e not write texture UVs.
-		 */
-		OPTS_SKIP_TEXTURE_UVS = 4,
 		/**
 		 * Scale the positions so all coordinates fit in the range \c -1 to \c 1
 		 * (see \c #OPTS_SCALE_NO_BIAS, since the default is to apply a bias to
 		 * make full use of the underlying data format's range).
 		 */
-		OPTS_POSITIONS_SCALE = 8,
+		OPTS_POSITIONS_SCALE,
 		/**
 		 * Maintain the origin for \c #OPTS_POSITIONS_SCALE at zero.
 		 */
-		OPTS_SCALE_NO_BIAS = 16,
+		OPTS_SCALE_NO_BIAS,
 		/**
-		 * Normals are hemi-oct encoded (reconstituting X, Y and Z at runtime).
+		 * Normals and tangets are hemi-oct encoded (reconstituting X, Y and Z
+		 * at runtime).
 		 */
-		OPTS_NORMALS_ENCODED = 32,
+		OPTS_NORMALS_ENCODED,
 		/**
-		 * Normals are written as X- and Y-coordinates (recovering the Z at
-		 * runtime).
+		 * Normals and tangents are written as X- and Y-coordinates (recovering
+		 * the Z at runtime).
 		 */
-		OPTS_NORMALS_XY_ONLY = 64,
+		OPTS_NORMALS_XY_ONLY,
 		/**
-		 * The output file is ASCII (instead of binary).
+		 * Only the sign is stored for bitangents (requiring reconstition from
+		 * the normals and tangents at runtime).
 		 */
-		OPTS_ASCII_FILE = 128,
+		OPTS_BITANGENTS_SIGN,
 		/**
 		 * The output byte order is big endian.
 		 */
-		OPTS_BIG_ENDIAN = 256,
-		/**
-		 * The output buffer is compressed (as Zstandard)
-		 */
-		OPTS_COMPRESS_ZSTD = 512,
+		OPTS_BIG_ENDIAN,
 		/**
 		 * Normalised signed values are compatible with older APIs, where the
 		 * full range of bits is used but zero cannot be represented.
 		 */
-		 OPTS_SIGNED_LEGACY = 1024,
+		OPTS_SIGNED_LEGACY,
+		/**
+		 * The output buffer is compressed (as Zstandard)
+		 */
+		OPTS_COMPRESS_ZSTD,
+		/**
+		 * The output file is ASCII encoded (instead of binary). The ASCII
+		 * files can be included as headers or otherwise in-lined into code.
+		 */
+		OPTS_ASCII_FILE,
 	};
 
 	/**
@@ -110,12 +129,6 @@ public:
 	VertexPacker::Storage tans;
 
 	/**
-	 * Storage type to use when writing the bitangents. The default is exclude
-	 * bitangents (and by extension tangents).
-	 */
-	VertexPacker::Storage btan;
-
-	/**
 	 * A bitfield of the tool's \c #Options (see \c #OPTS_DEFAULT).
 	 */
 	unsigned opts;
@@ -128,7 +141,6 @@ public:
 		, norm(VertexPacker::FLOAT32)
 		, text(VertexPacker::FLOAT32)
 		, tans(VertexPacker::EXCLUDE)
-		, btan(VertexPacker::EXCLUDE)
 		, opts(OPTS_DEFAULT) {}
 
 	/**

@@ -32,7 +32,7 @@ struct ObjMesh
 	/**
 	 * Resizes the buffers (usually as a prelude to filling them).
 	 */
-	void resize(size_t numVerts, size_t numIndex) {
+	void resize(size_t const numVerts, size_t const numIndex) {
 		verts.resize(numVerts);
 		index.resize(numIndex);
 	}
@@ -68,9 +68,10 @@ struct ObjMesh
  * Extracts the mesh data as vertex and index buffers.
  *
  * \param[in] obj valid \c fast_obj content
+ * \param[in] genTans \c true if tangents should be generated
  * \param[out] mesh destination for the \c .obj file content
  */
-void extract(fastObjMesh* obj, ObjMesh& mesh) {
+void extract(fastObjMesh* const obj, bool const genTans, ObjMesh& mesh) {
 	// No objects or groups, just one big triangle mesh from the file
 	ObjVertex::Container verts;
 	// Content should be in tris but we're going to create fans from any polys
@@ -110,7 +111,9 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
 		}
 		vertBase += faceVerts;
 	}
-	ObjVertex::generateTangents(verts);
+	if (genTans) {
+		ObjVertex::generateTangents(verts);
+	}
 	// Generate the indices
 	std::vector<unsigned> remap(maxVerts);
 	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
@@ -124,13 +127,14 @@ void extract(fastObjMesh* obj, ObjMesh& mesh) {
  * Opens an \c .obj file and extract its content into \a mesh.
  *
  * \param[in] srcPath filename of the \c .obj file
+ * \param[in] genTans \c true if tangents should be generated
  * \param[out] mesh destination for the \c .obj file content
  * \return \c true if the file was valid and \a mesh has its content
  */
-bool open(const char* const srcPath, ObjMesh& mesh) {
+bool open(const char* const srcPath, bool const genTans, ObjMesh& mesh) {
 	if (srcPath) {
 		if (fastObjMesh* obj = fast_obj_read(srcPath)) {
-			extract(obj, mesh);
+			extract(obj, genTans, mesh);
 			fast_obj_destroy(obj);
 			return true;
 		}
@@ -174,6 +178,19 @@ void optimise(ObjMesh& mesh) {
 }
 
 /**
+ * Helper to decide between either a space or a newline following an entry when
+ * dumping or printing hex data.
+ *
+ * \param[in] count running count of written entries
+ * \param[in] wrap after how many entries the line wraps (dictating space or newline)
+ * \param[in] total total number of characters (dictating whether the last always writes a newline)
+ * \return a single space or newline character
+ */
+char spaceOrNewline(size_t const count, size_t const wrap, size_t total) {
+	return ((count > 0 && (count % wrap) == 0) || (count == total)) ? '\n' : ' ';
+}
+
+/**
  * Helper to write a buffer to a file.
  *
  * \param[in] dstPath filename of the destination file
@@ -194,15 +211,44 @@ bool write(const char* const dstPath, const void* const data, size_t const size)
 }
 
 /**
- * Helper to write a buffer to a file with optional Zstandard compression.
+ * Helper to write a buffer to a binart or text file
  *
  * \param[in] dstPath filename of the destination file
  * \param[in] data start of the raw data
  * \param[in] size number of bytes to write
+ * \param[in] text \c true if the file should be text containing hexadecimal bytes
+ * \return \c true if writing the requested number of bytes was successful
+ */
+bool write(const char* const dstPath, const void* const data, size_t const size, const bool text) {
+	if (!text) {
+		return write(dstPath, data, size);
+	}
+	if (dstPath && data) {
+		if (FILE* dstFile = fopen(dstPath, "w")) {
+			const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data);
+			for (size_t n = 0; n < size; n++) {
+				fprintf(dstFile, "0x%02X,%c", bytes[n], spaceOrNewline(n + 1, 12, size));
+			}
+			if (fclose(dstFile) == 0) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/**
+ * Helper to write a buffer to a binart or text file with optional Zstandard
+ * compression.
+ *
+ * \param[in] dstPath filename of the destination file
+ * \param[in] data start of the raw data
+ * \param[in] size number of bytes to write
+ * \param[in] text \c true if the file should be text containing hexadecimal bytes
  * \param[in] zstd \c true if the file should be compressed with Zstandard
  * \return \c true if writing the requested number of bytes was successful
  */
-bool write(const char* const dstPath, const void* const data, size_t const size, bool const zstd) {
+bool write(const char* const dstPath, const void* const data, size_t const size, const bool text, bool const zstd) {
 	bool success = false;
 	if (data) {
 		if (zstd) {
@@ -217,12 +263,12 @@ bool write(const char* const dstPath, const void* const data, size_t const size,
 				if (ZSTD_isError(compSize)) {
 					fprintf(stderr, "Compression failed: %s\n", ZSTD_getErrorName(compSize));
 				} else {
-					success = write(dstPath, compBuf, compSize);
+					success = write(dstPath, compBuf, compSize, text);
 				}
 				free(compBuf);
 			}
 		} else {
-			success = write(dstPath, data, size);
+			success = write(dstPath, data, size, text);
 		}
 	}
 	return success;
@@ -243,51 +289,55 @@ int main(int argc, const char* argv[]) {
 		if (srcIdx + 1 < argc) {
 			dstPath = argv[srcIdx + 1];
 		} else {
-		    dstPath = "out.bin";
+			if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_ASCII_FILE)) {
+				dstPath = "out.inc";
+			} else {
+				dstPath = "out.bin";
+			}
 		}
 	}
 	// Now we start
-	if (!open(srcPath, mesh)) {
+	if (!open(srcPath, opts.tans != VertexPacker::EXCLUDE, mesh)) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
 		return EXIT_FAILURE;
 	}
 	// Perform an in-place scale/bias if requested
-	if ((opts.opts & ToolOptions::OPTS_POSITIONS_SCALE)) {
-		scale(mesh, opts.opts & ToolOptions::OPTS_SCALE_NO_BIAS);
+	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_POSITIONS_SCALE)) {
+		scale(mesh, O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SCALE_NO_BIAS));
 	}
 	// Then the various optimisations
 	optimise(mesh);
 	printf("Vertices: %d\n", static_cast<int>(mesh.verts.size()));
 	printf("Indices:  %d\n", static_cast<int>(mesh.index.size()));
-	// Maximum buffer size: vert posn, norm, uv + indices
-	size_t const maxBufBytes = mesh.verts.size() * sizeof(float) * (3 + 3 + 2)
+	// Maximum buffer size: vert posn, norm, uv, tans, bitans + indices
+	size_t const maxBufBytes = mesh.verts.size() * sizeof(float) * (3 + 3 + 2 + 3 + 3)
 							 + mesh.index.size() * sizeof(uint32_t);
 	std::vector<uint8_t> backing(maxBufBytes);
 	// Tool options to packer options
 	unsigned packOpts = VertexPacker::OPTS_DEFAULT;
-	if ((opts.opts & ToolOptions::OPTS_BIG_ENDIAN)) {
+	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BIG_ENDIAN)) {
 		packOpts |= VertexPacker::OPTS_BIG_ENDIAN;
 	}
-	if ((opts.opts & ToolOptions::OPTS_SIGNED_LEGACY)) {
+	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SIGNED_LEGACY)) {
 		packOpts |= VertexPacker::OPTS_SIGNED_LEGACY;
 	}
 	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
 	for (std::vector<ObjVertex>::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
-		if (!(opts.opts & ToolOptions::OPTS_SKIP_POSITIONS)) {
+		if (opts.posn != VertexPacker::EXCLUDE) {
 			packer.add(it->posn, VertexPacker::FLOAT32);
 		}
-		if (!(opts.opts & ToolOptions::OPTS_SKIP_NORMALS)) {
+		if (opts.norm != VertexPacker::EXCLUDE) {
 			packer.add(it->norm, VertexPacker::FLOAT32);
 		}
-		if (!(opts.opts & ToolOptions::OPTS_SKIP_TEXTURE_UVS)) {
+		if (opts.text != VertexPacker::EXCLUDE) {
 			packer.add(it->uv_0, VertexPacker::FLOAT32);
 		}
 	}
 	printf("Vertex buffer bytes: %d\n", static_cast<int>(packer.bytes()));
-
-	bool zstd = (opts.opts & ToolOptions::OPTS_COMPRESS_ZSTD);
-	//bool text = (opts.opts & ToolOptions::OPTS_ASCII_FILE);
-	if (!write(dstPath, backing.data(), packer.bytes(), zstd)) {
+	bool written = write(dstPath, backing.data(), packer.bytes(),
+		O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_ASCII_FILE),
+		O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_COMPRESS_ZSTD));
+	if (!written) {
 		fprintf(stderr, "Unable to write: %s\n", (dstPath) ? dstPath : "null");
 		return EXIT_FAILURE;
 	}
