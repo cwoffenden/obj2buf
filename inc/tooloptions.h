@@ -1,6 +1,8 @@
 /**
  * \file tooloptions.h
  * Parses the command-line and stores the packing options.
+ *
+ * \copyright 2011-2022 Numfum GmbH
  */
 #pragma once
 

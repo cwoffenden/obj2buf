@@ -1,3 +1,8 @@
+/**
+ * \file objvertex.cpp
+ *
+ * \copyright 2022 Numfum GmbH
+ */
 #include "objvertex.h"
 
 #include "mikktspace.h"

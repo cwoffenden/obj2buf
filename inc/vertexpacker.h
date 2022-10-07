@@ -1,5 +1,5 @@
 /**
- * \file packedvertex.h
+ * \file vertexpacker.h
  * Utility to build packed vertex buffers.
  *
  * \copyright 2011-2022 Numfum GmbH
