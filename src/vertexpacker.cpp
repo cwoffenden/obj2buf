@@ -1,3 +1,8 @@
+/**
+ * \file vertexpacker.cpp
+ *
+ * \copyright 2011-2022 Numfum GmbH
+ */
 #include "vertexpacker.h"
 
 #include <cmath>

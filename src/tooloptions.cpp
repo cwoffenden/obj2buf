@@ -1,3 +1,8 @@
+/**
+ * \file tooloptions.cpp
+ *
+ * \copyright 2011-2022 Numfum GmbH
+ */
 #include "tooloptions.h"
 
 #include <cstring>

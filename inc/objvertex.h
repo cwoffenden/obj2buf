@@ -1,6 +1,8 @@
 /**
  * \file objvertex.h
  * \c .obj file vertex structure.
+ *
+ * \copyright 2022 Numfum GmbH
  */
 #pragma once
 
