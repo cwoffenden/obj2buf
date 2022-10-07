@@ -144,6 +144,9 @@ void ToolOptions::fixUp() {
 		case VertexPacker::UINT16N:
 			idxs = VertexPacker::UINT16C;
 			break;
+		default:
+			// no change
+			break;
 		}
 	}
 	if (tans != VertexPacker::EXCLUDE) {
@@ -173,6 +176,9 @@ void ToolOptions::fixUp() {
 	case VertexPacker::FLOAT32:
 		fprintf(stderr, "Indices cannot be floats\n");
 		help();
+		break;
+	default:
+		// no change
 		break;
 	}
 }
