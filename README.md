@@ -6,6 +6,14 @@ When writing quick tests or graphics experiements there's often a need for mesh 
 
 This is mostly a wrapper around [meshoptimizer](//github.com/zeux/meshoptimizer), [fast_obj](//github.com/thisistherk/fast_obj) and [MikkTSpace](//github.com/mmikk/MikkTSpace). It reads in an `.obj` file and outputs an interleaved buffer (with optional [Zstandard](//github.com/facebook/zstd) compression).
 
+Build with:
+```
+clone https://github.com/cwoffenden/obj2buf
+cd obj2buf
+mkdir build
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+```
 Work in progress: not all features are yet working 100%.
 ```
 Usage: obj2buf [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-o|l|z|a] in.obj [out.bin]
