@@ -296,6 +296,7 @@ int main(int argc, const char* argv[]) {
 			}
 		}
 	}
+	opts.dump();
 	// Now we start
 	if (!open(srcPath, opts.tans != VertexPacker::EXCLUDE, mesh)) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
@@ -307,6 +308,7 @@ int main(int argc, const char* argv[]) {
 	}
 	// Then the various optimisations
 	optimise(mesh);
+	printf("\n");
 	printf("Vertices: %d\n", static_cast<int>(mesh.verts.size()));
 	printf("Indices:  %d\n", static_cast<int>(mesh.index.size()));
 	// Maximum buffer size: vert posn, norm, uv, tans, bitans + indices
@@ -321,26 +323,38 @@ int main(int argc, const char* argv[]) {
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SIGNED_LEGACY)) {
 		packOpts |= VertexPacker::OPTS_SIGNED_LEGACY;
 	}
-	// Pack the vertex data
 	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
-	for (std::vector<ObjVertex>::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
+	// Pack the vertex data
+	for (ObjVertex::Container::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
 		if (opts.posn != VertexPacker::EXCLUDE) {
 			packer.add(it->posn, VertexPacker::FLOAT32);
 		}
-		if (opts.norm != VertexPacker::EXCLUDE) {
-			packer.add(it->norm, VertexPacker::FLOAT32);
-		}
 		if (opts.text != VertexPacker::EXCLUDE) {
-			packer.add(it->uv_0, VertexPacker::FLOAT32);
+			packer.add(it->uv_0, opts.text);
+		}
+		if (opts.norm != VertexPacker::EXCLUDE) {
+			packer.add(it->norm, opts.norm);
 		}
 		if (opts.tans != VertexPacker::EXCLUDE) {
-			packer.add(it->tans, VertexPacker::FLOAT32);
-			packer.add(it->btan, VertexPacker::FLOAT32);
+			packer.add(it->tans, opts.tans);
+			packer.add(it->btan, opts.tans);
 		}
 	}
-	printf("Vertex buffer bytes: %d\n", static_cast<int>(packer.bytes()));
+	// TODO: we shouldn't need to align this (since each vertex should be aligned)
+	packer.align();
+	size_t vertexBytes = packer.bytes();
 	// Add the indices
-
+	if (opts.idxs != VertexPacker::EXCLUDE) {
+		for (std::vector<unsigned>::const_iterator it = mesh.index.begin(); it != mesh.index.end(); ++it) {
+			packer.add(static_cast<int>(*it), opts.idxs);
+		}
+	}
+	packer.align();
+	size_t totalBytes = packer.bytes();
+	printf("\n");
+	printf("Vertex bytes: %d\n", static_cast<int>(vertexBytes));
+	printf("Index bytes:  %d\n", static_cast<int>(totalBytes - vertexBytes));
+	printf("Total bytes:  %d\n", static_cast<int>(totalBytes));
 	// Write the result
 	bool written = write(dstPath, backing.data(), packer.bytes(),
 		O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_ASCII_FILE),

@@ -27,13 +27,13 @@ public:
 	 */
 	enum Storage {
 		/**
-		 * Signed \c byte (normalised to fit the range \c -1.0 to \c +1.0).
+		 * Signed \c byte (normalised to fit the range \c -1.0 to \c 1.0).
 		 *
 		 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
 		 */
 		SINT08N,
 		/**
-		 * Signed \c byte (clamped to the range \c -128 to \c +127).
+		 * Signed \c byte (clamped to the range \c -128 to \c 127).
 		 *
 		 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
 		 */
@@ -52,14 +52,14 @@ public:
 		 */
 		UINT08C,
 		/**
-		 * Signed \c short (normalised to fit the range \c -1.0 to \c +1.0).
+		 * Signed \c short (normalised to fit the range \c -1.0 to \c 1.0).
 		 * Stored as two consecutive bytes.
 		 *
 		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of two components.
 		 */
 		SINT16N,
 		/**
-		 * Signed \c short (clamped to the range \c -32768 to \c +32767).
+		 * Signed \c short (clamped to the range \c -32768 to \c 32767).
 		 * Stored as two consecutive bytes.
 		 *
 		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of two components.
@@ -79,6 +79,20 @@ public:
 		 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
 		 */
 		UINT16C,
+		/**
+		 * Signed \c int (clamped to the range \c -2147483648 to \c
+		 * 2147483647). Stored as two consecutive bytes.
+		 *
+		 * \note Here for completeness.
+		 */
+		SINT32C,
+		/**
+		 * Unsigned \c short (clamped to the range \c 0 to \c 4294967295).
+		 * Stored as four consecutive bytes.
+		 *
+		 * \note May be useful as an index buffer format.
+		 */
+		UINT32C,
 		/**
 		 * Half-precision \c float (IEEE 754-2008 format). Stored as two
 		 * consecutive bytes.
@@ -141,6 +155,14 @@ public:
 	~VertexPacker() = default;
 
 	//*************************************************************************/
+
+	/**
+	 * Add padding to 4-byte align the next \c #add(). This will add \c 1, \c 2
+	 * or \c 3 bytes if padding is required (otherwise zero).
+	 *
+	 * \return \c true if adding padding was successful (\c false if no more storage space is available)
+	 */
+	bool align();
 
 	/**
 	 * Adds a value to the data stream, converting and storing to \a type.

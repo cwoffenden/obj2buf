@@ -6,8 +6,11 @@
 
 /**
  * Helper to convert a string data type to a storage type. \c b becomes \c
- * SINT08N (signed 8-bit int), \c ub becomes \c UINT08N (unsigned 8-bit int),
+ * SINT08C (signed 8-bit int), \c ub becomes \c UINT08C (unsigned 8-bit int),
  * etc.
+ *
+ * \note Where available types are considered normalised, the final choice to
+ * clamp is made later.
  *
  * \param[in] type string data type
  * \return appropriate storage type (or \c EXCLUDE if a match could not be made)
@@ -19,6 +22,8 @@ static VertexPacker::Storage parseType(const char* const type) {
 			return VertexPacker::SINT08N;
 		case 's':
 			return VertexPacker::SINT16N;
+		case 'i':
+			return VertexPacker::SINT32C;
 		case 'h':
 			return VertexPacker::FLOAT16;
 		case 'f':
@@ -28,10 +33,13 @@ static VertexPacker::Storage parseType(const char* const type) {
 			return VertexPacker::EXCLUDE;
 		default:
 			if (strncmp(type, "ub", 2) == 0) {
-				return VertexPacker::UINT08C;
+				return VertexPacker::UINT08N;
 			}
 			if (strncmp(type, "us", 2) == 0) {
-				return VertexPacker::UINT16C;
+				return VertexPacker::UINT16N;
+			}
+			if (strncmp(type, "ui", 2) == 0) {
+				return VertexPacker::UINT32C;
 			}
 		}
 		fprintf(stderr, "Unknown data type: %s\n", type);
@@ -45,14 +53,14 @@ static VertexPacker::Storage parseType(const char* const type) {
  * \param[in] argv command-line arguments as passed-in from \c main, \e minus the application name
  * \param[in] argc number of entries in \a argv
  * \param[in,out] next index of the current argument being processed
- * \return appropriate storage type (or \c FLOAT32 if none was supplied)
+ * \return appropriate storage type (or \c EXCLUDE if none was supplied)
  */
 static VertexPacker::Storage parseType(const char* const argv[], int const argc, int& next) {
-	VertexPacker::Storage type = VertexPacker::FLOAT32;
+	VertexPacker::Storage type = VertexPacker::EXCLUDE;
 	if (next + 2 < argc) {
 		type = parseType(argv[++next]);
 	} else {
-		fprintf(stderr, "Not enough parameters (defaulting to float)\n");
+		fprintf(stderr, "Not enough parameters (defaulting to exclude)\n");
 	}
 	return type;
 }
@@ -77,6 +85,10 @@ static const char* stringType(VertexPacker::Storage const type) {
 	case VertexPacker::UINT16N:
 	case VertexPacker::UINT16C:
 		return "unsigned short";
+	case VertexPacker::SINT32C:
+		return "int";
+	case VertexPacker::UINT32C:
+		return "unsigned int";
 	case VertexPacker::FLOAT16:
 		return "half";
 	case VertexPacker::FLOAT32:
@@ -111,8 +123,58 @@ int ToolOptions::parseArgs(const char* const argv[], int const argc, bool const 
 	} else {
 		help();
 	}
-	dump();
 	return next;
+}
+
+void ToolOptions::fixUp() {
+	/*
+	 * If positions aren't scaled the types are converted to clamped.
+	 */
+	if (!O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
+		switch (posn) {
+		case VertexPacker::SINT08N:
+			idxs = VertexPacker::SINT08C;
+			break;
+		case VertexPacker::UINT08N:
+			idxs = VertexPacker::UINT08C;
+			break;
+		case VertexPacker::SINT16N:
+			idxs = VertexPacker::SINT16C;
+			break;
+		case VertexPacker::UINT16N:
+			idxs = VertexPacker::UINT16C;
+			break;
+		}
+	}
+	if (tans != VertexPacker::EXCLUDE) {
+		if (norm == VertexPacker::EXCLUDE) {
+			fprintf(stderr, "Tangents requested without normals\n");
+			help();
+		}
+	}
+	/*
+	 * Indices are always unsigned clamped.
+	 */
+	switch (idxs) {
+	case VertexPacker::SINT08N:
+	case VertexPacker::SINT08C:
+	case VertexPacker::UINT08N:
+		idxs = VertexPacker::UINT08C;
+		break;
+	case VertexPacker::SINT16N:
+	case VertexPacker::SINT16C:
+	case VertexPacker::UINT16N:
+		idxs = VertexPacker::UINT16C;
+		break;
+	case VertexPacker::SINT32C:
+		idxs = VertexPacker::UINT32C;
+		break;
+	case VertexPacker::FLOAT16:
+	case VertexPacker::FLOAT32:
+		fprintf(stderr, "Indices cannot be floats\n");
+		help();
+		break;
+	}
 }
 
 int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
@@ -153,24 +215,24 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 			break;
 		case 'e': // encoded normals
 			O2B_SET_OPT(opts, OPTS_NORMALS_ENCODED);
-			if (strcmp(arg + 1, "exy") == 0) {
+			if (strcmp(arg + 1, "ez") == 0) {
 				O2B_SET_OPT(opts, OPTS_NORMALS_XY_ONLY);
 			}
 			break;
 		case 'b': // bitangents as sign-only
 			O2B_SET_OPT(opts, OPTS_BITANGENTS_SIGN);
 			break;
-		case 'a': // ASCII
-			O2B_SET_OPT(opts, OPTS_ASCII_FILE);
-			break;
 		case 'o': // big endian order
 			O2B_SET_OPT(opts, OPTS_BIG_ENDIAN);
+			break;
+		case 'l': // legacy GL signing rule
+			O2B_SET_OPT(opts, OPTS_SIGNED_LEGACY);
 			break;
 		case 'z': // Zstd
 			O2B_SET_OPT(opts, OPTS_COMPRESS_ZSTD);
 			break;
-		case 'l': // legacy GL signing rule
-			O2B_SET_OPT(opts, OPTS_SIGNED_LEGACY);
+		case 'a': // ASCII
+			O2B_SET_OPT(opts, OPTS_ASCII_FILE);
 			break;
 		default:
 			fprintf(stderr, "Unknown argument: %s\n", arg);
@@ -184,30 +246,6 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		next = -1 - next;
 	}
 	return next;
-}
-
-void ToolOptions::dump() const {
-	printf("Positions:   %s",   stringType(posn));
-	if (O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
-		printf(" (apply %s)",   O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)   ? "scale"   : "scale & bias");
-	}
-	printf("\n");
-	printf("Normals:     %s",   stringType(norm));
-	if (O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
-		printf(" (as %s)",      O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
-	}
-	printf("\n");
-	printf("Texture UVs: %s\n", stringType(text));
-	printf("Tangents:    %s",   stringType(tans));
-	if (O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN)) {
-		printf(" (bitangents as sign)");
-	}
-	printf("\n");
-	printf("Indices:     %s", stringType(idxs));
-	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)      ? "ASCII"   : "binary");
-	printf("Endianness:  %s\n", O2B_HAS_OPT(opts, OPTS_BIG_ENDIAN)      ? "big"     : "little");
-	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
-	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)   ? "legacy"  : "modern");
 }
 
 const char* ToolOptions::filename(const char* const path) {
@@ -224,25 +262,49 @@ const char* ToolOptions::filename(const char* const path) {
 	return path;
 }
 
+void ToolOptions::dump() const {
+	printf("Positions:   %s",   stringType(posn));
+	if (O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
+		printf(" (apply %s)",   O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)   ? "scale"   : "scale & bias");
+	}
+	printf("\n");
+	printf("Texture UVs: %s\n", stringType(text));
+	printf("Normals:     %s",   stringType(norm));
+	if (O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
+		printf(" (as %s)",      O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
+	}
+	printf("\n");
+	printf("Tangents:    %s",   stringType(tans));
+	if (O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN)) {
+		printf(" (bitangents as sign)");
+	}
+	printf("\n");
+	printf("Indices:     %s\n", stringType(idxs));
+	printf("Endianness:  %s\n", O2B_HAS_OPT(opts, OPTS_BIG_ENDIAN)      ? "big"     : "little");
+	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)   ? "legacy" : "modern");
+	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
+	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)      ? "ASCII" : "binary");
+}
+
 void ToolOptions::help(const char* const path) {
 	const char* name = filename(path);
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|n|u|t|i type] [-s|sb] [-e|exy] [-b] [-o|l|z|a] in.obj [out.bin]\n", name);
+	printf("Usage: %s [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-o|l|z|a] in.obj [out.bin]\n", name);
 	printf("\t-p vertex positions type\n");
-	printf("\t-n vertex normals type\n");
 	printf("\t-u vertex texture UVs type\n");
+	printf("\t-n vertex normals type\n");
 	printf("\t-t tangents type (defaulting to none)\n");
 	printf("\t-i index buffer type (defaulting to shorts)\n");
 	printf("\t(vertex types are byte|short|half|float|none (none emits no data))\n");
-	printf("\t(index types are byte|short|none (none emits unindexed triangles))\n");
+	printf("\t(index types are byte|short|int|none (none emits unindexed triangles))\n");
 	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
 	printf("\t-sb as -s but without a bias, keeping the origin at zero\n");
 	printf("\t-e encodes normals (and tangents) in two components as hemi-oct\n");
-	printf("\t-exy as -e but as raw XY without the Z\n");
+	printf("\t-ez as -e but as raw XY without the Z\n");
 	printf("\t-b store only the sign for bitangents\n");
-	printf("\t(where possible packing the sign where any padding would normally go)\n");
+	printf("\t(packing the sign if possible where any padding would normally go)\n");
 	printf("\t-o writes multi-byte values in big endian order\n");
 	printf("\t-l use the legacy OpenGL rule for normalised signed values\n");
 	printf("\t-z compresses the output buffer using Zstandard\n");
