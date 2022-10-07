@@ -143,8 +143,8 @@ public:
 	 */
 	ToolOptions()
 		: posn(VertexPacker::FLOAT32)
-		, norm(VertexPacker::FLOAT32)
 		, text(VertexPacker::FLOAT32)
+		, norm(VertexPacker::FLOAT32)
 		, tans(VertexPacker::EXCLUDE)
 		, idxs(VertexPacker::UINT16C)
 		, opts(OPTS_DEFAULT) {}
