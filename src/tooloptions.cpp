@@ -281,12 +281,12 @@ void ToolOptions::dump() const {
 	printf("\n");
 	printf("Texture UVs: %s\n", stringType(text));
 	printf("Normals:     %s",   stringType(norm));
-	if (O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
+	if (norm != VertexPacker::EXCLUDE && O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
 		printf(" (as %s)",      O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
 	}
 	printf("\n");
 	printf("Tangents:    %s",   stringType(tans));
-	if (O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN)) {
+	if (tans != VertexPacker::EXCLUDE && O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN)) {
 		printf(" (bitangents as sign)");
 	}
 	printf("\n");

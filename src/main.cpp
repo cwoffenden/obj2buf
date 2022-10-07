@@ -326,8 +326,13 @@ int main(int argc, const char* argv[]) {
 	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
 	// Pack the vertex data
 	for (ObjVertex::Container::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
+		/*
+		 * TODO: encoding normals and tangents
+		 * TODO: general padding
+		 * TODO: packing bitangents' sign wherever possible
+		 */
 		if (opts.posn != VertexPacker::EXCLUDE) {
-			packer.add(it->posn, VertexPacker::FLOAT32);
+			packer.add(it->posn, opts.posn);
 		}
 		if (opts.text != VertexPacker::EXCLUDE) {
 			packer.add(it->uv_0, opts.text);
