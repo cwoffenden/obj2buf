@@ -301,7 +301,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-p vertex positions type\n");
 	printf("\t-u vertex texture UVs type\n");
 	printf("\t-n vertex normals type\n");
-	printf("\t-t tangents type (defaulting to none)\n");
+	printf("\t-t vertex tangents type (defaulting to none)\n");
 	printf("\t-i index buffer type (defaulting to shorts)\n");
 	printf("\t(vertex types are byte|short|half|float|none (none emits no data))\n");
 	printf("\t(index types are byte|short|int|none (none emits unindexed triangles))\n");

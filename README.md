@@ -12,7 +12,7 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-o|l|z|a] in.obj [out.bin
         -p vertex positions type
         -u vertex texture UVs type
         -n vertex normals type
-        -t tangents type (defaulting to none)
+        -t vertex tangents type (defaulting to none)
         -i index buffer type (defaulting to shorts)
         (vertex types are byte|short|half|float|none (none emits no data))
         (index types are byte|short|int|none (none emits unindexed triangles))
