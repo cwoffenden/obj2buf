@@ -111,16 +111,16 @@ public:
 	VertexPacker::Storage posn;
 
 	/**
-	 * Storage type to use when writing the normals. The default is three 32-bit
-	 * \c float&nbsp;s (12 bytes).
-	 */
-	VertexPacker::Storage norm;
-
-	/**
 	 * Storage type to use when writing the texture UVs. The default is two
 	 * 32-bit \c float&nbsp;s (8 bytes).
 	 */
 	VertexPacker::Storage text;
+
+	/**
+	 * Storage type to use when writing the normals. The default is three 32-bit
+	 * \c float&nbsp;s (12 bytes).
+	 */
+	VertexPacker::Storage norm;
 
 	/**
 	 * Storage type to use when writing the tangents. The default is exclude
@@ -160,12 +160,23 @@ public:
 	int parseArgs(const char* const argv[], int const argc, bool const cli = true);
 
 	/**
+	 * Assess the options and tweak any that need changing or cleaning up. For
+	 * example, index buffer types should be unsigned clamped.
+	 */
+	void fixUp();
+
+	/**
 	 * Helper to extract the filename from a path.
 	 *
 	 * \param[in] path full path
 	 * \return the file at the end of the path (or an empty string if there is no file)
 	 */
 	static const char* filename(const char* const path);
+
+	/**
+	 * Prints the options to \c stdout in a human readable form.
+	 */
+	void dump() const;
 
 private:
 	/**
@@ -177,11 +188,6 @@ private:
 	 * \return argument to process in the next call (\a argc if all arguments were processed; \c -1 \c - \c next if there are arguments after the switches)
 	 */
 	int parseNext(const char* const argv[], int const argc, int next);
-
-	/**
-	 * Prints the options in a human readable form.
-	 */
-	void dump() const;
 
 	/**
 	 * Print the CLI help then exit.

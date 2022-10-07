@@ -83,6 +83,10 @@ static int32_t storeLegacy(float const val, VertexPacker::Storage const type) {
 		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
 	case VertexPacker::UINT16C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
+	case VertexPacker::SINT32C:
+		return int32_t(clamp<long>(long(round(val)), INT32_MIN, INT32_MAX));
+	case VertexPacker::UINT32C:
+		return int32_t(clamp<long>(long(round(val)), 0, UINT32_MAX));
 	case VertexPacker::FLOAT16:
 		 return static_cast<int32_t>(utils::floatToHalf(val));
 	default: {
@@ -120,6 +124,10 @@ static int32_t storeModern(float const val, VertexPacker::Storage const type) {
 		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
 	case VertexPacker::UINT16C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
+	case VertexPacker::SINT32C:
+		return int32_t(clamp<long>(long(round(val)), INT32_MIN, INT32_MAX));
+	case VertexPacker::UINT32C:
+		return int32_t(clamp<long>(long(round(val)), 0, UINT32_MAX));
 	case VertexPacker::FLOAT16:
 		return static_cast<int32_t>(utils::floatToHalf(val));
 	default: {
@@ -150,6 +158,12 @@ static int32_t storeLegacy(int const val, VertexPacker::Storage const type) {
 		return clamp<int32_t>(val, INT16_MIN, INT16_MAX);
 	case VertexPacker::UINT16C:
 		return clamp<int32_t>(val, 0, UINT16_MAX);
+	case VertexPacker::SINT32C:
+		// None of the target systems have anything other than 32-bit int
+		return clamp<int32_t>(val, INT32_MIN, INT32_MAX);
+	case VertexPacker::UINT32C:
+		// Here for completeness, clamped to a *signed* upper bound
+		return clamp<int32_t>(val, 0, INT32_MAX);
 	default:
 		return storeLegacy(static_cast<float>(val), type);
 	}
@@ -173,6 +187,12 @@ static int32_t storeModern(int const val, VertexPacker::Storage const type) {
 		return clamp<int32_t>(val, INT16_MIN, INT16_MAX);
 	case VertexPacker::UINT16C:
 		return clamp<int32_t>(val, 0, UINT16_MAX);
+	case VertexPacker::SINT32C:
+		// None of the target systems have anything other than 32-bit int
+		return clamp<int32_t>(val, INT32_MIN, INT32_MAX);
+	case VertexPacker::UINT32C:
+		// Here for completeness, clamped to a *signed* upper bound
+		return clamp<int32_t>(val, 0, INT32_MAX);
 	default:
 		return storeModern(static_cast<float>(val), type);
 	}
@@ -185,6 +205,20 @@ VertexPacker::VertexPacker(void* const root, unsigned const size, unsigned const
 	, next(static_cast<uint8_t*>(root))
 	, over(static_cast<uint8_t*>(root) + size)
 	, opts(opts) {}
+
+bool VertexPacker::align() {
+	if (unsigned padding = static_cast<unsigned>(bytes()) & 3) {
+		padding = 4 - padding;
+		if (next + padding <= over) {
+			for (unsigned n = 0; n < padding; n++) {
+				*next++ = 0;
+			}
+		} else {
+			return false;
+		}
+	}
+	return true;
+}
 
 bool VertexPacker::add(float const data, Storage const type) {
 	if (hasFreeSpace(type)) {
@@ -234,12 +268,14 @@ bool VertexPacker::add(float const data, Storage const type) {
 
 bool VertexPacker::add(int const data, Storage const type) {
 	if (hasFreeSpace(type)) {
-		int temp = 0;
+		int32_t temp;
 		switch (type) {
 		case SINT08C:
 		case UINT08C:
 		case SINT16C:
 		case UINT16C:
+		case SINT32C:
+		case UINT32C:
 			if ((opts & OPTS_SIGNED_LEGACY) == 0) {
 				temp = storeModern(data, type);
 			} else {
@@ -248,8 +284,8 @@ bool VertexPacker::add(int const data, Storage const type) {
 			break;
 		default:
 			/*
-			 * For anything other than 8- and 16-bit clamped types we treat the
-			 * value as a float.
+			 * For anything other than integer clamped types we treat the value
+			 * as a float.
 			 */
 			return add(static_cast<float>(data), type);
 		}
@@ -258,14 +294,28 @@ bool VertexPacker::add(int const data, Storage const type) {
 		case UINT08C:
 			*next++ = temp & 0xFF;
 			break;
-		default:
+		case SINT16C:
+		case UINT16C:
 			if ((opts & OPTS_BIG_ENDIAN) == 0) {
-				*next++ = (temp >> 0) & 0xFF;
-				*next++ = (temp >> 8) & 0xFF;
+				*next++ = (temp >>  0) & 0xFF;
+				*next++ = (temp >>  8) & 0xFF;
 			}
 			else {
-				*next++ = (temp >> 8) & 0xFF;
-				*next++ = (temp >> 0) & 0xFF;
+				*next++ = (temp >>  8) & 0xFF;
+				*next++ = (temp >>  0) & 0xFF;
+			}
+			break;
+		default:
+			if ((opts & OPTS_BIG_ENDIAN) == 0) {
+				*next++ = (temp >>  0) & 0xFF;
+				*next++ = (temp >>  8) & 0xFF;
+				*next++ = (temp >> 16) & 0xFF;
+				*next++ = (temp >> 24) & 0xFF;
+			} else {
+				*next++ = (temp >> 24) & 0xFF;
+				*next++ = (temp >> 16) & 0xFF;
+				*next++ = (temp >>  8) & 0xFF;
+				*next++ = (temp >>  0) & 0xFF;
 			}
 		}
 		return true;
