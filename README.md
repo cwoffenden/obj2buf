@@ -30,7 +30,7 @@ For simple cases it's probably enough to take the defaults, with the addition of
 ```
 obj2buf -a cube.obj cube.inc
 ```
-Then `include` this file at compile time:
+Which would then be `include`d at compile time:
 ```
 uint8_t buffer[] = {
 #include "cube.inc"
@@ -38,13 +38,13 @@ uint8_t buffer[] = {
 ```
 A more complex example could be:
 
-	1. Vertex positions and UVs as `short`s, normals and tangents as `byte`s.
+1. Vertex positions and UVs as `short`s, normals and tangents as `byte`s.
 
-	2. `-s` option to scale the mesh in the range `-1` to `1` (allowing any object to be drawn without considering the camera or mesh size).
+2. `-s` option to scale the mesh in the range `-1` to `1` (allowing any object to be drawn without considering the camera or mesh size).
 
-	3. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions).
+3. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions).
 
-	4. `-ez` option to drop the Z from normals and tangents.
+4. `-ez` option to drop the Z from normals and tangents.
 ```
 obj2buf -p short -u short -n byte -t byte -s -ez -b -a cube.obj cube.inc
 ```
