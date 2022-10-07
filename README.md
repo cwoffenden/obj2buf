@@ -30,7 +30,7 @@ For simple cases it's probably enough to take the defaults, with the addition of
 ```
 obj2buf -a cube.obj cube.inc
 ```
-Which would then be `include`d at compile time:
+Which would then be included at compile time:
 ```
 uint8_t buffer[] = {
 #include "cube.inc"
@@ -38,7 +38,7 @@ uint8_t buffer[] = {
 ```
 A more complex example could be:
 
-1. Vertex positions and UVs as `short`s, normals and tangents as `byte`s.
+1. Vertex positions and UVs as `short`, normals and tangents as `byte`.
 
 2. `-s` option to scale the mesh in the range `-1` to `1` (allowing any object to be drawn without considering the camera or mesh size).
 
