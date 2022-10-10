@@ -345,6 +345,10 @@ void VertexPacker::rewind() {
 	next = root;
 }
 
+bool VertexPacker::hasFreeSpace(Storage const type) const {
+	return next + bytes(type) <= over;
+}
+
 unsigned VertexPacker::bytes(Storage const type) {
 	switch (type) {
 	case EXCLUDE:
@@ -365,6 +369,15 @@ unsigned VertexPacker::bytes(Storage const type) {
 	}
 }
 
-bool VertexPacker::hasFreeSpace(Storage const type) const {
-	return next + bytes(type) <= over;
+bool VertexPacker::isSigned(Storage const type) {
+	switch (type) {
+	case EXCLUDE:
+	case UINT08N:
+	case UINT08C:
+	case UINT16N:
+	case UINT16C:
+		return false;
+	default:
+		return true;
+	}
 }
