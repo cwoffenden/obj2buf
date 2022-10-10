@@ -1,5 +1,6 @@
 #include "fileutils.h"
 
+#include <cstdint>
 #include <cstdlib>
 #include <cstdio>
 
