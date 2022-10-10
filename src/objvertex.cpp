@@ -8,9 +8,9 @@
 #include "mikktspace.h"
 
 /**
- * Utility functions to bridge between \c ObjVertex \e MikkTSpace. The functions
- * are internal to this implementation and only \c mtsutil#objVertIface should
- * be used.
+ * Utility functions to bridge between \c ObjVertex and \e MikkTSpace. These are
+ * all internal to this implementation and only \c ObjVertex#generateTangents()
+ * should be used.
  */
 namespace mtsutil {
 	/**
@@ -131,11 +131,11 @@ ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	posn.x = obj->positions[idx->p * 3 + 0];
 	posn.y = obj->positions[idx->p * 3 + 1];
 	posn.z = obj->positions[idx->p * 3 + 2];
+	uv_0.x = obj->texcoords[idx->t * 2 + 0];
+	uv_0.y = obj->texcoords[idx->t * 2 + 1];
 	norm.x = obj->normals  [idx->n * 3 + 0];
 	norm.y = obj->normals  [idx->n * 3 + 1];
 	norm.z = obj->normals  [idx->n * 3 + 2];
-	uv_0.x = obj->texcoords[idx->t * 2 + 0];
-	uv_0.y = obj->texcoords[idx->t * 2 + 1];
 	tans   = 0.0f;
 	btan   = 0.0f;
 	sign   = 0.0f;
