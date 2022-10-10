@@ -10,8 +10,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "vec.h"
-
 /**
  * Writes packed vertex data to a buffer.
  */
@@ -26,6 +24,10 @@ public:
 	 * \todo re-add support for \c 10_10_10_2 formats?
 	 */
 	enum Storage {
+		/**
+		 * Flag to mark as excluded from writing.
+		 */
+		EXCLUDE,
 		/**
 		 * Signed \c byte (normalised to fit the range \c -1.0 to \c 1.0).
 		 *
@@ -105,11 +107,6 @@ public:
 		 * consecutive bytes.
 		 */
 		FLOAT32,
-		/**
-		 * Flag to mark as excluded from writing (but fallsback to \c #FLOAT32
-		 * if used).
-		 */
-		EXCLUDE,
 	};
 
 	/**
@@ -157,12 +154,11 @@ public:
 	//*************************************************************************/
 
 	/**
-	 * Add padding to 4-byte align the next \c #add(). This will add \c 1, \c 2
-	 * or \c 3 bytes if padding is required (otherwise zero).
+	 * Returns the number of bytes added to the underlying storage.
 	 *
-	 * \return \c true if adding padding was successful (\c false if no more storage space is available)
+	 * \return the number of bytes added
 	 */
-	bool align();
+	size_t size() const;
 
 	/**
 	 * Adds a value to the data stream, converting and storing to \a type.
@@ -179,31 +175,12 @@ public:
 	bool add(int const data, Storage const type);
 
 	/**
-	 * Adds two values to the data stream, converting and storing to \a type.
+	 * Add padding to 4-byte align the next \c #add(). This will add \c 1, \c 2
+	 * or \c 3 bytes if padding is required (otherwise zero).
 	 *
-	 * \param[in] data values to add
-	 * \param[in] type conversion and byte storage
-	 * \return \c true if adding was successful (\c false if no more storage space is available)
+	 * \return \c true if adding padding was successful (\c false if no more storage space is available)
 	 */
-	bool add(const vec2& data, Storage const type);
-
-	/**
-	 * Adds three values to the data stream, converting and storing to \a type.
-	 *
-	 * \param[in] data values to add
-	 * \param[in] type conversion and byte storage
-	 * \return \c true if adding was successful (\c false if no more storage space is available)
-	 */
-	bool add(const vec3& data, Storage const type);
-
-	/**
-	 * Adds four values to the data stream, converting and storing to \a type.
-	 *
-	 * \param[in] data values to add
-	 * \param[in] type conversion and byte storage
-	 * \return \c true if adding was successful (\c false if no more storage space is available)
-	 */
-	bool add(const vec4& data, Storage const type);
+	bool align();
 
 	/**
 	 * Starts adding to the stream from the beginning.
@@ -211,11 +188,12 @@ public:
 	void rewind();
 
 	/**
-	 * Returns the number of bytes added to the underlying storage.
+	 * Returns the number of bytes each storage type requires, for example \c 1
+	 * byte for \c SINT08N, \c 2 for SINT16N, etc.
 	 *
-	 * \return the number of bytes added
+	 * \param[in] type storage type
 	 */
-	size_t bytes() const;
+	static unsigned bytes(Storage const type);
 
 private:
 	/**

@@ -54,6 +54,21 @@ struct ObjMesh
 	vec3 bias;
 };
 
+/*
+ * Output buffer descriptor. What the interleaved offsets are, where attributes
+ * are packed, etc.
+ */
+struct BufDesc
+{
+	BufDesc()
+		: padPosn(false)
+		, padUv_0(false)
+		, padNorm(false) {}
+	bool padPosn;
+	bool padUv_0;
+	bool padNorm;
+};
+
 /**
  * Helper to return the current time in milliseconds.
  *
@@ -237,22 +252,22 @@ int main(int argc, const char* argv[]) {
 		 * TODO: packing bitangents' sign wherever possible
 		 */
 		if (opts.posn != VertexPacker::EXCLUDE) {
-			packer.add(it->posn, opts.posn);
+			it->posn.store(packer, opts.posn);
 		}
 		if (opts.text != VertexPacker::EXCLUDE) {
-			packer.add(it->uv_0, opts.text);
+			it->uv_0.store(packer, opts.text);
 		}
 		if (opts.norm != VertexPacker::EXCLUDE) {
-			packer.add(it->norm, opts.norm);
+			it->norm.store(packer, opts.norm);
 		}
 		if (opts.tans != VertexPacker::EXCLUDE) {
-			packer.add(it->tans, opts.tans);
-			packer.add(it->btan, opts.tans);
+			it->tans.store(packer, opts.tans);
+			it->btan.store(packer, opts.tans);
 		}
 	}
 	// TODO: we shouldn't need to align this (since each vertex should be aligned)
 	packer.align();
-	size_t vertexBytes = packer.bytes();
+	size_t vertexBytes = packer.size();
 	// Add the indices
 	if (opts.idxs != VertexPacker::EXCLUDE) {
 		for (std::vector<unsigned>::const_iterator it = mesh.index.begin(); it != mesh.index.end(); ++it) {
@@ -260,13 +275,13 @@ int main(int argc, const char* argv[]) {
 		}
 	}
 	packer.align();
-	size_t totalBytes = packer.bytes();
+	size_t totalBytes = packer.size();
 	printf("\n");
 	printf("Vertex bytes: %d\n", static_cast<int>(vertexBytes));
 	printf("Index bytes:  %d\n", static_cast<int>(totalBytes - vertexBytes));
 	printf("Total bytes:  %d\n", static_cast<int>(totalBytes));
 	// Write the result
-	bool written = write(dstPath, backing.data(), packer.bytes(),
+	bool written = write(dstPath, backing.data(), packer.size(),
 		O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_ASCII_FILE),
 		O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_COMPRESS_ZSTD));
 	if (!written) {

@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include "vertexpacker.h"
+
 /**
  * \def VEC3_SIMPLE_OPERATOR_WITH_VECTOR
  * Helper to emit code for the simple operators such as \c +, \c -, etc., for
@@ -56,6 +58,19 @@ struct Vec2
 	operator T*() {
 		return &x;
 	}
+	/**
+	 * Adds this vector to a buffer.
+	 *
+	 * \param[in] dest vertex packer wrapping the destination buffer
+	 * \param[in] type conversion and byte storage
+	 * \return \c true if adding was successful (\c false if no more storage space is available)
+	 */
+	bool store(VertexPacker& dest, VertexPacker::Storage const type) const {
+		bool failed = false;
+		failed |= !dest.add(x, type);
+		failed |= !dest.add(y, type);
+		return !failed;
+	}
 };
 
 
@@ -84,6 +99,16 @@ struct Vec3
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(*)
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(/)
 	VEC3_SIMPLE_OPERATOR_WITH_SCALAR(*)
+	/**
+	 * \copydoc Vec2::store()
+	 */
+	bool store(VertexPacker& dest, VertexPacker::Storage const type) const {
+		bool failed = false;
+		failed |= !dest.add(x, type);
+		failed |= !dest.add(y, type);
+		failed |= !dest.add(z, type);
+		return !failed;
+	}
 	/**
 	 * Component-wise minimum of two vectors.
 	 */
@@ -122,6 +147,17 @@ struct Vec4
 	}
 	operator T*() {
 		return &x;
+	}
+	/**
+	 * \copydoc Vec2::store()
+	 */
+	bool store(VertexPacker& dest, VertexPacker::Storage const type) const {
+		bool failed = false;
+		failed |= !dest.add(x, type);
+		failed |= !dest.add(y, type);
+		failed |= !dest.add(z, type);
+		failed |= !dest.add(w, type);
+		return !failed;
 	}
 };
 
