@@ -72,6 +72,8 @@ static inline int32_t signedModern(float const val) {
  */
 static int32_t storeLegacy(float const val, VertexPacker::Storage const type) {
 	switch (type) {
+	case VertexPacker::EXCLUDE:
+		return 0;
 	case VertexPacker::SINT08N:
 		return clamp<int32_t>(signedLegacy<8>(val), INT8_MIN, INT8_MAX);
 	case VertexPacker::SINT08C:
@@ -113,6 +115,8 @@ static int32_t storeLegacy(float const val, VertexPacker::Storage const type) {
  */
 static int32_t storeModern(float const val, VertexPacker::Storage const type) {
 	switch (type) {
+	case VertexPacker::EXCLUDE:
+		return 0;
 	case VertexPacker::SINT08N:
 		return clamp<int32_t>(signedModern<8>(val), -INT8_MAX, INT8_MAX);
 	case VertexPacker::SINT08C:
@@ -211,8 +215,120 @@ VertexPacker::VertexPacker(void* const root, unsigned const size, unsigned const
 	, over(static_cast<uint8_t*>(root) + size)
 	, opts(opts) {}
 
+
+size_t VertexPacker::size() const {
+	return static_cast<size_t>(next - root);
+}
+
+bool VertexPacker::add(float const data, Storage const type) {
+	if (hasFreeSpace(type)) {
+		if (type != EXCLUDE) {
+			int32_t temp;
+			if ((opts & OPTS_SIGNED_LEGACY) == 0) {
+				temp = storeModern(data, type);
+			} else {
+				temp = storeLegacy(data, type);
+			}
+			switch (type) {
+			case SINT08N:
+			case SINT08C:
+			case UINT08N:
+			case UINT08C:
+				*next++ = temp & 0xFF;
+				break;
+			case SINT16N:
+			case SINT16C:
+			case UINT16N:
+			case UINT16C:
+			case FLOAT16:
+				if ((opts & OPTS_BIG_ENDIAN) == 0) {
+					*next++ = (temp >>  0) & 0xFF;
+					*next++ = (temp >>  8) & 0xFF;
+				} else {
+					*next++ = (temp >>  8) & 0xFF;
+					*next++ = (temp >>  0) & 0xFF;
+				}
+				break;
+			default:
+				if ((opts & OPTS_BIG_ENDIAN) == 0) {
+					*next++ = (temp >>  0) & 0xFF;
+					*next++ = (temp >>  8) & 0xFF;
+					*next++ = (temp >> 16) & 0xFF;
+					*next++ = (temp >> 24) & 0xFF;
+				} else {
+					*next++ = (temp >> 24) & 0xFF;
+					*next++ = (temp >> 16) & 0xFF;
+					*next++ = (temp >>  8) & 0xFF;
+					*next++ = (temp >>  0) & 0xFF;
+				}
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
+bool VertexPacker::add(int const data, Storage const type) {
+	if (hasFreeSpace(type)) {
+		if (type != EXCLUDE) {
+			int32_t temp;
+			switch (type) {
+			case SINT08C:
+			case UINT08C:
+			case SINT16C:
+			case UINT16C:
+			case SINT32C:
+			case UINT32C:
+				if ((opts & OPTS_SIGNED_LEGACY) == 0) {
+					temp = storeModern(data, type);
+				} else {
+					temp = storeLegacy(data, type);
+				}
+				break;
+			default:
+				/*
+				 * For anything other than integer clamped types we treat the
+				 * value as a float.
+				 */
+				return add(static_cast<float>(data), type);
+			}
+			switch (type) {
+			case SINT08C:
+			case UINT08C:
+				*next++ = temp & 0xFF;
+				break;
+			case SINT16C:
+			case UINT16C:
+				if ((opts & OPTS_BIG_ENDIAN) == 0) {
+					*next++ = (temp >>  0) & 0xFF;
+					*next++ = (temp >>  8) & 0xFF;
+				}
+				else {
+					*next++ = (temp >>  8) & 0xFF;
+					*next++ = (temp >>  0) & 0xFF;
+				}
+				break;
+			default:
+				if ((opts & OPTS_BIG_ENDIAN) == 0) {
+					*next++ = (temp >>  0) & 0xFF;
+					*next++ = (temp >>  8) & 0xFF;
+					*next++ = (temp >> 16) & 0xFF;
+					*next++ = (temp >> 24) & 0xFF;
+				} else {
+					*next++ = (temp >> 24) & 0xFF;
+					*next++ = (temp >> 16) & 0xFF;
+					*next++ = (temp >>  8) & 0xFF;
+					*next++ = (temp >>  0) & 0xFF;
+				}
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
 bool VertexPacker::align() {
-	if (unsigned padding = static_cast<unsigned>(bytes()) & 3) {
+	if (unsigned padding = static_cast<unsigned>(size()) & 3) {
 		padding = 4 - padding;
 		if (next + padding <= over) {
 			for (unsigned n = 0; n < padding; n++) {
@@ -225,155 +341,30 @@ bool VertexPacker::align() {
 	return true;
 }
 
-bool VertexPacker::add(float const data, Storage const type) {
-	if (hasFreeSpace(type)) {
-		int32_t temp;
-		if ((opts & OPTS_SIGNED_LEGACY) == 0) {
-			temp = storeModern(data, type);
-		} else {
-			temp = storeLegacy(data, type);
-		}
-		switch (type) {
-		case SINT08N:
-		case SINT08C:
-		case UINT08N:
-		case UINT08C:
-			*next++ = temp & 0xFF;
-			break;
-		case SINT16N:
-		case SINT16C:
-		case UINT16N:
-		case UINT16C:
-		case FLOAT16:
-			if ((opts & OPTS_BIG_ENDIAN) == 0) {
-				*next++ = (temp >>  0) & 0xFF;
-				*next++ = (temp >>  8) & 0xFF;
-			} else {
-				*next++ = (temp >>  8) & 0xFF;
-				*next++ = (temp >>  0) & 0xFF;
-			}
-			break;
-		default:
-			if ((opts & OPTS_BIG_ENDIAN) == 0) {
-				*next++ = (temp >>  0) & 0xFF;
-				*next++ = (temp >>  8) & 0xFF;
-				*next++ = (temp >> 16) & 0xFF;
-				*next++ = (temp >> 24) & 0xFF;
-			} else {
-				*next++ = (temp >> 24) & 0xFF;
-				*next++ = (temp >> 16) & 0xFF;
-				*next++ = (temp >>  8) & 0xFF;
-				*next++ = (temp >>  0) & 0xFF;
-			}
-		}
-		return true;
-	}
-	return false;
-}
-
-bool VertexPacker::add(int const data, Storage const type) {
-	if (hasFreeSpace(type)) {
-		int32_t temp;
-		switch (type) {
-		case SINT08C:
-		case UINT08C:
-		case SINT16C:
-		case UINT16C:
-		case SINT32C:
-		case UINT32C:
-			if ((opts & OPTS_SIGNED_LEGACY) == 0) {
-				temp = storeModern(data, type);
-			} else {
-				temp = storeLegacy(data, type);
-			}
-			break;
-		default:
-			/*
-			 * For anything other than integer clamped types we treat the value
-			 * as a float.
-			 */
-			return add(static_cast<float>(data), type);
-		}
-		switch (type) {
-		case SINT08C:
-		case UINT08C:
-			*next++ = temp & 0xFF;
-			break;
-		case SINT16C:
-		case UINT16C:
-			if ((opts & OPTS_BIG_ENDIAN) == 0) {
-				*next++ = (temp >>  0) & 0xFF;
-				*next++ = (temp >>  8) & 0xFF;
-			}
-			else {
-				*next++ = (temp >>  8) & 0xFF;
-				*next++ = (temp >>  0) & 0xFF;
-			}
-			break;
-		default:
-			if ((opts & OPTS_BIG_ENDIAN) == 0) {
-				*next++ = (temp >>  0) & 0xFF;
-				*next++ = (temp >>  8) & 0xFF;
-				*next++ = (temp >> 16) & 0xFF;
-				*next++ = (temp >> 24) & 0xFF;
-			} else {
-				*next++ = (temp >> 24) & 0xFF;
-				*next++ = (temp >> 16) & 0xFF;
-				*next++ = (temp >>  8) & 0xFF;
-				*next++ = (temp >>  0) & 0xFF;
-			}
-		}
-		return true;
-	}
-	return false;
-}
-
-bool VertexPacker::add(const vec2& data, Storage const type) {
-	bool failed = false;
-	failed |= !add(data.x, type);
-	failed |= !add(data.y, type);
-	return !failed;
-}
-
-bool VertexPacker::add(const vec3& data, Storage const type) {
-	bool failed = false;
-	failed |= !add(data.x, type);
-	failed |= !add(data.y, type);
-	failed |= !add(data.z, type);
-	return !failed;
-}
-
-bool VertexPacker::add(const vec4& data, Storage const type) {
-	bool failed = false;
-	failed |= !add(data.x, type);
-	failed |= !add(data.y, type);
-	failed |= !add(data.z, type);
-	failed |= !add(data.w, type);
-	return !failed;
-}
-
 void VertexPacker::rewind() {
 	next = root;
 }
 
-size_t VertexPacker::bytes() const {
-	return static_cast<size_t>(next - root);
-}
-
-bool VertexPacker::hasFreeSpace(Storage const type) const {
+unsigned VertexPacker::bytes(Storage const type) {
 	switch (type) {
+	case EXCLUDE:
+		return 0;
 	case SINT08N:
 	case SINT08C:
 	case UINT08N:
 	case UINT08C:
-		return next + 1 <= over;
+		return 1;
 	case SINT16N:
 	case SINT16C:
 	case UINT16N:
 	case UINT16C:
 	case FLOAT16:
-		return next + 2 <= over;
+		return 2;
 	default:
-		return next + 4 <= over;
+		return 4;
 	}
+}
+
+bool VertexPacker::hasFreeSpace(Storage const type) const {
+	return next + bytes(type) <= over;
 }
