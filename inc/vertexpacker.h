@@ -183,17 +183,29 @@ public:
 	bool align();
 
 	/**
-	 * Starts adding to the stream from the beginning.
+	 * Starts adding to the stream from the beginning (overwriting any existing
+	 * content and allowing underlying storage to be reused).
 	 */
 	void rewind();
+
+	//*************************************************************************/
 
 	/**
 	 * Returns the number of bytes each storage type requires, for example \c 1
 	 * byte for \c SINT08N, \c 2 for SINT16N, etc.
 	 *
 	 * \param[in] type storage type
+	 * \return the number of bytes each storage type requires
 	 */
 	static unsigned bytes(Storage const type);
+
+	/**
+	 * Queries whether a storage type is \e signed (otherwise it's \e unsigned).
+	 *
+	 * \param[in] type storage type
+	 * \return \c true if \a type is signed
+	 */
+	static bool isSigned(Storage const type);
 
 private:
 	/**
