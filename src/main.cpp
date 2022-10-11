@@ -95,19 +95,19 @@ struct BufDesc
 		 * will be fixed but the size might change as other components are
 		 * packed).
 		 *
-		 * \param[in] size number of components
-		 * \param[in] offset offset to the first component in the buffer
+		 * \param[in] numComps number of components
+		 * \param[in] startOff offset to the start of the components
 		 * \param[in] compSize number of bytes in a single component
 		 */
-		void fill(unsigned const size, unsigned const offset, unsigned const compSize) {
-			this->valid  = true;
-			this->size   = size;
-			this->offset = offset;
-			this->align  = ((size * compSize) & 3) != 0;
+		void fill(unsigned const numComps, unsigned const startOff, unsigned const compSize) {
+			valid  = true;
+			size   = numComps;
+			offset = startOff;
+			align  = ((size * compSize) & 3) != 0;
 		}
 		bool valid;      /**< \c true if these attributes are used and exported. */
 		unsigned size;   /**< Number of components (e.g.: \c 2 for UVs). */
-		unsigned offset; /**< Offset to the first component in the buffer. */
+		unsigned offset; /**< Offset to the start of the components in the interleaved buffer */
 		bool align;      /**< \c true if the stream needs 4-byte aligning (and has free space). */
 	};
 	/**
