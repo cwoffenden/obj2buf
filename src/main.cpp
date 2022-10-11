@@ -56,7 +56,7 @@ struct ObjMesh
 
 /*
  * Output buffer descriptor. What the interleaved offsets are, where attributes
- * are packed, etc.
+ * are packed, etc., to be sent to the rendering API.
  */
 struct BufDesc
 {
@@ -72,32 +72,34 @@ struct BufDesc
 		PACK_TANS_Z, /**< Packed in the encoded tangent's \c z (3rd) component. */
 		PACK_TANS_W, /**< Packed in the tangent's \c w (4th) component. */
 	};
-
-	// TODO: struct with size, ptr and pad for each.
-	BufDesc()
-		: tanSign(PACK_NONE)
-		, posnSize(0)
-		, posnPtr (0)
-		, uv_0Size(0)
-		, uv_0Ptr (0)
-		, normSize(0)
-		, normPtr (0)
-		, tansSize(0)
-		, tansPtr (0)
-		, btanSize(0)
-		, btanPtr (0) {}
-
-	PackSign tanSign; /**< When the tangent sign was packed. */
-	unsigned posnSize; /**< Number of components for the vertex positions (should be \c 3, or \c 4 if packed with the tangents). */
-	unsigned posnPtr; /**< \e Pointer to the first vertex position in the buffer (should be zero). */
-	unsigned uv_0Size; /**< Number of components for UV channel 0 (should be \c 2, or \c 3 if packed with the tangents). */
-	unsigned uv_0Ptr; /**< \e Pointer to the first UV channel coordinate in the buffer. */
-	unsigned normSize; /**< Number of components for the vertex normals (\c 2 if encoded, but could be \c 3 or \c 4  depending on the options). */
-	unsigned normPtr; /**< \e Pointer to the first vertex normal in the buffer. */
-	unsigned tansSize; /**< Number of components for the vertex tangents (\c 2 if encoded, but could be \c 3 or \c 4  depending on the options). */
-	unsigned tansPtr; /**< \e Pointer to the first vertex tangent in the buffer. */
-	unsigned btanSize; /**< Number of components for the vertex bitangents (\c 2 if encoded, \c 3 otherwise). */
-	unsigned btanPtr; /**< \e Pointer to the first vertex bitangent in the buffer. */
+	/**
+	 * Parameters associated with an interleaved vertex attribute. Later these
+	 * will be passed, for example, to \c glVertexAttribPointer().
+	 */
+	struct AttrParams {
+		/*
+		 * Zero constructor.
+		 */
+		AttrParams()
+			: valid (false)
+			, size  (0)
+			, offset(0)
+			, align (false) {}
+		bool valid;      /**< \c true if these attributes are used and exported. */
+		unsigned size;   /**< Number of components (e.g.: \c 2 for UVs). */
+		unsigned offset; /**< Offset to an attribute's first component in the buffer. */
+		bool align;      /**< \c true if the stream needs 4-byte aligning. */
+	};
+	/**
+	 * Zeroed buffer ready to be filled.
+	 */
+	BufDesc() : sign(PACK_NONE) {}
+	PackSign   sign; /**< Where the tangent sign was packed. */
+	AttrParams posn; /**< Position attributes. */
+	AttrParams uv_0; /**< UV channel 0 attributes. */
+	AttrParams norm; /**< Normal attributes. */
+	AttrParams tans; /**< Tangent attributes. */
+	AttrParams btan; /**< Bitangent attributes. */
 };
 
 /**
@@ -251,43 +253,85 @@ int main(int argc, const char* argv[]) {
 
 	// WIP filling buffer descriptor
 	BufDesc bufDesc;
-	unsigned attrPtr = 0; // next vertex attribute pointer
-	if (opts.posn != VertexPacker::EXCLUDE) {
-		unsigned compLen = VertexPacker::bytes(opts.posn);
+	unsigned offset = 0; // running attribute offset
+	if (unsigned compBytes = VertexPacker::bytes(opts.posn)) {
 		/*
-		 * Positions are always X, Y, Z (and the pointer will always be zero).
-		 * For a component length or 1 or 2, the bytes will 3 or 6, needing 1 or
+		 * Positions are always X, Y & Z (and the pointer will always be zero).
+		 * For a component size or 1 or 2, the bytes will 3 or 6, needing 1 or
 		 * 2 bytes padding, or (for signed types) allowing the tangent sign to
 		 * be packed.
 		 */
-		bufDesc.posnSize = 3;
-		bufDesc.posnPtr  = attrPtr;
-		if (compLen == 1 || compLen == 2) {
-			if (bufDesc.tanSign == BufDesc::PACK_NONE) {
+		bufDesc.posn.valid  = true;
+		bufDesc.posn.size   = 3;
+		bufDesc.posn.offset = offset;
+		if (((bufDesc.posn.size * compBytes) & 3) != 0) {
+			if (bufDesc.sign == BufDesc::PACK_NONE) {
 				if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN) && VertexPacker::isSigned(opts.posn)) {
-					bufDesc.tanSign = BufDesc::PACK_POSN_W;
-					bufDesc.posnSize++;
+					bufDesc.sign = BufDesc::PACK_POSN_W;
+					bufDesc.posn.size++;
 				}
 			}
+			bufDesc.posn.align = true;
 		}
-		attrPtr += bufDesc.posnSize * compLen;
+		offset += ((bufDesc.posn.size * compBytes + 3) / 4) * 4;
 	}
-	if (opts.text != VertexPacker::EXCLUDE) {
-		unsigned compLen = VertexPacker::bytes(opts.text);
-		bufDesc.uv_0Size = 2;
-		bufDesc.uv_0Ptr  = attrPtr;
-		if (compLen == 1) {
-			if (bufDesc.tanSign == BufDesc::PACK_NONE) {
+	if (unsigned compBytes = VertexPacker::bytes(opts.text)) {
+		/*
+		 * UVs are always X & Y. A component size of 1 needs 2 bytes, so has
+		 * the extreme of also needing 2 bytes of padding. Shorts (or possibly
+		 * float16s) fits nicely into 4 bytes so are preferred. We try to fit
+		 * the tangent sign, but since signed bytes are the only type that will
+		 * work, it's unlikely.
+		 */
+		bufDesc.uv_0.valid  = true;
+		bufDesc.uv_0.size   = 2;
+		bufDesc.uv_0.offset = offset;
+		if (((bufDesc.uv_0.size * compBytes) & 3) != 0) {
+			if (bufDesc.sign == BufDesc::PACK_NONE) {
 				if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN) && VertexPacker::isSigned(opts.text)) {
-					bufDesc.tanSign = BufDesc::PACK_UV_0_Z;
-					bufDesc.posnSize++;
+					bufDesc.sign = BufDesc::PACK_UV_0_Z;
+					bufDesc.uv_0.size++;
+				}
+			}
+			bufDesc.uv_0.align = true;
+		}
+		offset += ((bufDesc.uv_0.size * compBytes + 3) / 4) * 4;
+	}
+	if (unsigned compBytes = VertexPacker::bytes(opts.norm)) {
+		bool const encoded  = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED);
+		bufDesc.norm.valid  = true;
+		bufDesc.norm.size   = (encoded) ? 2 : 3;
+		bufDesc.norm.offset = offset;
+		if (((bufDesc.norm.size * compBytes) & 3) != 0) {
+			if (bufDesc.sign == BufDesc::PACK_NONE) {
+				if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN) && VertexPacker::isSigned(opts.norm)) {
+					bufDesc.sign = (encoded) ? BufDesc::PACK_NORM_Z : BufDesc::PACK_NORM_W;
+					bufDesc.norm.size++;
+				}
+			}
+			// TODO: pack tangents here
+		}
+		offset += ((bufDesc.norm.size * compBytes + 3) / 4) * 4;
+	}
+	if (unsigned compBytes = VertexPacker::bytes(opts.tans)) {
+		bool const encoded  = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED);
+		bufDesc.tans.valid  = true;
+		bufDesc.tans.size   = (encoded) ? 2 : 3;
+		bufDesc.tans.offset = offset;
+		if (((bufDesc.tans.size * compBytes) & 3) != 0) {
+			if (bufDesc.sign == BufDesc::PACK_NONE) {
+				if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN) && VertexPacker::isSigned(opts.tans)) {
+					bufDesc.sign = (encoded) ? BufDesc::PACK_TANS_Z : BufDesc::PACK_TANS_W;
+					bufDesc.tans.size++;
 				}
 			}
 		}
-		attrPtr += bufDesc.uv_0Size * compLen;
+		offset += ((bufDesc.tans.size * compBytes + 3) / 4) * 4;
 	}
-	printf("glVertexAttribPointer(VERT_POSN, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", bufDesc.posnSize, attrPtr, bufDesc.posnPtr);
-	printf("glVertexAttribPointer(VERT_UV_0, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", bufDesc.uv_0Size, attrPtr, bufDesc.uv_0Ptr);
+	printf("glVertexAttribPointer(VERT_POSN, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", bufDesc.posn.size, offset, bufDesc.posn.offset);
+	printf("glVertexAttribPointer(VERT_UV_0, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", bufDesc.uv_0.size, offset, bufDesc.uv_0.offset);
+	printf("glVertexAttribPointer(VERT_NORM, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", bufDesc.norm.size, offset, bufDesc.norm.offset);
+	printf("glVertexAttribPointer(VERT_TANS, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", bufDesc.tans.size, offset, bufDesc.tans.offset);
 
 	// Now we start
 	if (!open(srcPath, opts.tans != VertexPacker::EXCLUDE, mesh)) {
