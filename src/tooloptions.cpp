@@ -128,6 +128,7 @@ int ToolOptions::parseArgs(const char* const argv[], int const argc, bool const 
 	} else {
 		help();
 	}
+	fixUp();
 	return next;
 }
 
@@ -158,6 +159,13 @@ void ToolOptions::fixUp() {
 		if (norm == VertexPacker::EXCLUDE) {
 			fprintf(stderr, "Tangents requested without normals\n");
 			help();
+		}
+		/*
+		 * Encoded normals with both normals and tangents having the same type
+		 * mean with can pack the tangents with the normals.
+		 */
+		if (O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED) && norm == tans) {
+			O2B_SET_OPT(opts, OPTS_TANGENTS_PACKED);
 		}
 	}
 	/*
@@ -224,7 +232,7 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
 			}
 			break;
-		case 'e': // encoded normals
+		case 'e': // encoded normals and tangents
 			O2B_SET_OPT(opts, OPTS_NORMALS_ENCODED);
 			if (strcmp(arg + 1, "ez") == 0) {
 				O2B_SET_OPT(opts, OPTS_NORMALS_XY_ONLY);
@@ -286,8 +294,15 @@ void ToolOptions::dump() const {
 	}
 	printf("\n");
 	printf("Tangents:    %s",   stringType(tans));
-	if (tans != VertexPacker::EXCLUDE && O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN)) {
-		printf(" (bitangents as sign)");
+	if (tans != VertexPacker::EXCLUDE) {
+		const bool bitanSign = O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN);
+		if (O2B_HAS_OPT(opts, OPTS_TANGENTS_PACKED)) {
+			printf(" (packed in normals%s)", bitanSign ? ", bitangents as sign" : "");
+		} else {
+			if (bitanSign) {
+				printf(" (bitangents as sign)");
+			}
+		}
 	}
 	printf("\n");
 	printf("Indices:     %s\n", stringType(idxs));
@@ -314,6 +329,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-sb as -s but without a bias, keeping the origin at zero\n");
 	printf("\t-e encodes normals (and tangents) in two components as hemi-oct\n");
 	printf("\t-ez as -e but as raw XY without the Z\n");
+	printf("\t(encoded normals having the same type as tangents may be packed)\n");
 	printf("\t-b store only the sign for bitangents\n");
 	printf("\t(packing the sign if possible where any padding would normally go)\n");
 	printf("\t-o writes multi-byte values in big endian order\n");
