@@ -67,8 +67,9 @@ public:
 		 */
 		OPTS_SCALE_NO_BIAS,
 		/**
-		 * Normals and tangets are hemi-oct encoded (reconstituting X, Y and Z
-		 * at runtime).
+		 * Normals and tangents are hemi-oct encoded (reconstituting X, Y and Z
+		 * at runtime). This, and when both \c #norm and \c #tans have the same
+		 * type, will automatically set \c OPTS_TANGENTS_PACKED.
 		 */
 		OPTS_NORMALS_ENCODED,
 		/**
@@ -76,6 +77,10 @@ public:
 		 * the Z at runtime).
 		 */
 		OPTS_NORMALS_XY_ONLY,
+		/**
+		 * Try to pack tangents with the normals. See \c OPTS_NORMALS_ENCODED.
+		 */
+		OPTS_TANGENTS_PACKED,
 		/**
 		 * Only the sign is stored for bitangents (requiring reconstition from
 		 * the normals and tangents at runtime).
@@ -162,12 +167,6 @@ public:
 	int parseArgs(const char* const argv[], int const argc, bool const cli = true);
 
 	/**
-	 * Assess the options and tweak any that need changing or cleaning up. For
-	 * example, index buffer types should be unsigned clamped.
-	 */
-	void fixUp();
-
-	/**
 	 * Helper to extract the filename from a path.
 	 *
 	 * \param[in] path full path
@@ -190,6 +189,12 @@ private:
 	 * \return argument to process in the next call (\a argc if all arguments were processed; \c -1 \c - \c next if there are arguments after the switches)
 	 */
 	int parseNext(const char* const argv[], int const argc, int next);
+
+	/**
+	 * Assess the options and tweak any that need changing or cleaning up. For
+	 * example, index buffer types should be unsigned clamped.
+	 */
+	void fixUp();
 
 	/**
 	 * Print the CLI help then exit.
