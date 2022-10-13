@@ -351,15 +351,8 @@ public:
 	void rewind();
 
 private:
-	/**
-	 * Not copyable.
-	 */
-	VertexPacker(const VertexPacker&) = delete;
-
-	/**
-	 * Not assignable.
-	 */
-	void operator =(const VertexPacker&) = delete;
+	VertexPacker   (const VertexPacker&) = delete; /**< Not copyable   */
+	void operator =(const VertexPacker&) = delete; /**< Not assignable */
 
 	//*************************************************************************/
 

@@ -47,6 +47,7 @@ BufferDescriptor::BufferDescriptor(const ToolOptions& opts)
 		}
 		offset += ((uv_0.size * compBytes + 3) / 4) * 4;
 	}
+	// TODO: test that we can pack encoded normals and tangents that are shorts, for example, taking 8 bytes
 	if (unsigned compBytes = opts.norm.bytes()) {
 		bool const encoded = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED);
 		norm.fill((encoded) ? 2 : 3, offset, compBytes);
