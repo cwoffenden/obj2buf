@@ -237,24 +237,39 @@ int main(int argc, const char* argv[]) {
 		/*
 		 * TODO: encoding normals and tangents
 		 * TODO: general padding
-		 * TODO: packing bitangents' sign wherever possible
 		 */
 		if (opts.posn) {
 			it->posn.store(packer, opts.posn);
+			if (bufDesc.packSign == BufferDescriptor::PACK_POSN_W) {
+				// placeholder
+				packer.add(it->btan.x, opts.posn);
+			}
+			packer.align();
 		}
 		if (opts.text) {
 			it->uv_0.store(packer, opts.text);
+			if (bufDesc.packSign == BufferDescriptor::PACK_UV_0_Z ) {
+				// placeholder (though an unlikely candidate)
+				packer.add(it->btan.x, opts.text);
+			}
+			packer.align();
 		}
 		if (opts.norm) {
 			it->norm.store(packer, opts.norm);
+			if (bufDesc.packTans == BufferDescriptor::PACK_NORM_W) {
+				packer.add(it->tans.x, opts.norm);
+				packer.add(it->tans.y, opts.norm);
+			}
+			packer.align();
 		}
 		if (opts.tans) {
-			it->tans.store(packer, opts.tans);
-			it->btan.store(packer, opts.tans);
+			if (bufDesc.packTans == BufferDescriptor::PACK_NONE) {
+				it->tans.store(packer, opts.tans);
+				it->btan.store(packer, opts.tans);
+				packer.align();
+			}
 		}
 	}
-	// TODO: we shouldn't need to align this (since each vertex should be aligned)
-	packer.align();
 	size_t vertexBytes = packer.size();
 	// Add the indices
 	if (opts.idxs) {
