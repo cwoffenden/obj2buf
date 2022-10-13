@@ -55,7 +55,7 @@ A more complex example could be:
 
 3. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions).
 
-4. `-ez` option to encode normals and tangents with as drop-Z
+4. `-ez` option to encode normals and tangents as drop-Z.
 
 5. Since normals and tangents are both bytes and encoded, they will be packed.
 ```
