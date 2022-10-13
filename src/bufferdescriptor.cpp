@@ -74,23 +74,31 @@ BufferDescriptor::BufferDescriptor(const ToolOptions& opts)
 }
 
 void BufferDescriptor::dump(const ToolOptions& opts) const {
-	printf("glVertexAttribPointer(VERT_POSN, %d, GL_%s, GL_%s, %d, %d)\n",
-			posn.size, opts.posn.toString(true), (opts.posn.isNormalized()) ? "TRUE" : "FALSE", stride, posn.offset);
-	printf("glVertexAttribPointer(VERT_UV_0, %d, GL_%s, GL_%s, %d, %d)\n",
-			uv_0.size, opts.text.toString(true), (opts.text.isNormalized()) ? "TRUE" : "FALSE", stride, uv_0.offset);
-	printf("glVertexAttribPointer(VERT_NORM, %d, GL_%s, GL_%s, %d, %d)\n",
-			norm.size, opts.norm.toString(true), (opts.norm.isNormalized()) ? "TRUE" : "FALSE", stride, norm.offset);
-	if (packTans == PACK_NONE) {
-		printf("glVertexAttribPointer(VERT_TANS, %d, GL_%s, GL_%s, %d, %d)\n",
-			tans.size, opts.tans.toString(true), (opts.tans.isNormalized()) ? "TRUE" : "FALSE", stride, tans.offset);
-	} else {
-		printf("/* Encoded tangents packed in norm.zw (note the four components) */\n");
+	if (opts.posn) {
+		printf("glVertexAttribPointer(VERT_POSN, %d, GL_%s, GL_%s, %d, %d)\n",
+				posn.size, opts.posn.toString(true), (opts.posn.isNormalized()) ? "TRUE" : "FALSE", stride, posn.offset);
 	}
-	if (packSign == PACK_NONE) {
-		printf("glVertexAttribPointer(VERT_BTAN, %d, GL_%s, GL_%s, %d, %d)\n",
-			btan.size, opts.tans.toString(true), (opts.tans.isNormalized()) ? "TRUE" : "FALSE", stride, btan.offset);
-	} else {
-		printf("/* Bitangents sign in posn.w (note the four components) */\n");
+	if (opts.text) {
+		printf("glVertexAttribPointer(VERT_UV_0, %d, GL_%s, GL_%s, %d, %d)\n",
+				uv_0.size, opts.text.toString(true), (opts.text.isNormalized()) ? "TRUE" : "FALSE", stride, uv_0.offset);
+	}
+	if (opts.norm) {
+		printf("glVertexAttribPointer(VERT_NORM, %d, GL_%s, GL_%s, %d, %d)\n",
+				norm.size, opts.norm.toString(true), (opts.norm.isNormalized()) ? "TRUE" : "FALSE", stride, norm.offset);
+	}
+	if (opts.tans) {
+		if (packTans == PACK_NONE) {
+			printf("glVertexAttribPointer(VERT_TANS, %d, GL_%s, GL_%s, %d, %d)\n",
+				tans.size, opts.tans.toString(true), (opts.tans.isNormalized()) ? "TRUE" : "FALSE", stride, tans.offset);
+		} else {
+			printf("/* Encoded tangents packed in norm.zw (note the four components) */\n");
+		}
+		if (packSign == PACK_NONE) {
+			printf("glVertexAttribPointer(VERT_BTAN, %d, GL_%s, GL_%s, %d, %d)\n",
+				btan.size, opts.tans.toString(true), (opts.tans.isNormalized()) ? "TRUE" : "FALSE", stride, btan.offset);
+		} else {
+			printf("/* Bitangents sign in posn.w (note the four components) */\n");
+		}
 	}
 }
 
