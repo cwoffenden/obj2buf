@@ -150,11 +150,11 @@ public:
 	 * Creates the default options.
 	 */
 	ToolOptions()
-		: posn(VertexPacker::FLOAT32)
-		, text(VertexPacker::FLOAT32)
-		, norm(VertexPacker::FLOAT32)
-		, tans(VertexPacker::EXCLUDE)
-		, idxs(VertexPacker::UINT16C)
+		: posn(VertexPacker::Storage::FLOAT32)
+		, text(VertexPacker::Storage::FLOAT32)
+		, norm(VertexPacker::Storage::FLOAT32)
+		, tans(VertexPacker::Storage::EXCLUDE)
+		, idxs(VertexPacker::Storage::UINT16C)
 		, opts(OPTS_DEFAULT) {}
 
 	/**

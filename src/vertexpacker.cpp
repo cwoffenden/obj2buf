@@ -72,29 +72,29 @@ static inline int32_t signedModern(float const val) {
  */
 static int32_t storeLegacy(float const val, VertexPacker::Storage const type) {
 	switch (type) {
-	case VertexPacker::EXCLUDE:
+	case VertexPacker::Storage::EXCLUDE:
 		return 0;
-	case VertexPacker::SINT08N:
+	case VertexPacker::Storage::SINT08N:
 		return clamp<int32_t>(signedLegacy<8>(val), INT8_MIN, INT8_MAX);
-	case VertexPacker::SINT08C:
+	case VertexPacker::Storage::SINT08C:
 		return clamp<int32_t>(int32_t(round(val)), INT8_MIN, INT8_MAX);
-	case VertexPacker::UINT08N:
+	case VertexPacker::Storage::UINT08N:
 		return clamp<int32_t>(int32_t(round(val) * UINT8_MAX), 0, UINT8_MAX);
-	case VertexPacker::UINT08C:
+	case VertexPacker::Storage::UINT08C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT8_MAX);
-	case VertexPacker::SINT16N:
+	case VertexPacker::Storage::SINT16N:
 		return clamp<int32_t>(signedLegacy<16>(val), INT16_MIN, INT16_MAX);
-	case VertexPacker::SINT16C:
+	case VertexPacker::Storage::SINT16C:
 		return clamp<int32_t>(int32_t(round(val)), INT16_MIN, INT16_MAX);
-	case VertexPacker::UINT16N:
+	case VertexPacker::Storage::UINT16N:
 		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
-	case VertexPacker::UINT16C:
+	case VertexPacker::Storage::UINT16C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
-	case VertexPacker::FLOAT16:
+	case VertexPacker::Storage::FLOAT16:
 		return static_cast<int32_t>(utils::floatToHalf(val));
-	case VertexPacker::SINT32C:
+	case VertexPacker::Storage::SINT32C:
 		return int32_t(clamp<long>(long(round(val)), INT32_MIN, INT32_MAX));
-	case VertexPacker::UINT32C:
+	case VertexPacker::Storage::UINT32C:
 		return int32_t(clamp<long>(long(round(val)), 0, UINT32_MAX));
 	default: {
 		union {
@@ -115,29 +115,29 @@ static int32_t storeLegacy(float const val, VertexPacker::Storage const type) {
  */
 static int32_t storeModern(float const val, VertexPacker::Storage const type) {
 	switch (type) {
-	case VertexPacker::EXCLUDE:
+	case VertexPacker::Storage::EXCLUDE:
 		return 0;
-	case VertexPacker::SINT08N:
+	case VertexPacker::Storage::SINT08N:
 		return clamp<int32_t>(signedModern<8>(val), -INT8_MAX, INT8_MAX);
-	case VertexPacker::SINT08C:
+	case VertexPacker::Storage::SINT08C:
 		return clamp<int32_t>(int32_t(round(val)), INT8_MIN, INT8_MAX);
-	case VertexPacker::UINT08N:
+	case VertexPacker::Storage::UINT08N:
 		return clamp<int32_t>(int32_t(round(val) * UINT8_MAX), 0, UINT8_MAX);
-	case VertexPacker::UINT08C:
+	case VertexPacker::Storage::UINT08C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT8_MAX);
-	case VertexPacker::SINT16N:
+	case VertexPacker::Storage::SINT16N:
 		return clamp<int32_t>(signedModern<16>(val), -INT16_MAX, INT16_MAX);
-	case VertexPacker::SINT16C:
+	case VertexPacker::Storage::SINT16C:
 		return clamp<int32_t>(int32_t(round(val)), INT16_MIN, INT16_MAX);
-	case VertexPacker::UINT16N:
+	case VertexPacker::Storage::UINT16N:
 		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
-	case VertexPacker::UINT16C:
+	case VertexPacker::Storage::UINT16C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
-	case VertexPacker::FLOAT16:
+	case VertexPacker::Storage::FLOAT16:
 		return static_cast<int32_t>(utils::floatToHalf(val));
-	case VertexPacker::SINT32C:
+	case VertexPacker::Storage::SINT32C:
 		return int32_t(clamp<long>(long(round(val)), INT32_MIN, INT32_MAX));
-	case VertexPacker::UINT32C:
+	case VertexPacker::Storage::UINT32C:
 		return int32_t(clamp<long>(long(round(val)), 0, UINT32_MAX));
 	default: {
 		union {
@@ -159,18 +159,18 @@ static int32_t storeModern(float const val, VertexPacker::Storage const type) {
  */
 static int32_t storeLegacy(int const val, VertexPacker::Storage const type) {
 	switch (type) {
-	case VertexPacker::SINT08C:
+	case VertexPacker::Storage::SINT08C:
 		return clamp<int32_t>(val, INT8_MIN, INT8_MAX);
-	case VertexPacker::UINT08C:
+	case VertexPacker::Storage::UINT08C:
 		return clamp<int32_t>(val, 0, UINT8_MAX);
-	case VertexPacker::SINT16C:
+	case VertexPacker::Storage::SINT16C:
 		return clamp<int32_t>(val, INT16_MIN, INT16_MAX);
-	case VertexPacker::UINT16C:
+	case VertexPacker::Storage::UINT16C:
 		return clamp<int32_t>(val, 0, UINT16_MAX);
-	case VertexPacker::SINT32C:
+	case VertexPacker::Storage::SINT32C:
 		// None of the target systems have anything other than 32-bit int
 		return clamp<int32_t>(val, INT32_MIN, INT32_MAX);
-	case VertexPacker::UINT32C:
+	case VertexPacker::Storage::UINT32C:
 		// Here for completeness, clamped to a *signed* upper bound
 		return clamp<int32_t>(val, 0, INT32_MAX);
 	default:
@@ -188,18 +188,18 @@ static int32_t storeLegacy(int const val, VertexPacker::Storage const type) {
  */
 static int32_t storeModern(int const val, VertexPacker::Storage const type) {
 	switch (type) {
-	case VertexPacker::SINT08C:
+	case VertexPacker::Storage::SINT08C:
 		return clamp<int32_t>(val, INT8_MIN, INT8_MAX);
-	case VertexPacker::UINT08C:
+	case VertexPacker::Storage::UINT08C:
 		return clamp<int32_t>(val, 0, UINT8_MAX);
-	case VertexPacker::SINT16C:
+	case VertexPacker::Storage::SINT16C:
 		return clamp<int32_t>(val, INT16_MIN, INT16_MAX);
-	case VertexPacker::UINT16C:
+	case VertexPacker::Storage::UINT16C:
 		return clamp<int32_t>(val, 0, UINT16_MAX);
-	case VertexPacker::SINT32C:
+	case VertexPacker::Storage::SINT32C:
 		// None of the target systems have anything other than 32-bit int
 		return clamp<int32_t>(val, INT32_MIN, INT32_MAX);
-	case VertexPacker::UINT32C:
+	case VertexPacker::Storage::UINT32C:
 		// Here for completeness, clamped to a *signed* upper bound
 		return clamp<int32_t>(val, 0, INT32_MAX);
 	default:
@@ -222,14 +222,14 @@ size_t VertexPacker::size() const {
 
 bool VertexPacker::add(float const data, Storage const type) {
 	if (hasFreeSpace(type)) {
-		if (type != EXCLUDE) {
+		if (type) {
 			int32_t temp;
 			if ((opts & OPTS_SIGNED_LEGACY) == 0) {
 				temp = storeModern(data, type);
 			} else {
 				temp = storeLegacy(data, type);
 			}
-			switch (bytes(type)) {
+			switch (type.bytes()) {
 			case 1:
 				*next++ = temp & 0xFF;
 				break;
@@ -263,15 +263,15 @@ bool VertexPacker::add(float const data, Storage const type) {
 
 bool VertexPacker::add(int const data, Storage const type) {
 	if (hasFreeSpace(type)) {
-		if (type != EXCLUDE) {
+		if (type) {
 			int32_t temp;
 			switch (type) {
-			case SINT08C:
-			case UINT08C:
-			case SINT16C:
-			case UINT16C:
-			case SINT32C:
-			case UINT32C:
+			case Storage::SINT08C:
+			case Storage::UINT08C:
+			case Storage::SINT16C:
+			case Storage::UINT16C:
+			case Storage::SINT32C:
+			case Storage::UINT32C:
 				if ((opts & OPTS_SIGNED_LEGACY) == 0) {
 					temp = storeModern(data, type);
 				} else {
@@ -285,7 +285,7 @@ bool VertexPacker::add(int const data, Storage const type) {
 				 */
 				return add(static_cast<float>(data), type);
 			}
-			switch (bytes(type)) {
+			switch (type.bytes()) {
 			case 1:
 				*next++ = temp & 0xFF;
 				break;
@@ -336,78 +336,6 @@ void VertexPacker::rewind() {
 }
 
 bool VertexPacker::hasFreeSpace(Storage const type) const {
-	return next + bytes(type) <= over;
+	return next + type.bytes() <= over;
 }
 
-unsigned VertexPacker::bytes(Storage const type) {
-	switch (type) {
-	case EXCLUDE:
-		return 0;
-	case SINT08N:
-	case SINT08C:
-	case UINT08N:
-	case UINT08C:
-		return 1;
-	case SINT16N:
-	case SINT16C:
-	case UINT16N:
-	case UINT16C:
-	case FLOAT16:
-		return 2;
-	default:
-		return 4;
-	}
-}
-
-bool VertexPacker::isSigned(Storage const type) {
-	switch (type) {
-	case EXCLUDE:
-	case UINT08N:
-	case UINT08C:
-	case UINT16N:
-	case UINT16C:
-	case UINT32C:
-		return false;
-	default:
-		return true;
-	}
-}
-
-VertexPacker::BasicType VertexPacker::toBasicType(Storage const type) {
-	switch (type) {
-	case SINT08N:
-	case SINT08C:
-		return TYPE_BYTE;
-	case UINT08N:
-	case UINT08C:
-		return TYPE_UNSIGNED_BYTE;
-	case SINT16N:
-	case SINT16C:
-		return TYPE_SHORT;
-	case UINT16N:
-	case UINT16C:
-		return TYPE_UNSIGNED_SHORT;
-	case FLOAT16:
-		return TYPE_HALF_FLOAT;
-	case SINT32C:
-		return TYPE_INT;
-	case UINT32C:
-		return TYPE_UNSIGNED_INT;
-	case FLOAT32:
-		return TYPE_FLOAT;
-	default:
-		return TYPE_UNKNOWN;
-	}
-}
-
-bool VertexPacker::isNormalized(Storage const type) {
-	switch (type) {
-	case SINT08N:
-	case UINT08N:
-	case SINT16N:
-	case UINT16N:
-		return true;
-	default:
-		return false;
-	}
-}
