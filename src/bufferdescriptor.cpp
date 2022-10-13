@@ -9,13 +9,6 @@
 
 #include "tooloptions.h"
 
-void BufferDescriptor::AttrParams::fill(unsigned const numComps, unsigned const startOff, unsigned const compSize) {
-	valid   = true;
-	size    = numComps;
-	offset  = startOff;
-	aligned = ((size * compSize) & 3) == 0;
-}
-
 BufferDescriptor::BufferDescriptor(const ToolOptions& opts)
 	: packSign(PACK_NONE)
 	, packTans(PACK_NONE)
@@ -76,17 +69,34 @@ BufferDescriptor::BufferDescriptor(const ToolOptions& opts)
 			offset += ((tans.size * compBytes + 3) / 4) * 4;
 		}
 	}
-	printf("glVertexAttribPointer(VERT_POSN, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", posn.size, offset, posn.offset);
-	printf("glVertexAttribPointer(VERT_UV_0, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", uv_0.size, offset, uv_0.offset);
-	printf("glVertexAttribPointer(VERT_NORM, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", norm.size, offset, norm.offset);
+	stride = offset;
+}
+
+void BufferDescriptor::dump() const {
+	printf("glVertexAttribPointer(VERT_POSN, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", posn.size, stride, posn.offset);
+	printf("glVertexAttribPointer(VERT_UV_0, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", uv_0.size, stride, uv_0.offset);
+	printf("glVertexAttribPointer(VERT_NORM, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", norm.size, stride, norm.offset);
 	if (packTans == PACK_NONE) {
-		printf("glVertexAttribPointer(VERT_TANS, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", tans.size, offset, tans.offset);
+		printf("glVertexAttribPointer(VERT_TANS, %d, GL_FLOAT, GL_FALSE, %d, %d)\n", tans.size, stride, tans.offset);
 	} else {
 		printf("/* Encoded tangents packed in normals */\n");
 	}
 	if (packSign != PACK_NONE) {
 		printf("/* Tangents sign in posn.w */\n");
 	}
+}
+
+BufferDescriptor::AttrParams::AttrParams()
+	: valid  (false)
+	, size   (0)
+	, offset (0)
+	, aligned(false) {}
+
+void BufferDescriptor::AttrParams::fill(unsigned const numComps, unsigned const startOff, unsigned const compSize) {
+	valid   = true;
+	size    = numComps;
+	offset  = startOff;
+	aligned = ((size * compSize) & 3) == 0;
 }
 
 void BufferDescriptor::tryPacking(Packing& what, AttrParams& attr, int const numComps, Packing const where) {

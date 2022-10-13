@@ -90,12 +90,12 @@ static const char* stringType(VertexPacker::Storage const type) {
 	case VertexPacker::UINT16N:
 	case VertexPacker::UINT16C:
 		return "unsigned short";
+	case VertexPacker::FLOAT16:
+		return "half";
 	case VertexPacker::SINT32C:
 		return "int";
 	case VertexPacker::UINT32C:
 		return "unsigned int";
-	case VertexPacker::FLOAT16:
-		return "half";
 	case VertexPacker::FLOAT32:
 		return "float";
 	default:
@@ -133,10 +133,10 @@ int ToolOptions::parseArgs(const char* const argv[], int const argc, bool const 
 }
 
 void ToolOptions::fixUp() {
-	/*
-	 * If positions aren't scaled the types are converted to clamped.
-	 */
 	if (!O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
+		/*
+		 * If positions aren't scaled the types are converted to clamped.
+		 */
 		switch (posn) {
 		case VertexPacker::SINT08N:
 			idxs = VertexPacker::SINT08C;
@@ -156,6 +156,9 @@ void ToolOptions::fixUp() {
 		}
 	}
 	if (tans != VertexPacker::EXCLUDE) {
+		/*
+		 * Tangents without normals doesn't make any sense.
+		 */
 		if (norm == VertexPacker::EXCLUDE) {
 			fprintf(stderr, "Tangents requested without normals\n");
 			help();
@@ -220,10 +223,10 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		case 'u': // UVs
 			text = parseType(argv, argc, next);
 			break;
-		case 't': // UVs
+		case 't': // tangents
 			tans = parseType(argv, argc, next);
 			break;
-		case 'i': // Indices
+		case 'i': // indices
 			idxs = parseType(argv, argc, next);
 			break;
 		case 's': // scaled positions

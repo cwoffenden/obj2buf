@@ -63,22 +63,23 @@ public:
 		 */
 		OPTS_POSITIONS_SCALE,
 		/**
-		 * Maintain the origin for \c #OPTS_POSITIONS_SCALE at zero.
+		 * Maintain the origin for \c OPTS_POSITIONS_SCALE at zero.
 		 */
 		OPTS_SCALE_NO_BIAS,
 		/**
 		 * Normals and tangents are hemi-oct encoded (reconstituting X, Y and Z
 		 * at runtime). This, and when both \c #norm and \c #tans have the same
-		 * type, will automatically set \c OPTS_TANGENTS_PACKED.
+		 * type, will result in \c OPTS_TANGENTS_PACKED being set.
 		 */
 		OPTS_NORMALS_ENCODED,
 		/**
 		 * Normals and tangents are written as X- and Y-coordinates (recovering
-		 * the Z at runtime).
+		 * the Z at runtime). An option for \c OPTS_NORMALS_ENCODED.
 		 */
 		OPTS_NORMALS_XY_ONLY,
 		/**
-		 * Try to pack tangents with the normals. See \c OPTS_NORMALS_ENCODED.
+		 * Try to pack tangents with the normals. See \c OPTS_NORMALS_ENCODED
+		 * (this is not a manually set option).
 		 */
 		OPTS_TANGENTS_PACKED,
 		/**
@@ -96,7 +97,7 @@ public:
 		 */
 		OPTS_SIGNED_LEGACY,
 		/**
-		 * The output buffer is compressed (as Zstandard)
+		 * The output buffer is compressed (using Zstandard)
 		 */
 		OPTS_COMPRESS_ZSTD,
 		/**
