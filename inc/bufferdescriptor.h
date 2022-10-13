@@ -40,8 +40,10 @@ public:
 	/**
 	 * Prints the descriptor to \c stdout (as GL calls, since that or similar
 	 * is what will be used).
+	 *
+	 * \param[in] opts command-line options
 	 */
-	void dump() const;
+	void dump(const ToolOptions& opts) const;
 
 	Packing packSign; /**< Where the single tangent sign was packed. */
 	Packing packTans; /**< Where the encoded tangents pair were packed. */

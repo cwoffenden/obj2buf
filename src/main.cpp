@@ -204,9 +204,9 @@ int main(int argc, const char* argv[]) {
 	opts.dump();
 	// Decide how the options create the buffer layout
 	BufferDescriptor const bufDesc(opts);
-	bufDesc.dump();
+	bufDesc.dump(opts);
 	// Now we start
-	if (!open(srcPath, opts.tans != VertexPacker::EXCLUDE, mesh)) {
+	if (!open(srcPath, opts.tans != VertexPacker::Storage::EXCLUDE, mesh)) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
 		return EXIT_FAILURE;
 	}
@@ -239,16 +239,16 @@ int main(int argc, const char* argv[]) {
 		 * TODO: general padding
 		 * TODO: packing bitangents' sign wherever possible
 		 */
-		if (opts.posn != VertexPacker::EXCLUDE) {
+		if (opts.posn) {
 			it->posn.store(packer, opts.posn);
 		}
-		if (opts.text != VertexPacker::EXCLUDE) {
+		if (opts.text) {
 			it->uv_0.store(packer, opts.text);
 		}
-		if (opts.norm != VertexPacker::EXCLUDE) {
+		if (opts.norm) {
 			it->norm.store(packer, opts.norm);
 		}
-		if (opts.tans != VertexPacker::EXCLUDE) {
+		if (opts.tans) {
 			it->tans.store(packer, opts.tans);
 			it->btan.store(packer, opts.tans);
 		}
@@ -257,7 +257,7 @@ int main(int argc, const char* argv[]) {
 	packer.align();
 	size_t vertexBytes = packer.size();
 	// Add the indices
-	if (opts.idxs != VertexPacker::EXCLUDE) {
+	if (opts.idxs) {
 		for (std::vector<unsigned>::const_iterator it = mesh.index.begin(); it != mesh.index.end(); ++it) {
 			packer.add(static_cast<int>(*it), opts.idxs);
 		}

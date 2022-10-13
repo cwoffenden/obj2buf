@@ -24,32 +24,32 @@ static VertexPacker::Storage parseType(const char* const type) {
 	if (type && strlen(type) > 0) {
 		switch (type[0]) {
 		case 'b':
-			return VertexPacker::SINT08N;
+			return VertexPacker::Storage::SINT08N;
 		case 's':
-			return VertexPacker::SINT16N;
+			return VertexPacker::Storage::SINT16N;
 		case 'i':
-			return VertexPacker::SINT32C;
+			return VertexPacker::Storage::SINT32C;
 		case 'h':
-			return VertexPacker::FLOAT16;
+			return VertexPacker::Storage::FLOAT16;
 		case 'f':
-			return VertexPacker::FLOAT32;
+			return VertexPacker::Storage::FLOAT32;
 		case 'n':
 		case 'x':
-			return VertexPacker::EXCLUDE;
+			return VertexPacker::Storage::EXCLUDE;
 		default:
 			if (strncmp(type, "ub", 2) == 0) {
-				return VertexPacker::UINT08N;
+				return VertexPacker::Storage::UINT08N;
 			}
 			if (strncmp(type, "us", 2) == 0) {
-				return VertexPacker::UINT16N;
+				return VertexPacker::Storage::UINT16N;
 			}
 			if (strncmp(type, "ui", 2) == 0) {
-				return VertexPacker::UINT32C;
+				return VertexPacker::Storage::UINT32C;
 			}
 		}
 		fprintf(stderr, "Unknown data type: %s\n", type);
 	}
-	return VertexPacker::EXCLUDE;
+	return VertexPacker::Storage::EXCLUDE;
 }
 
 /**
@@ -61,46 +61,13 @@ static VertexPacker::Storage parseType(const char* const type) {
  * \return appropriate storage type (or \c EXCLUDE if none was supplied)
  */
 static VertexPacker::Storage parseType(const char* const argv[], int const argc, int& next) {
-	VertexPacker::Storage type = VertexPacker::EXCLUDE;
+	VertexPacker::Storage type = VertexPacker::Storage::EXCLUDE;
 	if (next + 2 < argc) {
 		type = parseType(argv[++next]);
 	} else {
 		fprintf(stderr, "Not enough parameters (defaulting to exclude)\n");
 	}
 	return type;
-}
-
-/**
- * Helper to convert the storage type to a string.
- *
- * \param[in] type storage type
- * \return string equivalent (or \c N/A of there is no match)
- */
-static const char* stringType(VertexPacker::Storage const type) {
-	switch (type) {
-	case VertexPacker::SINT08N:
-	case VertexPacker::SINT08C:
-		return "byte";
-	case VertexPacker::UINT08N:
-	case VertexPacker::UINT08C:
-		return "unsigned byte";
-	case VertexPacker::SINT16N:
-	case VertexPacker::SINT16C:
-		return "short";
-	case VertexPacker::UINT16N:
-	case VertexPacker::UINT16C:
-		return "unsigned short";
-	case VertexPacker::FLOAT16:
-		return "half";
-	case VertexPacker::SINT32C:
-		return "int";
-	case VertexPacker::UINT32C:
-		return "unsigned int";
-	case VertexPacker::FLOAT32:
-		return "float";
-	default:
-		return "N/A";
-	}
 }
 
 //*****************************************************************************/
@@ -138,28 +105,28 @@ void ToolOptions::fixUp() {
 		 * If positions aren't scaled the types are converted to clamped.
 		 */
 		switch (posn) {
-		case VertexPacker::SINT08N:
-			idxs = VertexPacker::SINT08C;
+		case VertexPacker::Storage::SINT08N:
+			idxs = VertexPacker::Storage::SINT08C;
 			break;
-		case VertexPacker::UINT08N:
-			idxs = VertexPacker::UINT08C;
+		case VertexPacker::Storage::UINT08N:
+			idxs = VertexPacker::Storage::UINT08C;
 			break;
-		case VertexPacker::SINT16N:
-			idxs = VertexPacker::SINT16C;
+		case VertexPacker::Storage::SINT16N:
+			idxs = VertexPacker::Storage::SINT16C;
 			break;
-		case VertexPacker::UINT16N:
-			idxs = VertexPacker::UINT16C;
+		case VertexPacker::Storage::UINT16N:
+			idxs = VertexPacker::Storage::UINT16C;
 			break;
 		default:
 			// no change
 			break;
 		}
 	}
-	if (tans != VertexPacker::EXCLUDE) {
+	if (tans) {
 		/*
 		 * Tangents without normals doesn't make any sense.
 		 */
-		if (norm == VertexPacker::EXCLUDE) {
+		if (!norm) {
 			fprintf(stderr, "Tangents requested without normals\n");
 			help();
 		}
@@ -172,24 +139,24 @@ void ToolOptions::fixUp() {
 		}
 	}
 	/*
-	 * Indices are always unsigned clamped.
+	 * Indices are always unsigned and clamped.
 	 */
 	switch (idxs) {
-	case VertexPacker::SINT08N:
-	case VertexPacker::SINT08C:
-	case VertexPacker::UINT08N:
-		idxs = VertexPacker::UINT08C;
+	case VertexPacker::Storage::SINT08N:
+	case VertexPacker::Storage::SINT08C:
+	case VertexPacker::Storage::UINT08N:
+		idxs = VertexPacker::Storage::UINT08C;
 		break;
-	case VertexPacker::SINT16N:
-	case VertexPacker::SINT16C:
-	case VertexPacker::UINT16N:
-		idxs = VertexPacker::UINT16C;
+	case VertexPacker::Storage::SINT16N:
+	case VertexPacker::Storage::SINT16C:
+	case VertexPacker::Storage::UINT16N:
+		idxs = VertexPacker::Storage::UINT16C;
 		break;
-	case VertexPacker::SINT32C:
-		idxs = VertexPacker::UINT32C;
+	case VertexPacker::Storage::SINT32C:
+		idxs = VertexPacker::Storage::UINT32C;
 		break;
-	case VertexPacker::FLOAT16:
-	case VertexPacker::FLOAT32:
+	case VertexPacker::Storage::FLOAT16:
+	case VertexPacker::Storage::FLOAT32:
 		fprintf(stderr, "Indices cannot be floats\n");
 		help();
 		break;
@@ -285,19 +252,19 @@ const char* ToolOptions::filename(const char* const path) {
 }
 
 void ToolOptions::dump() const {
-	printf("Positions:   %s",   stringType(posn));
+	printf("Positions:   %s",   posn.toString());
 	if (O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
 		printf(" (apply %s)",   O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)   ? "scale"   : "scale & bias");
 	}
 	printf("\n");
-	printf("Texture UVs: %s\n", stringType(text));
-	printf("Normals:     %s",   stringType(norm));
-	if (norm != VertexPacker::EXCLUDE && O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
+	printf("Texture UVs: %s\n", text.toString());
+	printf("Normals:     %s",   norm.toString());
+	if (norm && O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
 		printf(" (as %s)",      O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
 	}
 	printf("\n");
-	printf("Tangents:    %s",   stringType(tans));
-	if (tans != VertexPacker::EXCLUDE) {
+	printf("Tangents:    %s",   tans.toString());
+	if (tans) {
 		const bool bitanSign = O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN);
 		if (O2B_HAS_OPT(opts, OPTS_TANGENTS_PACKED)) {
 			printf(" (packed in normals%s)", bitanSign ? ", bitangents as sign" : "");
@@ -308,11 +275,11 @@ void ToolOptions::dump() const {
 		}
 	}
 	printf("\n");
-	printf("Indices:     %s\n", stringType(idxs));
+	printf("Indices:     %s\n", idxs.toString());
 	printf("Endianness:  %s\n", O2B_HAS_OPT(opts, OPTS_BIG_ENDIAN)      ? "big"     : "little");
-	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)   ? "legacy" : "modern");
+	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)   ? "legacy"  : "modern");
 	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
-	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)      ? "ASCII" : "binary");
+	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)      ? "ASCII"   : "binary");
 }
 
 void ToolOptions::help(const char* const path) {

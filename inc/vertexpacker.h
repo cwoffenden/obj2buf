@@ -23,90 +23,252 @@ public:
 	 *
 	 * \todo re-add support for \c 10_10_10_2 formats?
 	 */
-	enum Storage {
+	class Storage
+	{
+	public:
 		/**
-		 * Flag to mark as excluded from writing.
+		 * Internal enum (accessed as \c VertexPacker::Storage::MY_TYPE).
 		 */
-		EXCLUDE = 0,
+		enum Type {
+			/**
+			 * Flag to mark as excluded from writing.
+			 */
+			EXCLUDE = 0,
+			/**
+			 * Signed \c byte (normalised to fit the range \c -1.0 to \c 1.0).
+			 *
+			 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
+			 */
+			SINT08N,
+			/**
+			 * Signed \c byte (clamped to the range \c -128 to \c 127).
+			 *
+			 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
+			 */
+			SINT08C,
+			/**
+			 * Unsigned \c byte (normalised to fit the range \c 0.0 to \c 1.0).
+			 *
+			 * \note D3D11 \e Feature \e Level 9_3 requires multiples of four components.
+			 */
+			UINT08N,
+			/**
+			 * Unsigned \c byte (clamped to the range \c 0 to \c 255).
+			 *
+			 * \note D3D11 \e Feature \e Level 9_3 requires multiples of four components.
+			 * \note Incompatible with D3D index buffers (use \c #UINT16C).
+			 */
+			UINT08C,
+			/**
+			 * Signed \c short (normalised to fit the range \c -1.0 to \c 1.0).
+			 * Stored as two consecutive bytes.
+			 *
+			 * \note D3D11 \e Feature \e Level 9_3 requires multiples of two components.
+			 */
+			SINT16N,
+			/**
+			 * Signed \c short (clamped to the range \c -32768 to \c 32767).
+			 * Stored as two consecutive bytes.
+			 *
+			 * \note D3D11 \e Feature \e Level 9_3 requires multiples of two components.
+			 */
+			SINT16C,
+			/**
+			 * Unsigned \c short (normalised to fit the range \c 0.0 to \c 1.0).
+			 * Stored as two consecutive bytes.
+			 *
+			 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
+			 */
+			UINT16N,
+			/**
+			 * Unsigned \c short (clamped to the range \c 0 to \c 65535). Stored as
+			 * two consecutive bytes.
+			 *
+			 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
+			 */
+			UINT16C,
+			/**
+			 * Half-precision \c float (IEEE 754-2008 format). Stored as two
+			 * consecutive bytes.
+			 *
+			 * \note Hardware support should be queried before using.
+			 */
+			FLOAT16,
+			/**
+			 * Signed \c int (clamped to the range \c -2147483648 to \c
+			 * 2147483647). Stored as two consecutive bytes.
+			 *
+			 * \note Here for completeness.
+			 */
+			SINT32C,
+			/**
+			 * Unsigned \c short (clamped to the range \c 0 to \c 4294967295).
+			 * Stored as four consecutive bytes.
+			 *
+			 * \note May be useful as an index buffer format.
+			 */
+			UINT32C,
+			/**
+			 * Single-precision \c float (IEEE 754 format). Stored as four
+			 * consecutive bytes.
+			 */
+			FLOAT32,
+		};
+
 		/**
-		 * Signed \c byte (normalised to fit the range \c -1.0 to \c 1.0).
+		 * Defaults to \c EXCLUDE.
+		 */
+		Storage() : type(EXCLUDE) {}
+
+		/**
+		 * Implicit wrapper to get from \c Type to \c Storage.
+		 */
+		constexpr Storage(Type type) : type(type) {}
+
+		/**
+		 * Wrapper to get from \c Storage to \c Type.
+		 */
+		constexpr operator Type() const {
+			return type;
+		}
+
+		/**
+		 * Allows testing that a storage type has been set (and isn't the
+		 * default \c EXCLUDE).
+		 */
+		explicit constexpr operator bool() const {
+			return type != EXCLUDE;
+		}
+
+		//*********************** Helpers/Conversions ************************/
+
+		/**
+		 * Returns the number of bytes each storage type requires, for example \c 1
+		 * byte for \c SINT08N, \c 2 for SINT16N, etc.
 		 *
-		 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
+		 * \return the number of bytes each storage type requires
 		 */
-		SINT08N,
+		unsigned bytes() const {
+			switch (type) {
+			case EXCLUDE:
+				return 0;
+			case SINT08N:
+			case SINT08C:
+			case UINT08N:
+			case UINT08C:
+				return 1;
+			case SINT16N:
+			case SINT16C:
+			case UINT16N:
+			case UINT16C:
+			case FLOAT16:
+				return 2;
+			default:
+				return 4;
+			}
+		}
+
 		/**
-		 * Signed \c byte (clamped to the range \c -128 to \c 127).
+		 * Returns the storage type to a string.
 		 *
-		 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
+		 * \param[in] upper \c true if the string should be all uppercase
+		 * \return string equivalent (or \c N/A of there is no match)
 		 */
-		SINT08C,
+		const char* toString(bool const upper = false) const {
+			if (upper) {
+				switch (type) {
+				case SINT08N:
+				case SINT08C:
+					return "BYTE";
+				case UINT08N:
+				case UINT08C:
+					return "UNSIGNED_BYTE";
+				case SINT16N:
+				case SINT16C:
+					return "SHORT";
+				case UINT16N:
+				case UINT16C:
+					return "UNSIGNED_SHORT";
+				case FLOAT16:
+					return "HALF_FLOAT";
+				case SINT32C:
+					return "INT";
+				case UINT32C:
+					return "UNSIGNED_INT";
+				case FLOAT32:
+					return "FLOAT";
+				default:
+					return "N/A";
+				}
+			} else {
+				switch (type) {
+				case SINT08N:
+				case SINT08C:
+					return "byte";
+				case UINT08N:
+				case UINT08C:
+					return "unsigned byte";
+				case SINT16N:
+				case SINT16C:
+					return "short";
+				case UINT16N:
+				case UINT16C:
+					return "unsigned short";
+				case FLOAT16:
+					return "half float";
+				case SINT32C:
+					return "int";
+				case UINT32C:
+					return "unsigned int";
+				case FLOAT32:
+					return "float";
+				default:
+					return "N/A";
+				}
+			}
+		}
+
 		/**
-		 * Unsigned \c byte (normalised to fit the range \c 0.0 to \c 1.0).
+		 * Queries whether a storage type is \e signed (otherwise it's \e unsigned).
 		 *
-		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of four components.
+		 * \return \c true if \a type is signed
 		 */
-		UINT08N,
+		bool isSigned() const {
+			switch (type) {
+			case EXCLUDE:
+			case UINT08N:
+			case UINT08C:
+			case UINT16N:
+			case UINT16C:
+			case UINT32C:
+				return false;
+			default:
+				return true;
+			}
+		}
+
 		/**
-		 * Unsigned \c byte (clamped to the range \c 0 to \c 255).
+		 * Returns whether a type is normalised or not.
 		 *
-		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of four components.
-		 * \note Incompatible with D3D index buffers (use \c #UINT16C).
+		 * \return \c true if \a type is normalised
 		 */
-		UINT08C,
+		bool isNormalized() const {
+			switch (type) {
+			case SINT08N:
+			case UINT08N:
+			case SINT16N:
+			case UINT16N:
+				return true;
+			default:
+				return false;
+			}
+		}
+
+	private:
 		/**
-		 * Signed \c short (normalised to fit the range \c -1.0 to \c 1.0).
-		 * Stored as two consecutive bytes.
-		 *
-		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of two components.
+		 * Internal type.
 		 */
-		SINT16N,
-		/**
-		 * Signed \c short (clamped to the range \c -32768 to \c 32767).
-		 * Stored as two consecutive bytes.
-		 *
-		 * \note D3D11 \e Feature \e Level 9_3 requires multiples of two components.
-		 */
-		SINT16C,
-		/**
-		 * Unsigned \c short (normalised to fit the range \c 0.0 to \c 1.0).
-		 * Stored as two consecutive bytes.
-		 *
-		 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
-		 */
-		UINT16N,
-		/**
-		 * Unsigned \c short (clamped to the range \c 0 to \c 65535). Stored as
-		 * two consecutive bytes.
-		 *
-		 * \note Incompatible with D3D11 \e Feature \e Level 9_3 vertex data.
-		 */
-		UINT16C,
-		/**
-		 * Half-precision \c float (IEEE 754-2008 format). Stored as two
-		 * consecutive bytes.
-		 *
-		 * \note Hardware support should be queried before using.
-		 */
-		FLOAT16,
-		/**
-		 * Signed \c int (clamped to the range \c -2147483648 to \c
-		 * 2147483647). Stored as two consecutive bytes.
-		 *
-		 * \note Here for completeness.
-		 */
-		SINT32C,
-		/**
-		 * Unsigned \c short (clamped to the range \c 0 to \c 4294967295).
-		 * Stored as four consecutive bytes.
-		 *
-		 * \note May be useful as an index buffer format.
-		 */
-		UINT32C,
-		/**
-		 * Single-precision \c float (IEEE 754 format). Stored as four
-		 * consecutive bytes.
-		 */
-		FLOAT32,
+		Type type;
 	};
 
 	/**
@@ -127,22 +289,6 @@ public:
 		 * full range of bits is used but zero cannot be represented.
 		 */
 		OPTS_SIGNED_LEGACY = 2,
-	};
-
-	/**
-	 * Data type, without the packing or conversion. These are what would be
-	 * passed to OpenGL or other graphics APIs.
-	 */
-	enum BasicType {
-		TYPE_UNKNOWN,        /**< Unknown type. */
-		TYPE_BYTE,           /**< Signed \c byte. */
-		TYPE_UNSIGNED_BYTE,  /**< Unsigned \c byte. */
-		TYPE_SHORT,          /**< Signed \c short. */
-		TYPE_UNSIGNED_SHORT, /**< Unsigned \c short. */
-		TYPE_INT,            /**< Signed \c int. */
-		TYPE_UNSIGNED_INT,   /**< Unsigned \c int. */
-		TYPE_HALF_FLOAT,     /**< Half-precision \c float. */
-		TYPE_FLOAT           /**< Single-precision \c float. */
 	};
 
 	/**
@@ -203,41 +349,6 @@ public:
 	 * content and allowing underlying storage to be reused).
 	 */
 	void rewind();
-
-	//*************************************************************************/
-
-	/**
-	 * Returns the number of bytes each storage type requires, for example \c 1
-	 * byte for \c SINT08N, \c 2 for SINT16N, etc.
-	 *
-	 * \param[in] type storage type
-	 * \return the number of bytes each storage type requires
-	 */
-	static unsigned bytes(Storage const type);
-
-	/**
-	 * Queries whether a storage type is \e signed (otherwise it's \e unsigned).
-	 *
-	 * \param[in] type storage type
-	 * \return \c true if \a type is signed
-	 */
-	static bool isSigned(Storage const type);
-
-	/**
-	 * Returns a data type without the packing or conversion.
-	 *
-	 * \param[in] type storage type
-	 * \return underlying storage type
-	 */
-	static BasicType toBasicType(Storage const type);
-
-	/**
-	 * Returns whether a type is normalised or not.
-	 *
-	 * \param[in] type storage type
-	 * \return \c true if \a type is normalised
-	 */
-	static bool isNormalized(Storage const type);
 
 private:
 	/**
