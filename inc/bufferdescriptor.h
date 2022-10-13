@@ -12,8 +12,9 @@
  * Output buffer descriptor. What the interleaved offsets are, where attributes
  * are packed, etc., to be sent to the rendering API.
  */
-struct BufferDescriptor
+class BufferDescriptor
 {
+public:
 	/**
 	 * Packing of the tangent's sign or other components. Where multiple
 	 * components are packed, as would be the case for a second UV channel or
@@ -28,6 +29,27 @@ struct BufferDescriptor
 		PACK_TANS_Z, /**< Packed in the encoded tangent's \c z (3rd) component. */
 		PACK_TANS_W, /**< Packed in the tangent's \c w (4th) component. */
 	};
+
+	/**
+	 * Calculate all of the packing and padding from the user's options.
+	 *
+	 * \param[in] opts command-line options
+	 */
+	BufferDescriptor(const ToolOptions& opts);
+
+	/**
+	 * Prints the descriptor to \c stdout (as GL calls, since that or similar
+	 * is what will be used).
+	 */
+	void dump() const;
+
+	Packing packSign; /**< Where the single tangent sign was packed. */
+	Packing packTans; /**< Where the encoded tangents pair were packed. */
+
+private:
+	BufferDescriptor(const BufferDescriptor&) = delete; /**< No copy */
+	void operator=(const BufferDescriptor)    = delete; /**< No assign */
+
 	/**
 	 * Parameters associated with a generic interleaved vertex attribute. Later
 	 * these  will be passed, for example, to \c glVertexAttribPointer(), as
@@ -39,11 +61,8 @@ struct BufferDescriptor
 		/**
 		 * Zero constructor, with the attributes marked as invalid.
 		 */
-		AttrParams()
-			: valid  (false)
-			, size   (0)
-			, offset (0)
-			, aligned(false) {}
+		AttrParams();
+
 		/**
 		 * Mark this attribute as valid and set the initial size (the offset
 		 * will be fixed but the size might change as other components are
@@ -54,17 +73,13 @@ struct BufferDescriptor
 		 * \param[in] compSize number of bytes in a single component
 		 */
 		void fill(unsigned const numComps, unsigned const startOff, unsigned const compSize);
+
 		bool valid;      /**< \c true if these attributes are used and exported. */
 		unsigned size;   /**< Number of components (e.g.: \c 2 for UVs). */
-		unsigned offset; /**< Offset to the start of the components in the interleaved buffer */
+		unsigned offset; /**< Offset to the first of the components in the interleaved buffer */
 		bool aligned;    /**< \c true if the stream needs 4-byte aligning (and has free space). */
 	};
-	/**
-	 * Calculate all of the packing and padding from the user's options.
-	 *
-	 * \param[in] opts command-line options
-	 */
-	BufferDescriptor(const ToolOptions& opts);
+
 	/**
 	 * Test that \a what still needs packing, that \a attr isn't aligned and
 	 * has enough free space for \a numComps components, and if so, flag it
@@ -85,11 +100,11 @@ struct BufferDescriptor
 	 * \param[in] where where the sign was packed (for \c posn this would be \c PACK_POSN_W)
 	 */
 	static void tryPacking(Packing& what, AttrParams& attr, int const numComps, Packing const where);
-	Packing packSign; /**< Where the single tangent sign was packed. */
-	Packing packTans; /**< Where the encoded tangents pair were packed. */
+
 	AttrParams posn;  /**< Position attributes. */
 	AttrParams uv_0;  /**< UV channel 0 attributes. */
 	AttrParams norm;  /**< Normal attributes. */
 	AttrParams tans;  /**< Tangent attributes. */
 	AttrParams btan;  /**< Bitangent attributes. */
+	unsigned stride;  /**< Bytes between each complete vertex (total of all attributes). */
 };

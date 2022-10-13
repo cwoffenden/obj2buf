@@ -202,7 +202,9 @@ int main(int argc, const char* argv[]) {
 		}
 	}
 	opts.dump();
-	BufferDescriptor bufDesc(opts);
+	// Decide how the options create the buffer layout
+	BufferDescriptor const bufDesc(opts);
+	bufDesc.dump();
 	// Now we start
 	if (!open(srcPath, opts.tans != VertexPacker::EXCLUDE, mesh)) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");

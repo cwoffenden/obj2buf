@@ -27,7 +27,7 @@ public:
 		/**
 		 * Flag to mark as excluded from writing.
 		 */
-		EXCLUDE,
+		EXCLUDE = 0,
 		/**
 		 * Signed \c byte (normalised to fit the range \c -1.0 to \c 1.0).
 		 *
@@ -82,6 +82,13 @@ public:
 		 */
 		UINT16C,
 		/**
+		 * Half-precision \c float (IEEE 754-2008 format). Stored as two
+		 * consecutive bytes.
+		 *
+		 * \note Hardware support should be queried before using.
+		 */
+		FLOAT16,
+		/**
 		 * Signed \c int (clamped to the range \c -2147483648 to \c
 		 * 2147483647). Stored as two consecutive bytes.
 		 *
@@ -95,13 +102,6 @@ public:
 		 * \note May be useful as an index buffer format.
 		 */
 		UINT32C,
-		/**
-		 * Half-precision \c float (IEEE 754-2008 format). Stored as two
-		 * consecutive bytes.
-		 *
-		 * \note Hardware support should be queried before using.
-		 */
-		FLOAT16,
 		/**
 		 * Single-precision \c float (IEEE 754 format). Stored as four
 		 * consecutive bytes.
@@ -127,6 +127,22 @@ public:
 		 * full range of bits is used but zero cannot be represented.
 		 */
 		OPTS_SIGNED_LEGACY = 2,
+	};
+
+	/**
+	 * Data type, without the packing or conversion. These are what would be
+	 * passed to OpenGL or other graphics APIs.
+	 */
+	enum BasicType {
+		TYPE_UNKNOWN,        /**< Unknown type. */
+		TYPE_BYTE,           /**< Signed \c byte. */
+		TYPE_UNSIGNED_BYTE,  /**< Unsigned \c byte. */
+		TYPE_SHORT,          /**< Signed \c short. */
+		TYPE_UNSIGNED_SHORT, /**< Unsigned \c short. */
+		TYPE_INT,            /**< Signed \c int. */
+		TYPE_UNSIGNED_INT,   /**< Unsigned \c int. */
+		TYPE_HALF_FLOAT,     /**< Half-precision \c float. */
+		TYPE_FLOAT           /**< Single-precision \c float. */
 	};
 
 	/**
@@ -206,6 +222,22 @@ public:
 	 * \return \c true if \a type is signed
 	 */
 	static bool isSigned(Storage const type);
+
+	/**
+	 * Returns a data type without the packing or conversion.
+	 *
+	 * \param[in] type storage type
+	 * \return underlying storage type
+	 */
+	static BasicType toBasicType(Storage const type);
+
+	/**
+	 * Returns whether a type is normalised or not.
+	 *
+	 * \param[in] type storage type
+	 * \return \c true if \a type is normalised
+	 */
+	static bool isNormalized(Storage const type);
 
 private:
 	/**
