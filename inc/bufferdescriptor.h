@@ -49,8 +49,8 @@ public:
 	Packing packTans; /**< Where the encoded tangents pair were packed. */
 
 private:
-	BufferDescriptor(const BufferDescriptor&) = delete; /**< No copy */
-	void operator=(const BufferDescriptor)    = delete; /**< No assign */
+	BufferDescriptor(const BufferDescriptor&) = delete; /**< Not copyable   */
+	void operator=  (const BufferDescriptor)  = delete; /**< Not assignable */
 
 	/**
 	 * Parameters associated with a generic interleaved vertex attribute. Later
