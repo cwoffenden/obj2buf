@@ -14,7 +14,7 @@ mkdir build
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
-Work in progress: not all features are yet working 100%.
+Work in progress: some features may not work 100%.
 ```
 Usage: obj2buf [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-o|l|z|a] in.obj [out.bin]
         -p vertex positions type
@@ -28,6 +28,7 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-o|l|z|a] in.obj [out.bin
         -sb as -s but without a bias, keeping the origin at zero
         -e encodes normals (and tangents) in two components as hemi-oct
         -ez as -e but as raw XY without the Z
+        (encoded normals having the same type as tangents may be packed)
         -b store only the sign for bitangents
         (packing the sign if possible where any padding would normally go)
         -o writes multi-byte values in big endian order
@@ -54,7 +55,9 @@ A more complex example could be:
 
 3. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions).
 
-4. `-ez` option to drop the Z from normals and tangents.
+4. `-ez` option to encode normals and tangents with as drop-Z
+
+5. Since normals and tangents are both bytes and encoded, they will be packed.
 ```
 obj2buf -p short -u short -n byte -t byte -s -ez -b -a cube.obj cube.inc
 ```
