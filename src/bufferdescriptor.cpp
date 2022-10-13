@@ -80,10 +80,10 @@ void BufferDescriptor::dump(const ToolOptions& opts) const {
 	if (packTans == PACK_NONE) {
 		printf("glVertexAttribPointer(VERT_TANS, %d, GL_%s, GL_%s, %d, %d)\n", tans.size, opts.tans.toString(true), (opts.tans.isNormalized()) ? "TRUE" : "FALSE", stride, tans.offset);
 	} else {
-		printf("/* Encoded tangents packed in normals */\n");
+		printf("/* Encoded tangents packed in norm.zw (note the four components) */\n");
 	}
 	if (packSign != PACK_NONE) {
-		printf("/* Tangents sign in posn.w */\n");
+		printf("/* Bitangents sign in posn.w (note the four components) */\n");
 	}
 }
 
