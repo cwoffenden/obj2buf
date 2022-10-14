@@ -14,7 +14,7 @@
 
 #include "meshoptimizer.h"
 
-#include "bufferdescriptor.h"
+#include "bufferlayout.h"
 #include "fileutils.h"
 #include "objvertex.h"
 
@@ -203,8 +203,8 @@ int main(int argc, const char* argv[]) {
 	}
 	opts.dump();
 	// Decide how the options create the buffer layout
-	BufferDescriptor const bufDesc(opts);
-	bufDesc.dump(opts);
+	BufferLayout const layout(opts);
+	layout.dump(opts);
 	// Now we start
 	if (!open(srcPath, opts.tans != VertexPacker::Storage::EXCLUDE, mesh)) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
@@ -240,30 +240,29 @@ int main(int argc, const char* argv[]) {
 		 */
 		if (opts.posn) {
 			it->posn.store(packer, opts.posn);
-			if (bufDesc.packSign == BufferDescriptor::PACK_POSN_W) {
+			if (layout.packSign == BufferLayout::PACK_POSN_W) {
 				// placeholder
-				packer.add(it->btan.x, opts.posn);
+				packer.add(it->sign, opts.posn);
 			}
 			packer.align();
 		}
 		if (opts.text) {
 			it->uv_0.store(packer, opts.text);
-			if (bufDesc.packSign == BufferDescriptor::PACK_UV_0_Z ) {
-				// placeholder (though an unlikely candidate)
-				packer.add(it->btan.x, opts.text);
+			if (layout.packSign == BufferLayout::PACK_UV_0_Z ) {
+				packer.add(it->sign, opts.text);
 			}
 			packer.align();
 		}
 		if (opts.norm) {
 			it->norm.store(packer, opts.norm);
-			if (bufDesc.packTans == BufferDescriptor::PACK_NORM_W) {
+			if (layout.packTans == BufferLayout::PACK_NORM_W) {
 				packer.add(it->tans.x, opts.norm);
 				packer.add(it->tans.y, opts.norm);
 			}
 			packer.align();
 		}
 		if (opts.tans) {
-			if (bufDesc.packTans == BufferDescriptor::PACK_NONE) {
+			if (layout.packTans == BufferLayout::PACK_NONE) {
 				it->tans.store(packer, opts.tans);
 				it->btan.store(packer, opts.tans);
 				packer.align();

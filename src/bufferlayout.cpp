@@ -1,15 +1,15 @@
 /**
- * \file bufferdescriptor.cpp
+ * \file bufferlayout.cpp
  *
  * \copyright 2022 Numfum GmbH
  */
-#include "bufferdescriptor.h"
+#include "bufferlayout.h"
 
 #include <cstdio>
 
 #include "tooloptions.h"
 
-BufferDescriptor::BufferDescriptor(const ToolOptions& opts)
+BufferLayout::BufferLayout(const ToolOptions& opts)
 	: packSign(PACK_NONE)
 	, packTans(PACK_NONE)
 {
@@ -73,7 +73,7 @@ BufferDescriptor::BufferDescriptor(const ToolOptions& opts)
 	stride = offset;
 }
 
-void BufferDescriptor::dump(const ToolOptions& opts) const {
+void BufferLayout::dump(const ToolOptions& opts) const {
 	if (opts.posn) {
 		printf("glVertexAttribPointer(VERT_POSN, %d, GL_%s, GL_%s, %d, %d)\n",
 				posn.size, opts.posn.toString(true), (opts.posn.isNormalized()) ? "TRUE" : "FALSE", stride, posn.offset);
@@ -102,20 +102,20 @@ void BufferDescriptor::dump(const ToolOptions& opts) const {
 	}
 }
 
-BufferDescriptor::AttrParams::AttrParams()
+BufferLayout::AttrParams::AttrParams()
 	: valid  (false)
 	, size   (0)
 	, offset (0)
 	, aligned(false) {}
 
-void BufferDescriptor::AttrParams::fill(unsigned const numComps, unsigned const startOff, unsigned const compSize) {
+void BufferLayout::AttrParams::fill(unsigned const numComps, unsigned const startOff, unsigned const compSize) {
 	valid   = true;
 	size    = numComps;
 	offset  = startOff;
 	aligned = ((size * compSize) & 3) == 0;
 }
 
-void BufferDescriptor::tryPacking(Packing& what, AttrParams& attr, int const numComps, Packing const where) {
+void BufferLayout::tryPacking(Packing& what, AttrParams& attr, int const numComps, Packing const where) {
 	if (what == PACK_NONE) {
 		if (attr.aligned == false && (attr.size + numComps) <= 4) {
 			attr.size += numComps;

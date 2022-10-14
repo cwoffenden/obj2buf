@@ -1,5 +1,5 @@
 /**
- * \file bufferdescriptor.h
+ * \file bufferlayout.h
  * Output buffer descriptor.
  *
  * \copyright 2022 Numfum GmbH
@@ -9,10 +9,10 @@
 #include "tooloptions.h"
 
 /**
- * Output buffer descriptor. What the interleaved offsets are, where attributes
- * are packed, etc., to be sent to the rendering API.
+ * Output buffer layout descriptor. What the interleaved offsets are, where
+ * attributes are packed, etc., to be sent to the rendering API.
  */
-class BufferDescriptor
+class BufferLayout
 {
 public:
 	/**
@@ -35,7 +35,7 @@ public:
 	 *
 	 * \param[in] opts command-line options
 	 */
-	BufferDescriptor(const ToolOptions& opts);
+	BufferLayout(const ToolOptions& opts);
 
 	/**
 	 * Prints the descriptor to \c stdout (as GL calls, since that or similar
@@ -49,8 +49,8 @@ public:
 	Packing packTans; /**< Where the encoded tangents pair were packed. */
 
 private:
-	BufferDescriptor(const BufferDescriptor&) = delete; /**< Not copyable   */
-	void operator=  (const BufferDescriptor)  = delete; /**< Not assignable */
+	BufferLayout  (const BufferLayout&) = delete; /**< Not copyable   */
+	void operator=(const BufferLayout)  = delete; /**< Not assignable */
 
 	/**
 	 * Parameters associated with a generic interleaved vertex attribute. Later
