@@ -11,8 +11,11 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 	: packSign(PACK_NONE)
 	, packTans(PACK_NONE)
 {
-	bool const hasBitansSign = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN);
-	bool const hasTansPacked = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_PACKED);
+	/*
+	 * No packing if we don't have tangents.
+	 */
+	bool const hasBitansSign = opts.tans && O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN);
+	bool const hasTansPacked = opts.tans && O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_PACKED);
 	/*
 	 * Starting with all the params at zero, we try to find the best fit.
 	 */
@@ -44,27 +47,50 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 		}
 		offset += uv_0.getAlignedSize();
 	}
-	// TODO: test that we can pack encoded normals and tangents that are shorts, for example, taking 8 bytes
 	if (opts.norm) {
+		/*
+		 * Unencoded normals are X, Y & Z, encoded are two components (referred
+		 * to as X & Y for simplicty). Unencoded can squeeze in the bitangent
+		 * sign, but encoded can also fit the encoded tangents. The type should
+		 * always be signed.
+		 *
+		 * TODO: test that we can pack encoded normals and tangents as shorts, for example, taking 8 bytes
+		 */
 		bool const encoded = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED);
 		norm.fill(opts.norm, offset, (encoded) ? 2 : 3);
 		if (hasTansPacked && encoded) {
 			tryPacking(packTans, norm, 2, PACK_NORM_Z);
 		} else {
-			if (hasBitansSign && opts.norm.isSigned()) {
+			if (hasBitansSign) {
 				tryPacking(packSign, norm, 1, (encoded) ? PACK_NORM_Z : PACK_NORM_W);
 			}
 		}
 		offset += norm.getAlignedSize();
 	}
 	if (opts.tans) {
+		/*
+		 * If the tangents weren't packed they're written standalone. We try to
+		 * pack the bitangents sign but not the bitangents (simply because, if
+		 * we've made it to here with unpacked items the formats chosen aren't
+		 * packable).
+		 */
 		bool const encoded = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED);
 		if (packTans == PACK_NONE) {
 			tans.fill(opts.tans, offset, (encoded) ? 2 : 3);
-			if (hasBitansSign && opts.tans.isSigned()) {
+			if (hasBitansSign) {
 				tryPacking(packSign, tans, 1, (encoded) ? PACK_TANS_Z : PACK_TANS_W);
 			}
 			offset += tans.getAlignedSize();
+		}
+		if (packSign == PACK_NONE) {
+			/*
+			 * Hmm, we've not packed the sign, so haven't picked where the
+			 * bitangents will go. We write standalone with the following
+			 * components: 1, the sign, 2 encoded, or 3 unencoded. Worst case
+			 * is the sign and 3 bytes of padding.
+			 */
+			btan.fill(opts.tans, offset, (hasBitansSign) ? 1 : ((encoded) ? 2 : 3));
+			offset += btan.getAlignedSize();
 		}
 	}
 	stride = offset;
@@ -75,6 +101,10 @@ void BufferLayout::dump() const {
 	uv_0.dump(stride, "VERT_UV_0_ID");
 	norm.dump(stride, "VERT_NORM_ID");
 	if (tans.storage) {
+		/*
+		 * Tangents are (currenly) only ever packed in the normals. The
+		 * bitangent sign, though, varies.
+		 */
 		if (packTans == PACK_NONE) {
 			tans.dump(stride, "VERT_TANS_ID");
 		} else {
@@ -83,15 +113,42 @@ void BufferLayout::dump() const {
 		if (packSign == PACK_NONE) {
 			btan.dump(stride, "VERT_BTAN_ID");
 		} else {
-			printf("// Bitangents sign packed in posn.w (note the four components)\n");
+			const char* element;
+			const char* numComp = "four";
+			switch (packSign) {
+			case PACK_POSN_W:
+				element = "posn.w";
+				break;
+			case PACK_UV_0_Z:
+				element = "uv_0.z";
+				numComp = "three";
+				break;
+			case PACK_NORM_Z:
+				element = "norm.z";
+				numComp = "three";
+				break;
+			case PACK_NORM_W:
+				element = "norm.w";
+				break;
+			case PACK_TANS_Z:
+				element = "tans.z";
+				numComp = "three";
+				break;
+			case PACK_TANS_W:
+				element = "tans.w";
+				break;
+			default:
+				element = "unkown";
+			}
+			printf("// Bitangents sign packed in %s (note the %s components)\n", element, numComp);
 		}
 	}
 }
 
 bool BufferLayout::write(VertexPacker& packer, const ObjVertex& vertex) const {
 	/*
-	 * TODO: encoding normals and tangents
-	 * TODO: general padding
+	 * Positions and UVs are straightforward. They always write all components,
+	 * and optionally pack the tangent sign.
 	 */
 	if (posn) {
 		vertex.posn.store(packer, posn.storage);
@@ -104,7 +161,7 @@ bool BufferLayout::write(VertexPacker& packer, const ObjVertex& vertex) const {
 	}
 	if (uv_0) {
 		vertex.uv_0.store(packer, uv_0.storage);
-		if (packSign == PACK_UV_0_Z ) {
+		if (packSign == PACK_UV_0_Z) {
 			packer.add(vertex.sign, uv_0.storage);
 		}
 		if (uv_0.unaligned) {
@@ -112,16 +169,41 @@ bool BufferLayout::write(VertexPacker& packer, const ObjVertex& vertex) const {
 		}
 	}
 	if (norm) {
-		vertex.norm.store(packer, norm.storage);
-		if (packTans == PACK_NORM_W) {
-			packer.add(vertex.tans.x, norm.storage);
-			packer.add(vertex.tans.y, norm.storage);
+		if (packTans == PACK_NORM_Z) {
+			/*
+			 * This means implicit encoding for both normals and tangents, so
+			 * 2-components each. It also excludes packing the sign.
+			 */
+			vertex.norm.xy().store(packer, norm.storage);
+			vertex.tans.xy().store(packer, norm.storage);
+		} else {
+			if (packSign == PACK_NORM_Z) {
+				/*
+				 * Sign is Z is also implicit encoding for normals.
+				 */
+				vertex.norm.xy().store(packer, norm.storage);
+				packer.add(vertex.sign, norm.storage);
+			} else {
+				/*
+				 * Otherwise we have unencoded, 3-component normals, with the
+				 * optional sign packed at the end.
+				 */
+				vertex.norm.store(packer, norm.storage);
+				if (packSign == PACK_NORM_W) {
+					packer.add(vertex.sign, norm.storage);
+				}
+			}
 		}
 		if (norm.unaligned) {
 			packer.align();
 		}
 	}
 	if (tans) {
+		/*
+		 * Tangents are written if they weren't packed.
+		 *
+		 * TODO: this is unfinished
+		 */
 		if (packTans == PACK_NONE) {
 			vertex.tans.store(packer, tans.storage);
 			if (tans.unaligned) {
@@ -130,7 +212,7 @@ bool BufferLayout::write(VertexPacker& packer, const ObjVertex& vertex) const {
 		}
 	}
 	if (btan) {
-		if (packTans == PACK_NONE) {
+		if (packTans == PACK_NONE && packSign == PACK_NONE) {
 			vertex.btan.store(packer, btan.storage);
 			if (btan.unaligned) {
 				packer.align();

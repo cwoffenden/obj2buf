@@ -204,8 +204,6 @@ int main(int argc, const char* argv[]) {
 	opts.dump();
 	// Decide how the options create the buffer layout
 	BufferLayout const layout(opts);
-	printf("\n");
-	layout.dump();
 	// Now we start
 	if (!open(srcPath, opts.tans != VertexPacker::Storage::EXCLUDE, mesh)) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
@@ -250,6 +248,9 @@ int main(int argc, const char* argv[]) {
 	printf("\n");
 	printf("glBufferData(GL_ARRAY_BUFFER, %d, objBuf, GL_STATIC_DRAW);\n", static_cast<int>(vertexBytes));
 	printf("glBufferData(GL_ELEMENT_ARRAY_BUFFER, %d, objBuf + %d, GL_STATIC_DRAW);\n", static_cast<int>(indexBytes), static_cast<int>(vertexBytes));
+	printf("\n");
+	layout.dump();
+	printf("\n");
 	printf("glDrawElements(GL_TRIANGLES, %d, GL_UNSIGNED_SHORT, 0);\n", static_cast<int>(mesh.index.size()));
 	// Write the result
 	bool written = write(dstPath, backing.data(), packer.size(),
