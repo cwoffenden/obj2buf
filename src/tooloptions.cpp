@@ -10,6 +10,26 @@
 #include <cstdio>
 
 /**
+ * Helper to set \c ToolOptions#opts from an \c Options ordinal. E.g.:
+ * \code
+ *	O2B_SET_OPT(myVar, OPTS_POSITIONS_SCALE)
+ * \endcode
+ */
+#ifndef O2B_SET_OPT
+#define O2B_SET_OPT(var, ordinal) var |= (1 << ordinal)
+#endif
+
+/**
+ * Helper to clear \c ToolOptions#opts from an \c Options ordinal. E.g.:
+ * \code
+ *	O2B_CLEAR_OPT(myVar, OPTS_POSITIONS_SCALE)
+ * \endcode
+ */
+#ifndef O2B_CLEAR_OPT
+#define O2B_CLEAR_OPT(var, ordinal) var &= ~(1 << ordinal)
+#endif
+
+/**
  * Helper to convert a string data type to a storage type. \c b becomes \c
  * SINT08C (signed 8-bit int), \c ub becomes \c UINT08C (unsigned 8-bit int),
  * etc.
@@ -100,36 +120,32 @@ int ToolOptions::parseArgs(const char* const argv[], int const argc, bool const 
 }
 
 void ToolOptions::fixUp() {
-	if (!O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
-		/*
-		 * If positions aren't scaled the types are converted to clamped.
-		 */
-		switch (posn) {
-		case VertexPacker::Storage::SINT08N:
-			idxs = VertexPacker::Storage::SINT08C;
-			break;
-		case VertexPacker::Storage::UINT08N:
-			idxs = VertexPacker::Storage::UINT08C;
-			break;
-		case VertexPacker::Storage::SINT16N:
-			idxs = VertexPacker::Storage::SINT16C;
-			break;
-		case VertexPacker::Storage::UINT16N:
-			idxs = VertexPacker::Storage::UINT16C;
-			break;
-		default:
-			// no change
-			break;
+	if (posn) {
+		if (!O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
+			/*
+			 * If positions are unscaled the types are converted to clamped.
+			 */
+			switch (posn) {
+			case VertexPacker::Storage::SINT08N:
+				posn = VertexPacker::Storage::SINT08C;
+				break;
+			case VertexPacker::Storage::UINT08N:
+				posn = VertexPacker::Storage::UINT08C;
+				break;
+			case VertexPacker::Storage::SINT16N:
+				posn = VertexPacker::Storage::SINT16C;
+				break;
+			case VertexPacker::Storage::UINT16N:
+				posn = VertexPacker::Storage::UINT16C;
+				break;
+			default:
+				// no change
+			}
 		}
+	} else {
+		O2B_CLEAR_OPT(opts, OPTS_POSITIONS_SCALE);
 	}
 	if (tans) {
-		/*
-		 * Tangents without normals doesn't make any sense.
-		 */
-		if (!norm) {
-			fprintf(stderr, "Tangents requested without normals\n");
-			help();
-		}
 		/*
 		 * Encoded normals with both normals and tangents having the same type
 		 * mean with can pack the tangents with the normals.
@@ -137,6 +153,8 @@ void ToolOptions::fixUp() {
 		if (O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED) && norm == tans) {
 			O2B_SET_OPT(opts, OPTS_TANGENTS_PACKED);
 		}
+	} else {
+		O2B_CLEAR_OPT(opts, OPTS_BITANGENTS_SIGN);
 	}
 	/*
 	 * Indices are always unsigned and clamped.

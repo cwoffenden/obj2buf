@@ -73,7 +73,6 @@ struct Vec2
 	}
 };
 
-
 template<typename T>
 struct Vec3
 {
@@ -93,6 +92,14 @@ struct Vec3
 	}
 	operator T*() {
 		return &x;
+	}
+	/**
+	 * Getter for the \c x and \c y components.
+	 *
+	 * \return a new 2-component vector
+	 */
+	Vec2 xy() const {
+		return Vec2(x, y);
 	}
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(+)
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(-)
@@ -147,6 +154,14 @@ struct Vec4
 	}
 	operator T*() {
 		return &x;
+	}
+	/**
+	 * Getter for the \c x, \c y and \c z components.
+	 *
+	 * \return a new 3-component vector
+	 */
+	Vec3 xyz() const {
+		return Vec3(x, y, z);
 	}
 	/**
 	 * \copydoc Vec2::store()

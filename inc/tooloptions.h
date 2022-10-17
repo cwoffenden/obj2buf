@@ -9,19 +9,8 @@
 #include "vertexpacker.h"
 
 /**
- * Helper to set \c ToolOptions#opts (or any options flag variable) from an \c
- * Options ordinal. E.g.:
- * \code
- *	O2B_SET_OPT(myVar, OPTS_POSITIONS_SCALE)
- * \endcode
- */
-#ifndef O2B_SET_OPT
-#define O2B_SET_OPT(var, ordinal) var |= (1 << ordinal)
-#endif
-
-/**
- * Evaluates to \c true if \c ToolOptions#opts (or any options flag variable)
- * has an \c Options ordinal set. E.g.:
+ * Evaluates to \c true if \c ToolOptions#opts has an \c Options ordinal set.
+ * E.g.:
  * \code
  *	if (O2B_HAS_OPT(myVar, OPTS_POSITIONS_SCALE)) {
  *		// Scale the vertex positions
