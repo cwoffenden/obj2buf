@@ -41,7 +41,7 @@ bool write(const char* const dstPath, const void* const data, size_t const size)
 }
 
 /**
- * Helper to write a buffer to a binart or text file
+ * Helper to write a buffer to a binary or text file
  *
  * \param[in] dstPath filename of the destination file
  * \param[in] data start of the raw data
