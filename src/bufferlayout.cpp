@@ -50,7 +50,7 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 	if (opts.norm) {
 		/*
 		 * Unencoded normals are X, Y & Z, encoded are two components (referred
-		 * to as X & Y for simplicty). Unencoded can squeeze in the bitangent
+		 * to as X & Y for simplicity). Unencoded can squeeze in the bitangent
 		 * sign, but encoded can also fit the encoded tangents. The type should
 		 * always be signed.
 		 *
@@ -102,7 +102,7 @@ void BufferLayout::dump() const {
 	norm.dump(stride, "VERT_NORM_ID");
 	if (tans.storage) {
 		/*
-		 * Tangents are (currenly) only ever packed in the normals. The
+		 * Tangents are (currently) only ever packed in the normals. The
 		 * bitangent sign, though, varies.
 		 */
 		if (packTans == PACK_NONE) {
@@ -138,7 +138,7 @@ void BufferLayout::dump() const {
 				element = "tans.w";
 				break;
 			default:
-				element = "unkown";
+				element = "unknown";
 			}
 			printf("// Bitangents sign packed in %s (note the %s components)\n", element, numComp);
 		}
