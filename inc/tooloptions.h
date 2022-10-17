@@ -72,8 +72,8 @@ public:
 		 */
 		OPTS_TANGENTS_PACKED,
 		/**
-		 * Only the sign is stored for bitangents (requiring reconstition from
-		 * the normals and tangents at runtime).
+		 * Only the sign is stored for bitangents (requiring reconstitution
+		 * from the normals and tangents at runtime).
 		 */
 		OPTS_BITANGENTS_SIGN,
 		/**

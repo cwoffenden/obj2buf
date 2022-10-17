@@ -171,7 +171,7 @@ public:
 		/**
 		 * Returns the storage type to a string.
 		 *
-		 * \param[in] upper \c true if the string should be all uppercase
+		 * \param[in] upper \c true if the string should be all upper-case
 		 * \return string equivalent (or \c N/A of there is no match)
 		 */
 		const char* toString(bool const upper = false) const {

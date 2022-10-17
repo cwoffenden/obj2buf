@@ -8,7 +8,7 @@
 #include <cstddef>
 
 /**
- * Helper to write a buffer to a binart or text file with optional Zstandard
+ * Helper to write a buffer to a binary or text file with optional Zstandard
  * compression.
  *
  * \param[in] dstPath filename of the destination file
