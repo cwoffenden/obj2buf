@@ -71,17 +71,17 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 }
 
 void BufferLayout::dump() const {
-	posn.dump(stride);
-	uv_0.dump(stride);
-	norm.dump(stride);
+	posn.dump(stride, "VERT_POSN_ID");
+	uv_0.dump(stride, "VERT_UV_0_ID");
+	norm.dump(stride, "VERT_NORM_ID");
 	if (tans.storage) {
 		if (packTans == PACK_NONE) {
-			tans.dump(stride);
+			tans.dump(stride, "VERT_TANS_ID");
 		} else {
 			printf("// Encoded tangents packed in norm.zw (note the four components)\n");
 		}
 		if (packSign == PACK_NONE) {
-			btan.dump(stride);
+			btan.dump(stride, "VERT_BTAN_ID");
 		} else {
 			printf("// Bitangents sign packed in posn.w (note the four components)\n");
 		}
@@ -163,11 +163,11 @@ unsigned BufferLayout::AttrParams::getAlignedSize() const {
 	return ((components * storage.bytes() + 3) / 4) * 4;
 }
 
-void BufferLayout::AttrParams::dump(unsigned const stride) const {
+void BufferLayout::AttrParams::dump(unsigned const stride, const char* name) const {
 	if (storage) {
 		const char* normalised = (storage.isNormalized()) ? "TRUE" : "FALSE";
-		printf("glVertexAttribPointer(VERT_POSN, %d, GL_%s, GL_%s, %d, %d)\n",
-			components, storage.toString(true), normalised, stride, offset);
+		printf("glVertexAttribPointer(%s, %d, GL_%s, GL_%s, %d, (void*) %d);\n",
+			name, components, storage.toString(true), normalised, stride, offset);
 	}
 }
 

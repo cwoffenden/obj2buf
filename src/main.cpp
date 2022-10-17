@@ -160,6 +160,7 @@ void scale(ObjMesh& mesh, bool const unbiased = false) {
 	}
 	// Which gives the global mesh scale and offset
 	mesh.scale = (maxPosn - minPosn) * 0.5f;
+	mesh.scale = vec3::max(mesh.scale, vec3(1, 1, 1));
 	mesh.bias  = (maxPosn + minPosn) * 0.5f;
 	// Apply to each vert to normalise
 	for (std::vector<ObjVertex>::iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
@@ -244,11 +245,12 @@ int main(int argc, const char* argv[]) {
 		}
 	}
 	packer.align();
-	size_t totalBytes = packer.size();
+	size_t indexBytes = packer.size() - vertexBytes;
+	// Dump the GL calls (and sizes)
 	printf("\n");
-	printf("Vertex bytes: %d\n", static_cast<int>(vertexBytes));
-	printf("Index bytes:  %d\n", static_cast<int>(totalBytes - vertexBytes));
-	printf("Total bytes:  %d\n", static_cast<int>(totalBytes));
+	printf("glBufferData(GL_ARRAY_BUFFER, %d, objBuf, GL_STATIC_DRAW);\n", static_cast<int>(vertexBytes));
+	printf("glBufferData(GL_ELEMENT_ARRAY_BUFFER, %d, objBuf + %d, GL_STATIC_DRAW);\n", static_cast<int>(indexBytes), static_cast<int>(vertexBytes));
+	printf("glDrawElements(GL_TRIANGLES, %d, GL_UNSIGNED_SHORT, 0);\n", static_cast<int>(mesh.index.size()));
 	// Write the result
 	bool written = write(dstPath, backing.data(), packer.size(),
 		O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_ASCII_FILE),

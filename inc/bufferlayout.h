@@ -107,8 +107,9 @@ private:
 		 * Prints the attribute to \c stdout (as a GL call).
 		 *
 		 * \param[in] stride bytes between each complete vertex
+		 * \param[in] name name to assign (a constant for the buffer index in GL)
 		 */
-		void dump(unsigned const stride) const;
+		void dump(unsigned const stride, const char* name) const;
 
 		/**
 		 * Storage type for the attribute. The default is \c EXCLUDE, meaning
