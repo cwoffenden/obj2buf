@@ -82,7 +82,7 @@ private:
 		void fill(VertexPacker::Storage const attrType, unsigned const startOff, unsigned const numComps);
 
 		/**
-		 * Performs the test for whether this is \c #unaligned (it's nontrivial
+		 * Performs the test for whether this is \c #unaligned (it's non-trivial
 		 * enough to factor into its own method).
 		 */
 		void validate();
@@ -150,7 +150,7 @@ private:
 	 * \endcode
 	 * Meaning: if \c posn has space for one extra component, then the single
 	 * bitangent sign can be packed in the position's \c w axis. Further checks
-	 * will have been performed beforehand, verifying the postitions can
+	 * will have been performed beforehand, verifying the positions can
 	 * support the required signed type.
 	 *
 	 * \param[in,out] what item being packed (e.g. \c #packSign)

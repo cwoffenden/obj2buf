@@ -50,6 +50,9 @@ struct Vec2
 	T x;
 	T y;
     Vec2() {}
+	Vec2(T const x, T const y)
+		: x(x)
+		, y(y) {}
 	Vec2& operator =(T const val) {
 		x = val;
 		y = val;
@@ -98,8 +101,8 @@ struct Vec3
 	 *
 	 * \return a new 2-component vector
 	 */
-	Vec2 xy() const {
-		return Vec2(x, y);
+	Vec2<T> xy() const {
+		return Vec2<T>(x, y);
 	}
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(+)
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(-)
@@ -160,8 +163,8 @@ struct Vec4
 	 *
 	 * \return a new 3-component vector
 	 */
-	Vec3 xyz() const {
-		return Vec3(x, y, z);
+	Vec3<T> xyz() const {
+		return Vec3<T>(x, y, z);
 	}
 	/**
 	 * \copydoc Vec2::store()

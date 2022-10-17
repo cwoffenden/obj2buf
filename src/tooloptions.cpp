@@ -140,6 +140,7 @@ void ToolOptions::fixUp() {
 				break;
 			default:
 				// no change
+				break;
 			}
 		}
 	} else {
