@@ -68,11 +68,11 @@ struct Vec2
 	 * \param[in] type conversion and byte storage
 	 * \return \c true if adding was successful (\c false if no more storage space is available)
 	 */
-	bool store(VertexPacker& dest, VertexPacker::Storage const type) const {
-		bool failed = false;
-		failed |= !dest.add(x, type);
-		failed |= !dest.add(y, type);
-		return !failed;
+	VertexPacker::Failed store(VertexPacker& dest, VertexPacker::Storage const type) const {
+		VertexPacker::Failed failed = false;
+		failed |= dest.add(x, type);
+		failed |= dest.add(y, type);
+		return failed;
 	}
 };
 
@@ -112,12 +112,12 @@ struct Vec3
 	/**
 	 * \copydoc Vec2::store()
 	 */
-	bool store(VertexPacker& dest, VertexPacker::Storage const type) const {
-		bool failed = false;
-		failed |= !dest.add(x, type);
-		failed |= !dest.add(y, type);
-		failed |= !dest.add(z, type);
-		return !failed;
+	VertexPacker::Failed store(VertexPacker& dest, VertexPacker::Storage const type) const {
+		VertexPacker::Failed failed = false;
+		failed |= dest.add(x, type);
+		failed |= dest.add(y, type);
+		failed |= dest.add(z, type);
+		return failed;
 	}
 	/**
 	 * Component-wise minimum of two vectors.
@@ -169,13 +169,13 @@ struct Vec4
 	/**
 	 * \copydoc Vec2::store()
 	 */
-	bool store(VertexPacker& dest, VertexPacker::Storage const type) const {
-		bool failed = false;
-		failed |= !dest.add(x, type);
-		failed |= !dest.add(y, type);
-		failed |= !dest.add(z, type);
-		failed |= !dest.add(w, type);
-		return !failed;
+	VertexPacker::Failed store(VertexPacker& dest, VertexPacker::Storage const type) const {
+		VertexPacker::Failed failed = false;
+		failed |= dest.add(x, type);
+		failed |= dest.add(y, type);
+		failed |= dest.add(z, type);
+		failed |= dest.add(w, type);
+		return failed;
 	}
 };
 

@@ -7,6 +7,9 @@
 
 #include <cstdio>
 
+#include "objvertex.h"
+#include "tooloptions.h"
+
 BufferLayout::BufferLayout(const ToolOptions& opts)
 	: packSign(PACK_NONE)
 	, packTans(PACK_NONE)
@@ -145,27 +148,28 @@ void BufferLayout::dump() const {
 	}
 }
 
-bool BufferLayout::write(VertexPacker& packer, const ObjVertex& vertex) const {
+VertexPacker::Failed BufferLayout::write(VertexPacker& packer, const ObjVertex& vertex) const {
+	VertexPacker::Failed failed = false;
 	/*
 	 * Positions and UVs are straightforward. They always write all components,
 	 * and optionally pack the tangent sign.
 	 */
 	if (posn) {
-		vertex.posn.store(packer, posn.storage);
+		failed |= vertex.posn.store(packer, posn.storage);
 		if (packSign == PACK_POSN_W) {
-			packer.add(vertex.sign, posn.storage);
+			failed |= packer.add(vertex.sign, posn.storage);
 		}
 		if (posn.unaligned) {
-			packer.align();
+			failed |= packer.align();
 		}
 	}
 	if (uv_0) {
-		vertex.uv_0.store(packer, uv_0.storage);
+		failed |= vertex.uv_0.store(packer, uv_0.storage);
 		if (packSign == PACK_UV_0_Z) {
-			packer.add(vertex.sign, uv_0.storage);
+			failed |= packer.add(vertex.sign, uv_0.storage);
 		}
 		if (uv_0.unaligned) {
-			packer.align();
+			failed |= packer.align();
 		}
 	}
 	if (norm) {
@@ -174,28 +178,28 @@ bool BufferLayout::write(VertexPacker& packer, const ObjVertex& vertex) const {
 			 * This means implicit encoding for both normals and tangents, so
 			 * 2-components each. It also excludes packing the sign.
 			 */
-			vertex.norm.xy().store(packer, norm.storage);
-			vertex.tans.xy().store(packer, norm.storage);
+			failed |= vertex.norm.xy().store(packer, norm.storage);
+			failed |= vertex.tans.xy().store(packer, norm.storage);
 		} else {
 			if (packSign == PACK_NORM_Z) {
 				/*
 				 * Sign is Z is also implicit encoding for normals.
 				 */
-				vertex.norm.xy().store(packer, norm.storage);
-				packer.add(vertex.sign, norm.storage);
+				failed |= vertex.norm.xy().store(packer, norm.storage);
+				failed |= packer.add(vertex.sign, norm.storage);
 			} else {
 				/*
 				 * Otherwise we have unencoded, 3-component normals, with the
 				 * optional sign packed at the end.
 				 */
-				vertex.norm.store(packer, norm.storage);
+				failed |= vertex.norm.store(packer, norm.storage);
 				if (packSign == PACK_NORM_W) {
-					packer.add(vertex.sign, norm.storage);
+					failed |= packer.add(vertex.sign, norm.storage);
 				}
 			}
 		}
 		if (norm.unaligned) {
-			packer.align();
+			failed |= packer.align();
 		}
 	}
 	if (tans) {
@@ -205,21 +209,21 @@ bool BufferLayout::write(VertexPacker& packer, const ObjVertex& vertex) const {
 		 * TODO: this is unfinished
 		 */
 		if (packTans == PACK_NONE) {
-			vertex.tans.store(packer, tans.storage);
+			failed |= vertex.tans.store(packer, tans.storage);
 			if (tans.unaligned) {
-				packer.align();
+				failed |= packer.align();
 			}
 		}
 	}
 	if (btan) {
 		if (packTans == PACK_NONE && packSign == PACK_NONE) {
-			vertex.btan.store(packer, btan.storage);
+			failed |= vertex.btan.store(packer, btan.storage);
 			if (btan.unaligned) {
-				packer.align();
+				failed |= packer.align();
 			}
 		}
 	}
-	return false;
+	return failed;
 }
 
 BufferLayout::AttrParams::AttrParams()

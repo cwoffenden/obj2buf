@@ -6,8 +6,10 @@
  */
 #pragma once
 
-#include "objvertex.h"
-#include "tooloptions.h"
+#include "vertexpacker.h"
+
+struct ObjVertex;
+class ToolOptions;
 
 /**
  * Output buffer layout descriptor. What the interleaved offsets are, where
@@ -34,9 +36,9 @@ public:
 	 *
 	 * \param[in] packer target for the packed vertex
 	 * \param[in] vertex data to write
-	 * \return \c true if adding to \a packer was successful
+	 * \return \c true if adding to \a packer failed
 	 */
-	bool write(VertexPacker& packer, const ObjVertex& vertex) const;
+	VertexPacker::Failed write(VertexPacker& packer, const ObjVertex& vertex) const;
 
 private:
 	BufferLayout  (const BufferLayout&) = delete; /**< Not copyable   */

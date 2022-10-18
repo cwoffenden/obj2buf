@@ -16,6 +16,8 @@
 
 #include "bufferlayout.h"
 #include "fileutils.h"
+#include "objvertex.h"
+#include "tooloptions.h"
 
 /**
  * The \c obj file as a vertex and index data.
@@ -232,22 +234,26 @@ int main(int argc, const char* argv[]) {
 	}
 	// Pack the vertex data
 	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
+	VertexPacker::Failed failed = false;
 	for (ObjVertex::Container::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
-		layout.write(packer, *it);
+		failed |= layout.write(packer, *it);
 	}
-	size_t vertexBytes = packer.size();
+	unsigned vertexBytes = static_cast<unsigned>(packer.size());
 	// Add the indices
 	if (opts.idxs) {
 		for (std::vector<unsigned>::const_iterator it = mesh.index.begin(); it != mesh.index.end(); ++it) {
-			packer.add(static_cast<int>(*it), opts.idxs);
+			failed |= packer.add(static_cast<int>(*it), opts.idxs);
 		}
 	}
-	packer.align();
-	size_t indexBytes = packer.size() - vertexBytes;
+	failed |= packer.align();
+	unsigned indexBytes = static_cast<unsigned>(packer.size() - vertexBytes);
+	if (failed) {
+		printf("Buffer packing failed (bytes used: %d)\n", vertexBytes + indexBytes);
+	}
 	// Dump the GL calls (and sizes)
 	printf("\n");
-	printf("glBufferData(GL_ARRAY_BUFFER, %d, objBuf, GL_STATIC_DRAW);\n", static_cast<int>(vertexBytes));
-	printf("glBufferData(GL_ELEMENT_ARRAY_BUFFER, %d, objBuf + %d, GL_STATIC_DRAW);\n", static_cast<int>(indexBytes), static_cast<int>(vertexBytes));
+	printf("glBufferData(GL_ARRAY_BUFFER, %d, objBuf, GL_STATIC_DRAW);\n", vertexBytes);
+	printf("glBufferData(GL_ELEMENT_ARRAY_BUFFER, %d, objBuf + %d, GL_STATIC_DRAW);\n", indexBytes, vertexBytes);
 	printf("\n");
 	layout.dump();
 	printf("\n");
