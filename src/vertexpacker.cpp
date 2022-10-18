@@ -220,7 +220,7 @@ size_t VertexPacker::size() const {
 	return static_cast<size_t>(next - root);
 }
 
-bool VertexPacker::add(float const data, Storage const type) {
+VertexPacker::Failed VertexPacker::add(float const data, Storage const type) {
 	if (hasFreeSpace(type)) {
 		if (type) {
 			int32_t temp;
@@ -256,12 +256,12 @@ bool VertexPacker::add(float const data, Storage const type) {
 				}
 			}
 		}
-		return true;
+		return false;
 	}
-	return false;
+	return true;
 }
 
-bool VertexPacker::add(int const data, Storage const type) {
+VertexPacker::Failed VertexPacker::add(int const data, Storage const type) {
 	if (hasFreeSpace(type)) {
 		if (type) {
 			int32_t temp;
@@ -312,12 +312,12 @@ bool VertexPacker::add(int const data, Storage const type) {
 				}
 			}
 		}
-		return true;
+		return false;
 	}
-	return false;
+	return true;
 }
 
-bool VertexPacker::align() {
+VertexPacker::Failed VertexPacker::align() {
 	if (unsigned padding = static_cast<unsigned>(size()) & 3) {
 		padding = 4 - padding;
 		if (next + padding <= over) {
@@ -325,10 +325,10 @@ bool VertexPacker::align() {
 				*next++ = 0;
 			}
 		} else {
-			return false;
+			return true;
 		}
 	}
-	return true;
+	return false;
 }
 
 void VertexPacker::rewind() {
@@ -338,4 +338,3 @@ void VertexPacker::rewind() {
 bool VertexPacker::hasFreeSpace(Storage const type) const {
 	return next + type.bytes() <= over;
 }
-

@@ -17,6 +17,15 @@ class VertexPacker
 {
 public:
 	/**
+	 * Type to denote a failure when packing.
+	 *
+	 * \note Notifying of a failure is preferable to a success since a simple
+	 * \c or can accumulate if any occurred (rather than needing to add \c not
+	 * everywhere).
+	 */
+	typedef bool Failed;
+
+	/**
 	 * Data storage types.
 	 *
 	 * \note Individual support notes are aimed at ANGLE and older D3D.
@@ -327,22 +336,22 @@ public:
 	 *
 	 * \param[in] data value to add
 	 * \param[in] type conversion and byte storage
-	 * \return \c true if adding was successful (\c false if no more storage space is available)
+	 * \return \c true if adding failed (e.g. if no more storage space is available)
 	 */
-	bool add(float const data, Storage const type);
+	Failed add(float const data, Storage const type);
 
 	/**
 	 * \copydoc #add(float,Storage)
 	 */
-	bool add(int const data, Storage const type);
+	Failed add(int const data, Storage const type);
 
 	/**
 	 * Add padding to 4-byte align the next \c #add(). This will add \c 1, \c 2
 	 * or \c 3 bytes if padding is required (otherwise zero).
 	 *
-	 * \return \c true if adding padding was successful (\c false if no more storage space is available)
+	 * \return \c true if adding failed (e.g. if no more storage space is available)
 	 */
-	bool align();
+	Failed align();
 
 	/**
 	 * Starts adding to the stream from the beginning (overwriting any existing
