@@ -230,6 +230,9 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		case 'b': // bitangents as sign-only
 			O2B_SET_OPT(opts, OPTS_BITANGENTS_SIGN);
 			break;
+		case 'm': // metadata
+			O2B_SET_OPT(opts, OPTS_WRITE_METADATA);
+			break;
 		case 'o': // big endian order
 			O2B_SET_OPT(opts, OPTS_BIG_ENDIAN);
 			break;
@@ -295,6 +298,7 @@ void ToolOptions::dump() const {
 	}
 	printf("\n");
 	printf("Indices:     %s\n", idxs.toString());
+	printf("Metadata:    %s\n", O2B_HAS_OPT(opts, OPTS_WRITE_METADATA)  ? "yes"     : "no");
 	printf("Endianness:  %s\n", O2B_HAS_OPT(opts, OPTS_BIG_ENDIAN)      ? "big"     : "little");
 	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)   ? "legacy"  : "modern");
 	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
@@ -306,7 +310,7 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-o|l|z|a] in.obj [out.bin]\n", name);
+	printf("Usage: %s [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-m|o|l|z|a] in.obj [out.bin]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-u vertex texture UVs type\n");
 	printf("\t-n vertex normals type\n");
@@ -321,6 +325,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
 	printf("\t-b store only the sign for bitangents\n");
 	printf("\t(packing the sign if possible where any padding would normally go)\n");
+	printf("\t-m writes metadata describing the various buffer offsets and sizes\n");
 	printf("\t-o writes multi-byte values in big endian order\n");
 	printf("\t-l use the legacy OpenGL rule for normalised signed values\n");
 	printf("\t-z compresses the output buffer using Zstandard\n");
