@@ -209,7 +209,7 @@ static int32_t storeModern(int const val, VertexPacker::Storage const type) {
 
 //*****************************************************************************/
 
-VertexPacker::VertexPacker(void* const root, unsigned const size, unsigned const opts)
+VertexPacker::VertexPacker(void* const root, size_t const size, unsigned const opts)
 	: root(static_cast<uint8_t*>(root))
 	, next(static_cast<uint8_t*>(root))
 	, over(static_cast<uint8_t*>(root) + size)

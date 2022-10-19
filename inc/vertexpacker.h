@@ -307,15 +307,7 @@ public:
 	 * \param[in] size number of bytes (used only for bounds tests in debug builds)
 	 * \param[in] opts packing options (set once before any data are added)
 	 */
-	VertexPacker(void* const root, unsigned const size, unsigned const opts = OPTS_DEFAULT);
-
-#if SIZE_MAX > UINT_MAX
-	/**
-	 * \copydoc VertexPacker(uint8_t*,unsigned,unsigned)
-	 */
-	inline
-	VertexPacker(void* const root, size_t const size, unsigned const opts = OPTS_DEFAULT) : VertexPacker(root, static_cast<unsigned>(size), opts) {}
-#endif
+	VertexPacker(void* const root, size_t const size, unsigned const opts = OPTS_DEFAULT);
 
 	/**
 	 * Destroys the packer (noting that the content is owned externally).
@@ -344,6 +336,14 @@ public:
 	 * \copydoc #add(float,Storage)
 	 */
 	Failed add(int const data, Storage const type);
+
+	/**
+	 * \copydoc #add(float,Storage)
+	 */
+	inline
+	Failed add(unsigned const data, Storage const type) {
+		return add(static_cast<int>(data), type);
+	}
 
 	/**
 	 * Add padding to 4-byte align the next \c #add(). This will add \c 1, \c 2

@@ -77,6 +77,12 @@ public:
 		 */
 		OPTS_BITANGENTS_SIGN,
 		/**
+		 * Write metadata before the vertex and index data, specifying the
+		 * various buffer offsets and sizes (information which is ordinarily
+		 * only displayed).
+		 */
+		OPTS_WRITE_METADATA,
+		/**
 		 * The output byte order is big endian.
 		 */
 		OPTS_BIG_ENDIAN,

@@ -218,11 +218,14 @@ int main(int argc, const char* argv[]) {
 	// Then the various optimisations
 	optimise(mesh);
 	printf("\n");
-	printf("Vertices: %d\n", static_cast<int>(mesh.verts.size()));
-	printf("Indices:  %d\n", static_cast<int>(mesh.index.size()));
-	// Maximum buffer size: vert posn, norm, uv, tans, bitans + indices
-	size_t const maxBufBytes = mesh.verts.size() * sizeof(float) * (3 + 3 + 2 + 3 + 3)
-							 + mesh.index.size() * sizeof(uint32_t);
+	printf("Vertices:  %d\n", static_cast<int>(mesh.verts.size()));
+	printf("Indices:   %d\n", static_cast<int>(mesh.index.size()));
+	printf("Triangles: %d\n", static_cast<int>(mesh.index.size() / 3));
+	// Maximum buffer size: metadata + vert posn, norm, uv, tans, bitans + indices
+	size_t const maxBufBytes = (5 * sizeof(uint32_t))
+			+ std::max(mesh.verts.size(), mesh.index.size())
+				* sizeof(float) * (3 + 3 + 2 + 3 + 3)
+			+ mesh.index.size() * sizeof(uint32_t);
 	std::vector<uint8_t> backing(maxBufBytes);
 	// Tool options to packer options
 	unsigned packOpts = VertexPacker::OPTS_DEFAULT;
@@ -235,29 +238,55 @@ int main(int argc, const char* argv[]) {
 	// Pack the vertex data
 	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
 	VertexPacker::Failed failed = false;
-	for (ObjVertex::Container::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
-		failed |= layout.write(packer, *it);
+	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_WRITE_METADATA)) {
+		// Metadata placeholder (retroactively written after the content)
+		for (int n = 0; n < 5; n++) {
+			failed |= packer.add(0, VertexPacker::Storage::UINT32C);
+		}
 	}
-	unsigned vertexBytes = static_cast<unsigned>(packer.size());
-	// Add the indices
+	unsigned vertexBytes = 0;
 	if (opts.idxs) {
+		// Indexed vertices
+		for (ObjVertex::Container::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
+			failed |= layout.write(packer, *it);
+		}
+		vertexBytes = static_cast<unsigned>(packer.size());
+		// Add the indices
 		for (std::vector<unsigned>::const_iterator it = mesh.index.begin(); it != mesh.index.end(); ++it) {
 			failed |= packer.add(static_cast<int>(*it), opts.idxs);
 		}
+		failed |= packer.align();
+	} else {
+		// Manually write unindexed vertices from the indices
+		for (std::vector<unsigned>::const_iterator it = mesh.index.begin(); it != mesh.index.end(); ++it) {
+			unsigned idx = static_cast<unsigned>(*it);
+			if (idx < mesh.verts.size()) {
+				failed |= layout.write(packer, mesh.verts[idx]);
+			}
+		}
+		vertexBytes = static_cast<unsigned>(packer.size());
 	}
-	failed |= packer.align();
 	unsigned indexBytes = static_cast<unsigned>(packer.size() - vertexBytes);
+	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_WRITE_METADATA)) {
+		// Offset the bytes by the metadata size, then overwrite in the space we reserved earlier
+		vertexBytes -= 20;
+		VertexPacker header(backing.data(), 20, packOpts);
+		failed |= header.add(20,               VertexPacker::Storage::UINT32C);
+		failed |= header.add(vertexBytes,      VertexPacker::Storage::UINT32C);
+		failed |= header.add(20 + vertexBytes, VertexPacker::Storage::UINT32C);
+		failed |= header.add(indexBytes,       VertexPacker::Storage::UINT32C);
+		failed |= header.add((opts.idxs) ? static_cast<int>(mesh.index.size()) : 0, VertexPacker::Storage::UINT32C);
+	}
 	if (failed) {
 		printf("Buffer packing failed (bytes used: %d)\n", vertexBytes + indexBytes);
 	}
-	// Dump the GL calls (and sizes)
+	// Dump the buffer sizes and GL layout calls
 	printf("\n");
-	printf("glBufferData(GL_ARRAY_BUFFER, %d, objBuf, GL_STATIC_DRAW);\n", vertexBytes);
-	printf("glBufferData(GL_ELEMENT_ARRAY_BUFFER, %d, objBuf + %d, GL_STATIC_DRAW);\n", indexBytes, vertexBytes);
+	printf("Vertex bytes: %d\n", vertexBytes);
+	printf("Index bytes:  %d\n", indexBytes);
+	printf("Total bytes:  %d\n", vertexBytes + indexBytes);
 	printf("\n");
 	layout.dump();
-	printf("\n");
-	printf("glDrawElements(GL_TRIANGLES, %d, GL_UNSIGNED_SHORT, 0);\n", static_cast<int>(mesh.index.size()));
 	// Write the result
 	bool written = write(dstPath, backing.data(), packer.size(),
 		O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_ASCII_FILE),

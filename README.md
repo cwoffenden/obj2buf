@@ -14,9 +14,9 @@ mkdir build
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
-Work in progress: some features may not work 100%.
+Work in progress: not all combinations have been tested.
 ```
-Usage: obj2buf [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-o|l|z|a] in.obj [out.bin]
+Usage: obj2buf [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-m|o|l|z|a] in.obj [out.bin]
         -p vertex positions type
         -u vertex texture UVs type
         -n vertex normals type
@@ -31,6 +31,7 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-o|l|z|a] in.obj [out.bin
         (encoded normals having the same type as tangents may be packed)
         -b store only the sign for bitangents
         (packing the sign if possible where any padding would normally go)
+        -m writes metadata describing the various buffer offsets and sizes
         -o writes multi-byte values in big endian order
         -l use the legacy OpenGL rule for normalised signed values
         -z compresses the output buffer using Zstandard
@@ -58,8 +59,10 @@ A more complex example could be:
 4. `-ez` option to encode normals and tangents as drop-Z.
 
 5. Since normals and tangents are both bytes and encoded, they will be packed.
+
+6. `-m` option to write metadata (offsets and number of bytes for the vertex and index data, and the number of triangles).
 ```
-obj2buf -p short -u short -n byte -t byte -s -ez -b -a cube.obj cube.inc
+obj2buf -p short -u short -n byte -t byte -s -ez -b -m -a cube.obj cube.inc
 ```
 The resulting layout would be:
 
@@ -71,3 +74,5 @@ The resulting layout would be:
 |  norm.xy  |   tans.xy  |
 
 With each vertex packed into 16 bytes (instead of the 44 bytes storing everything a floats).
+
+The `-m` option adds an extra 20 bytes (5x32-bit integers) at the start, the vertex buffer offset and length, the index buffer offset and length, and the number of triangles (with zero representing unindexed triangles). The offsets are from the start of the file.
