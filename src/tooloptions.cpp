@@ -196,8 +196,8 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 	if (arg && strlen(arg) > 1 && arg[0] == '-') {
 		switch (arg[1]) {
 		case 'h': // help
-		case '?':
-		case '-':
+		case '?': // Window's style help
+		case '-': // --flags
 			help();
 			break;
 		case 'p': // positions
@@ -325,7 +325,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
 	printf("\t-b store only the sign for bitangents\n");
 	printf("\t(packing the sign if possible where any padding would normally go)\n");
-	printf("\t-m writes metadata describing the various buffer offsets and sizes\n");
+	printf("\t-m writes metadata describing the buffer offsets, sizes and types\n");
 	printf("\t-o writes multi-byte values in big endian order\n");
 	printf("\t-l use the legacy OpenGL rule for normalised signed values\n");
 	printf("\t-z compresses the output buffer using Zstandard\n");

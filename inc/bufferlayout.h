@@ -31,14 +31,23 @@ public:
 	void dump() const;
 
 	/**
+	 * Write a header describing the buffer layout. The number of bytes written
+	 * will vary, based on the chosen layout.
+	 *
+	 * \param[in] packer target for the layout description
+	 * \return \c VP_FAILED if the header could not be added to the packer
+	 */
+	VertexPacker::Failed writeHeader(VertexPacker& packer) const;
+
+	/**
 	 * Write a single \a vertex to the \a packer using this buffer layout (all
 	 * vertices will be written with the same layout).
 	 *
 	 * \param[in] packer target for the packed vertex
 	 * \param[in] vertex data to write
-	 * \return \c true if adding to \a packer failed
+	 * \return \c VP_FAILED if adding to \a packer failed
 	 */
-	VertexPacker::Failed write(VertexPacker& packer, const ObjVertex& vertex) const;
+	VertexPacker::Failed writeVertex(VertexPacker& packer, const ObjVertex& vertex) const;
 
 private:
 	BufferLayout  (const BufferLayout&) = delete; /**< Not copyable   */
@@ -112,6 +121,17 @@ private:
 		 * \param[in] name name to assign (a constant for the buffer index in GL)
 		 */
 		void dump(unsigned const stride, const char* name) const;
+
+		/**
+		 * Write the attribute description, packed into \c 4 bytes: shader's
+		 * attribute index, number of components, storage type, and offset (see
+		 * the source code for further details).
+		 *
+		 * \param[in] index index of the attribute in the shader
+		 * \param[in] packer target for the layout description
+		 * \return \c VP_FAILED if the attribute could not be added to the packer
+		 */
+		VertexPacker::Failed write(VertexPacker& packer, unsigned const index) const;
 
 		/**
 		 * Storage type for the attribute. The default is \c EXCLUDE, meaning

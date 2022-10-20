@@ -103,10 +103,12 @@ void BufferLayout::dump() const {
 	posn.dump(stride, "VERT_POSN_ID");
 	uv_0.dump(stride, "VERT_UV_0_ID");
 	norm.dump(stride, "VERT_NORM_ID");
-	if (tans.storage) {
+	if (tans) {
 		/*
 		 * Tangents are (currently) only ever packed in the normals. The
 		 * bitangent sign, though, varies.
+		 *
+		 * TODO: this won't be hit because tans shouldn't be set if packed
 		 */
 		if (packTans == PACK_NONE) {
 			tans.dump(stride, "VERT_TANS_ID");
@@ -148,7 +150,28 @@ void BufferLayout::dump() const {
 	}
 }
 
-VertexPacker::Failed BufferLayout::write(VertexPacker& packer, const ObjVertex& vertex) const {
+VertexPacker::Failed BufferLayout::writeHeader(VertexPacker& packer) const {
+	VertexPacker::Failed failed = false;
+	// Horrible but... count the used attribytes
+	unsigned attrs = 0;
+	attrs += (posn) ? 1 : 0;
+	attrs += (uv_0) ? 1 : 0;
+	attrs += (norm) ? 1 : 0;
+	attrs += (tans) ? 1 : 0;
+	attrs += (btan) ? 1 : 0;
+	// Write the header's header
+	failed |= packer.add(attrs,  VertexPacker::Storage::UINT08C);
+	failed |= packer.add(stride, VertexPacker::Storage::UINT08C);
+	// Then each attribute's (if it has no storage it writes nothing)
+	failed |= posn.write(packer, 0);
+	failed |= uv_0.write(packer, 1);
+	failed |= norm.write(packer, 2);
+	failed |= tans.write(packer, 3);
+	failed |= btan.write(packer, 4);
+	return failed;
+}
+
+VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVertex& vertex) const {
 	VertexPacker::Failed failed = false;
 	/*
 	 * Positions and UVs are straightforward. They always write all components,
@@ -255,6 +278,32 @@ void BufferLayout::AttrParams::dump(unsigned const stride, const char* name) con
 		printf("glVertexAttribPointer(%s, %d, GL_%s, GL_%s, %d, (void*) %d);\n",
 			name, components, storage.toString(true), normalised, stride, offset);
 	}
+}
+
+VertexPacker::Failed BufferLayout::AttrParams::write(VertexPacker& packer, unsigned const index) const {
+	if (storage) {
+		VertexPacker::Failed failed = false;
+		/*
+		 * This has a limited number of values:
+		 *
+		 * - index: 0..4, equating to VERT_POSN_ID, VERT_UV_0_ID, etc
+		 * - components: 2..4, xy, xyz & xyzw
+		 * - type: 1..8, TYPE_BYTE to TYPE_FLOAT, plus 1-bit for normalised
+		 * - offset: 0..44 (given a maximum stride of 56)
+		 *
+		 * It's not worth the overhead of packing the bits to save a few bytes.
+		 */
+		int type = static_cast<int>(storage.toBasicType());
+		if (storage.isNormalized()) {
+			type = -type;
+		}
+		failed |= packer.add(index,      VertexPacker::Storage::UINT08C);
+		failed |= packer.add(components, VertexPacker::Storage::UINT08C);
+		failed |= packer.add(type,       VertexPacker::Storage::SINT08C);
+		failed |= packer.add(offset,     VertexPacker::Storage::UINT08C);
+		return failed;
+	}
+	return VP_SUCCEEDED;
 }
 
 void BufferLayout::tryPacking(Packing& what, AttrParams& attr, int const numComps, Packing const where, bool const force) {

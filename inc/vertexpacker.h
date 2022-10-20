@@ -11,6 +11,22 @@
 #include <cstdint>
 
 /**
+ * \def VP_FAILED
+ * \c VertexPacker#Failed type denoting that an operation failed.
+ */
+#ifndef VP_FAILED
+#define VP_FAILED true
+#endif
+
+/**
+ * \def VP_SUCCEEDED
+ * \c VertexPacker#Failed type denoting that an operation succeeded.
+ */
+#ifndef VP_SUCCEEDED
+#define VP_SUCCEEDED false
+#endif
+
+/**
  * Writes packed vertex data to a buffer.
  */
 class VertexPacker
@@ -20,8 +36,8 @@ public:
 	 * Type to denote a failure when packing.
 	 *
 	 * \note Notifying of a failure is preferable to a success since a simple
-	 * \c or can accumulate if any occurred (rather than needing to add \c not
-	 * everywhere).
+	 * \c or can accumulate if any occurred (rather than needing to negate all
+	 * the results).
 	 */
 	typedef bool Failed;
 
@@ -125,6 +141,22 @@ public:
 		};
 
 		/**
+		 * Basic data types, underlying each \c Type. For the rendering API, \c
+		 * TYPE_BYTE will map to GL_BYTE, etc.
+		 */
+		enum BasicType {
+			TYPE_NONE = 0,           /**< \c EXCLUDE. */
+			TYPE_BYTE = 1,           /**< \c SINT08N and \c SINT08C. */
+			TYPE_UNSIGNED_BYTE = 2,  /**< \c UINT08N and \c UINT08C.. */
+			TYPE_SHORT = 3,          /**< \c SINT16N and \c SINT16C. */
+			TYPE_UNSIGNED_SHORT = 4, /**< \c UINT16N and \c UINT16C. */
+			TYPE_INT = 5,            /**< \c SINT32C. */
+			TYPE_UNSIGNED_INT = 6,   /**< \c UINT32C. */
+			TYPE_HALF_FLOAT = 7,     /**< \c FLOAT16. */
+			TYPE_FLOAT = 8,          /**< \c FLOAT32. */
+		};
+
+		/**
 		 * Defaults to \c EXCLUDE.
 		 */
 		Storage() : type(EXCLUDE) {}
@@ -152,8 +184,8 @@ public:
 		//*********************** Helpers/Conversions ************************/
 
 		/**
-		 * Returns the number of bytes each storage type requires, for example \c 1
-		 * byte for \c SINT08N, \c 2 for SINT16N, etc.
+		 * Returns the number of bytes each storage type requires, for example
+		 * \c 1 byte for \c SINT08N, \c 2 for SINT16N, etc.
 		 *
 		 * \return the number of bytes each storage type requires
 		 */
@@ -174,6 +206,38 @@ public:
 				return 2;
 			default:
 				return 4;
+			}
+		}
+
+		/**
+		 * Returns the basic data type, underlying each \c Type
+		 *
+		 * \return underlying data type (e.g. \c TYPE_BYTE for \c SINT08N)
+		*/
+		BasicType toBasicType() const {
+			switch (type) {
+			case SINT08N:
+			case SINT08C:
+				return TYPE_BYTE;
+			case UINT08N:
+			case UINT08C:
+				return TYPE_UNSIGNED_BYTE;
+			case SINT16N:
+			case SINT16C:
+				return TYPE_SHORT;
+			case UINT16N:
+			case UINT16C:
+				return TYPE_UNSIGNED_SHORT;
+			case FLOAT16:
+				return TYPE_HALF_FLOAT;
+			case SINT32C:
+				return TYPE_INT;
+			case UINT32C:
+				return TYPE_UNSIGNED_INT;
+			case FLOAT32:
+				return TYPE_FLOAT;
+			default:
+				return TYPE_NONE;
 			}
 		}
 
@@ -328,7 +392,7 @@ public:
 	 *
 	 * \param[in] data value to add
 	 * \param[in] type conversion and byte storage
-	 * \return \c true if adding failed (e.g. if no more storage space is available)
+	 * \return \c VP_FAILED if adding failed (e.g. if no more storage space is available)
 	 */
 	Failed add(float const data, Storage const type);
 
@@ -349,7 +413,7 @@ public:
 	 * Add padding to 4-byte align the next \c #add(). This will add \c 1, \c 2
 	 * or \c 3 bytes if padding is required (otherwise zero).
 	 *
-	 * \return \c true if adding failed (e.g. if no more storage space is available)
+	 * \return \c VP_FAILED if adding failed (e.g. if no more storage space is available)
 	 */
 	Failed align();
 
