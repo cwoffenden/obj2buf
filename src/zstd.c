@@ -3026,6 +3026,11 @@ size_t HUF_decompress4X2_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, 
 /* ****************************************
  *  HUF detailed API
  * ****************************************/
+#define HUF_OPTIMAL_DEPTH_THRESHOLD ZSTD_btultra
+typedef enum {
+   HUF_depth_fast, /** Use heuristic to find the table depth**/
+   HUF_depth_optimal /** Test possible table depths to find the one that produces the smallest header + encoded size**/
+ } HUF_depth_mode;
 
 /*! HUF_compress() does the following:
  *  1. count symbol occurrence from source[] into table count[] using FSE_count() (exposed within "fse.h")
@@ -3038,7 +3043,10 @@ size_t HUF_decompress4X2_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, 
  *  For example, it's possible to compress several blocks using the same 'CTable',
  *  or to save and regenerate 'CTable' using external methods.
  */
-unsigned HUF_optimalTableLog(unsigned maxTableLog, size_t srcSize, unsigned maxSymbolValue);
+unsigned HUF_minTableLog(unsigned symbolCardinality);
+unsigned HUF_cardinality(const unsigned* count, unsigned maxSymbolValue);
+unsigned HUF_optimalTableLog(unsigned maxTableLog, size_t srcSize, unsigned maxSymbolValue, void* workSpace,
+ size_t wkspSize, HUF_CElt* table, const unsigned* count, HUF_depth_mode depthMode); /* table is used as scratch space for building and testing tables, not a return value */
 size_t HUF_buildCTable (HUF_CElt* CTable, const unsigned* count, unsigned maxSymbolValue, unsigned maxNbBits);   /* @return : maxNbBits; CTable and count can overlap. In which case, CTable will overwrite count content */
 size_t HUF_writeCTable (void* dst, size_t maxDstSize, const HUF_CElt* CTable, unsigned maxSymbolValue, unsigned huffLog);
 size_t HUF_writeCTable_wksp(void* dst, size_t maxDstSize, const HUF_CElt* CTable, unsigned maxSymbolValue, unsigned huffLog, void* workspace, size_t workspaceSize);
@@ -3052,6 +3060,7 @@ typedef enum {
    HUF_repeat_check, /**< Can use the previous table but it must be checked. Note : The previous table must have been constructed by HUF_compress{1, 4}X_repeat */
    HUF_repeat_valid  /**< Can use the previous table and it is assumed to be valid */
  } HUF_repeat;
+
 /** HUF_compress4X_repeat() :
  *  Same as HUF_compress4X_wksp(), but considers using hufTable if *repeat != HUF_repeat_none.
  *  If it uses hufTable it does not modify hufTable or repeat.
@@ -3062,7 +3071,8 @@ size_t HUF_compress4X_repeat(void* dst, size_t dstSize,
                        const void* src, size_t srcSize,
                        unsigned maxSymbolValue, unsigned tableLog,
                        void* workSpace, size_t wkspSize,    /**< `workSpace` must be aligned on 4-bytes boundaries, `wkspSize` must be >= HUF_WORKSPACE_SIZE */
-                       HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat, int bmi2, unsigned suspectUncompressible);
+                       HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat, int bmi2,
+                       unsigned suspectUncompressible, HUF_depth_mode depthMode);
 
 /** HUF_buildCTable_wksp() :
  *  Same as HUF_buildCTable(), but using externally allocated scratch buffer.
@@ -3168,7 +3178,8 @@ size_t HUF_compress1X_repeat(void* dst, size_t dstSize,
                        const void* src, size_t srcSize,
                        unsigned maxSymbolValue, unsigned tableLog,
                        void* workSpace, size_t wkspSize,   /**< `workSpace` must be aligned on 4-bytes boundaries, `wkspSize` must be >= HUF_WORKSPACE_SIZE */
-                       HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat, int bmi2, unsigned suspectUncompressible);
+                       HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat, int bmi2,
+                       unsigned suspectUncompressible, HUF_depth_mode depthMode);
 
 size_t HUF_decompress1X1 (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /* single-symbol decoder */
 #ifndef HUF_FORCE_DECOMPRESS_X1
@@ -4730,8 +4741,8 @@ ZSTDLIB_API unsigned long long ZSTD_getFrameContentSize(const void *src, size_t 
  *  "empty", "unknown" and "error" results to the same return value (0),
  *  while ZSTD_getFrameContentSize() gives them separate return values.
  * @return : decompressed size of `src` frame content _if known and not empty_, 0 otherwise. */
-ZSTDLIB_API
 ZSTD_DEPRECATED("Replaced by ZSTD_getFrameContentSize")
+ZSTDLIB_API
 unsigned long long ZSTD_getDecompressedSize(const void* src, size_t srcSize);
 
 /*! ZSTD_findFrameCompressedSize() : Requires v1.4.0+
@@ -6253,8 +6264,8 @@ ZSTDLIB_STATIC_API ZSTD_compressionParameters ZSTD_adjustCParams(ZSTD_compressio
  *  Note : this function is now DEPRECATED.
  *         It can be replaced by ZSTD_compress2(), in combination with ZSTD_CCtx_setParameter() and other parameter setters.
  *  This prototype will generate compilation warnings. */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use ZSTD_compress2")
+ZSTDLIB_STATIC_API
 size_t ZSTD_compress_advanced(ZSTD_CCtx* cctx,
                                           void* dst, size_t dstCapacity,
                                     const void* src, size_t srcSize,
@@ -6265,8 +6276,8 @@ size_t ZSTD_compress_advanced(ZSTD_CCtx* cctx,
  *  Note : this function is now DEPRECATED.
  *         It can be replaced by ZSTD_compress2(), in combination with ZSTD_CCtx_loadDictionary() and other parameter setters.
  *  This prototype will generate compilation warnings. */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use ZSTD_compress2 with ZSTD_CCtx_loadDictionary")
+ZSTDLIB_STATIC_API
 size_t ZSTD_compress_usingCDict_advanced(ZSTD_CCtx* cctx,
                                               void* dst, size_t dstCapacity,
                                         const void* src, size_t srcSize,
@@ -6769,8 +6780,8 @@ ZSTDLIB_STATIC_API size_t ZSTD_DCtx_getParameter(ZSTD_DCtx* dctx, ZSTD_dParamete
  *  This instruction is mandatory to decode data without a fully-formed header,
  *  such ZSTD_f_zstd1_magicless for example.
  * @return : 0, or an error code (which can be tested using ZSTD_isError()). */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use ZSTD_DCtx_setParameter() instead")
+ZSTDLIB_STATIC_API
 size_t ZSTD_DCtx_setFormat(ZSTD_DCtx* dctx, ZSTD_format_e format);
 
 /*! ZSTD_decompressStream_simpleArgs() :
@@ -6806,8 +6817,8 @@ ZSTDLIB_STATIC_API size_t ZSTD_decompressStream_simpleArgs (
  * "0" also disables frame content size field. It may be enabled in the future.
  * This prototype will generate compilation warnings.
  */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use ZSTD_CCtx_reset, see zstd.h for detailed instructions")
+ZSTDLIB_STATIC_API
 size_t ZSTD_initCStream_srcSize(ZSTD_CStream* zcs,
                          int compressionLevel,
                          unsigned long long pledgedSrcSize);
@@ -6824,8 +6835,8 @@ size_t ZSTD_initCStream_srcSize(ZSTD_CStream* zcs,
  * it begins with ZSTD_MAGIC_DICTIONARY, else as raw content) and ZSTD_dlm_byCopy.
  * This prototype will generate compilation warnings.
  */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use ZSTD_CCtx_reset, see zstd.h for detailed instructions")
+ZSTDLIB_STATIC_API
 size_t ZSTD_initCStream_usingDict(ZSTD_CStream* zcs,
                      const void* dict, size_t dictSize,
                            int compressionLevel);
@@ -6845,8 +6856,8 @@ size_t ZSTD_initCStream_usingDict(ZSTD_CStream* zcs,
  * If srcSize is not known at init time, use value ZSTD_CONTENTSIZE_UNKNOWN.
  * This prototype will generate compilation warnings.
  */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use ZSTD_CCtx_reset, see zstd.h for detailed instructions")
+ZSTDLIB_STATIC_API
 size_t ZSTD_initCStream_advanced(ZSTD_CStream* zcs,
                     const void* dict, size_t dictSize,
                           ZSTD_parameters params,
@@ -6860,8 +6871,8 @@ size_t ZSTD_initCStream_advanced(ZSTD_CStream* zcs,
  * note : cdict will just be referenced, and must outlive compression session
  * This prototype will generate compilation warnings.
  */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use ZSTD_CCtx_reset and ZSTD_CCtx_refCDict, see zstd.h for detailed instructions")
+ZSTDLIB_STATIC_API
 size_t ZSTD_initCStream_usingCDict(ZSTD_CStream* zcs, const ZSTD_CDict* cdict);
 
 /*! ZSTD_initCStream_usingCDict_advanced() :
@@ -6879,8 +6890,8 @@ size_t ZSTD_initCStream_usingCDict(ZSTD_CStream* zcs, const ZSTD_CDict* cdict);
  * value ZSTD_CONTENTSIZE_UNKNOWN.
  * This prototype will generate compilation warnings.
  */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use ZSTD_CCtx_reset and ZSTD_CCtx_refCDict, see zstd.h for detailed instructions")
+ZSTDLIB_STATIC_API
 size_t ZSTD_initCStream_usingCDict_advanced(ZSTD_CStream* zcs,
                                const ZSTD_CDict* cdict,
                                      ZSTD_frameParameters fParams,
@@ -6904,8 +6915,8 @@ size_t ZSTD_initCStream_usingCDict_advanced(ZSTD_CStream* zcs,
  * @return : 0, or an error code (which can be tested using ZSTD_isError())
  *  This prototype will generate compilation warnings.
  */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use ZSTD_CCtx_reset, see zstd.h for detailed instructions")
+ZSTDLIB_STATIC_API
 size_t ZSTD_resetCStream(ZSTD_CStream* zcs, unsigned long long pledgedSrcSize);
 
 
@@ -7027,11 +7038,11 @@ ZSTDLIB_STATIC_API size_t ZSTD_compressContinue(ZSTD_CCtx* cctx, void* dst, size
 ZSTDLIB_STATIC_API size_t ZSTD_compressEnd(ZSTD_CCtx* cctx, void* dst, size_t dstCapacity, const void* src, size_t srcSize);
 
 /* The ZSTD_compressBegin_advanced() and ZSTD_compressBegin_usingCDict_advanced() are now DEPRECATED and will generate a compiler warning */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use advanced API to access custom parameters")
+ZSTDLIB_STATIC_API
 size_t ZSTD_compressBegin_advanced(ZSTD_CCtx* cctx, const void* dict, size_t dictSize, ZSTD_parameters params, unsigned long long pledgedSrcSize); /**< pledgedSrcSize : If srcSize is not known at init time, use ZSTD_CONTENTSIZE_UNKNOWN */
-ZSTDLIB_STATIC_API
 ZSTD_DEPRECATED("use advanced API to access custom parameters")
+ZSTDLIB_STATIC_API
 size_t ZSTD_compressBegin_usingCDict_advanced(ZSTD_CCtx* const cctx, const ZSTD_CDict* const cdict, ZSTD_frameParameters const fParams, unsigned long long const pledgedSrcSize);   /* compression parameters are already set within cdict. pledgedSrcSize must be correct. If srcSize is not known, use macro ZSTD_CONTENTSIZE_UNKNOWN */
 /**
   Buffer-less streaming decompression (synchronous mode)
@@ -13611,7 +13622,7 @@ POOL_ctx* POOL_create_advanced(size_t numThreads, size_t queueSize,
      * empty and full queues.
      */
     ctx->queueSize = queueSize + 1;
-    ctx->queue = (POOL_job*)ZSTD_customMalloc(ctx->queueSize * sizeof(POOL_job), customMem);
+    ctx->queue = (POOL_job*)ZSTD_customCalloc(ctx->queueSize * sizeof(POOL_job), customMem);
     ctx->queueHead = 0;
     ctx->queueTail = 0;
     ctx->numThreadsBusy = 0;
@@ -13625,7 +13636,7 @@ POOL_ctx* POOL_create_advanced(size_t numThreads, size_t queueSize,
     }
     ctx->shutdown = 0;
     /* Allocate space for the thread handles */
-    ctx->threads = (ZSTD_pthread_t*)ZSTD_customMalloc(numThreads * sizeof(ZSTD_pthread_t), customMem);
+    ctx->threads = (ZSTD_pthread_t*)ZSTD_customCalloc(numThreads * sizeof(ZSTD_pthread_t), customMem);
     ctx->threadCapacity = 0;
     ctx->customMem = customMem;
     /* Check for errors */
@@ -13705,7 +13716,7 @@ static int POOL_resize_internal(POOL_ctx* ctx, size_t numThreads)
         return 0;
     }
     /* numThreads > threadCapacity */
-    {   ZSTD_pthread_t* const threadPool = (ZSTD_pthread_t*)ZSTD_customMalloc(numThreads * sizeof(ZSTD_pthread_t), ctx->customMem);
+    {   ZSTD_pthread_t* const threadPool = (ZSTD_pthread_t*)ZSTD_customCalloc(numThreads * sizeof(ZSTD_pthread_t), ctx->customMem);
         if (!threadPool) return 1;
         /* replace existing thread pool */
         ZSTD_memcpy(threadPool, ctx->threads, ctx->threadCapacity * sizeof(*threadPool));
@@ -16167,15 +16178,6 @@ static size_t HUF_compressCTable_internal(
     return (size_t)(op-ostart);
 }
 
-
-unsigned HUF_optimalTableLog(unsigned maxTableLog, size_t srcSize, unsigned maxSymbolValue)
-{
-    unsigned tableLog = FSE_optimalTableLog_internal(maxTableLog, srcSize, maxSymbolValue, 1);
-    assert(tableLog <= HUF_TABLELOG_MAX);
-
-    return tableLog;
-}
-
 typedef struct {
     unsigned count[HUF_SYMBOLVALUE_MAX + 1];
     HUF_CElt CTable[HUF_CTABLE_SIZE_ST(HUF_SYMBOLVALUE_MAX)];
@@ -16189,6 +16191,61 @@ typedef struct {
 #define SUSPECT_INCOMPRESSIBLE_SAMPLE_SIZE 4096
 #define SUSPECT_INCOMPRESSIBLE_SAMPLE_RATIO 10  /* Must be >= 2 */
 
+unsigned HUF_cardinality(const unsigned* count, unsigned maxSymbolValue)
+{
+    unsigned cardinality = 0;
+    unsigned i;
+
+    for (i = 0; i < maxSymbolValue + 1; i++) {
+        if (count[i] != 0) cardinality += 1;
+    }
+
+    return cardinality;
+}
+
+unsigned HUF_minTableLog(unsigned symbolCardinality)
+{
+    U32 minBitsSymbols = ZSTD_highbit32(symbolCardinality) + 1;
+    return minBitsSymbols;
+}
+
+unsigned HUF_optimalTableLog(unsigned maxTableLog, size_t srcSize, unsigned maxSymbolValue, void* workSpace, size_t wkspSize, HUF_CElt* table, const unsigned* count, HUF_depth_mode depthMode)
+{
+    unsigned optLog = FSE_optimalTableLog_internal(maxTableLog, srcSize, maxSymbolValue, 1);
+    assert(srcSize > 1); /* Not supported, RLE should be used instead */
+
+    if (depthMode == HUF_depth_optimal) { /** Test valid depths and return optimal **/
+        BYTE* dst = (BYTE*)workSpace + sizeof(HUF_WriteCTableWksp);
+        size_t dstSize = wkspSize - sizeof(HUF_WriteCTableWksp);
+        size_t optSize = ((size_t) ~0);
+        unsigned huffLog;
+        size_t maxBits, hSize, newSize;
+        const unsigned symbolCardinality = HUF_cardinality(count, maxSymbolValue);
+
+        if (wkspSize < sizeof(HUF_buildCTable_wksp_tables)) return optLog;
+
+        for (huffLog = HUF_minTableLog(symbolCardinality); huffLog <= maxTableLog; huffLog++) {
+            maxBits = HUF_buildCTable_wksp(table, count,
+                                            maxSymbolValue, huffLog,
+                                            workSpace, wkspSize);
+            if (ERR_isError(maxBits)) continue;
+
+            hSize = HUF_writeCTable_wksp(dst, dstSize, table, maxSymbolValue, (U32)maxBits,
+                                              workSpace, wkspSize);
+            if (ERR_isError(hSize)) continue;
+
+            newSize = HUF_estimateCompressedSize(table, count, maxSymbolValue) + hSize;
+
+            if (newSize < optSize) {
+                optSize = newSize;
+                optLog = huffLog;
+            }
+        }
+    }
+    assert(optLog <= HUF_TABLELOG_MAX);
+    return optLog;
+}
+
 /* HUF_compress_internal() :
  * `workSpace_align4` must be aligned on 4-bytes boundaries,
  * and occupies the same space as a table of HUF_WORKSPACE_SIZE_U64 unsigned */
@@ -16199,7 +16256,7 @@ HUF_compress_internal (void* dst, size_t dstSize,
                        HUF_nbStreams_e nbStreams,
                        void* workSpace, size_t wkspSize,
                        HUF_CElt* oldHufTable, HUF_repeat* repeat, int preferRepeat,
-                 const int bmi2, unsigned suspectUncompressible)
+                 const int bmi2, unsigned suspectUncompressible, HUF_depth_mode depthMode)
 {
     HUF_compress_tables_t* const table = (HUF_compress_tables_t*)HUF_alignUpWorkspace(workSpace, &wkspSize, ZSTD_ALIGNOF(size_t));
     BYTE* const ostart = (BYTE*)dst;
@@ -16263,7 +16320,7 @@ HUF_compress_internal (void* dst, size_t dstSize,
     }
 
     /* Build Huffman Tree */
-    huffLog = HUF_optimalTableLog(huffLog, srcSize, maxSymbolValue);
+    huffLog = HUF_optimalTableLog(huffLog, srcSize, maxSymbolValue, &table->wksps, sizeof(table->wksps), table->CTable, table->count, depthMode);
     {   size_t const maxBits = HUF_buildCTable_wksp(table->CTable, table->count,
                                             maxSymbolValue, huffLog,
                                             &table->wksps.buildCTable_wksp, sizeof(table->wksps.buildCTable_wksp));
@@ -16312,7 +16369,7 @@ size_t HUF_compress1X_wksp (void* dst, size_t dstSize,
     return HUF_compress_internal(dst, dstSize, src, srcSize,
                                  maxSymbolValue, huffLog, HUF_singleStream,
                                  workSpace, wkspSize,
-                                 NULL, NULL, 0, 0 /*bmi2*/, 0);
+                                 NULL, NULL, 0, 0 /*bmi2*/, 0, HUF_depth_fast);
 }
 
 size_t HUF_compress1X_repeat (void* dst, size_t dstSize,
@@ -16320,13 +16377,13 @@ size_t HUF_compress1X_repeat (void* dst, size_t dstSize,
                       unsigned maxSymbolValue, unsigned huffLog,
                       void* workSpace, size_t wkspSize,
                       HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat,
-                      int bmi2, unsigned suspectUncompressible)
+                      int bmi2, unsigned suspectUncompressible, HUF_depth_mode depthMode)
 {
     DEBUGLOG(5, "HUF_compress1X_repeat (srcSize = %zu)", srcSize);
     return HUF_compress_internal(dst, dstSize, src, srcSize,
                                  maxSymbolValue, huffLog, HUF_singleStream,
                                  workSpace, wkspSize, hufTable,
-                                 repeat, preferRepeat, bmi2, suspectUncompressible);
+                                 repeat, preferRepeat, bmi2, suspectUncompressible, depthMode);
 }
 
 /* HUF_compress4X_repeat():
@@ -16341,7 +16398,7 @@ size_t HUF_compress4X_wksp (void* dst, size_t dstSize,
     return HUF_compress_internal(dst, dstSize, src, srcSize,
                                  maxSymbolValue, huffLog, HUF_fourStreams,
                                  workSpace, wkspSize,
-                                 NULL, NULL, 0, 0 /*bmi2*/, 0);
+                                 NULL, NULL, 0, 0 /*bmi2*/, 0, HUF_depth_fast);
 }
 
 /* HUF_compress4X_repeat():
@@ -16352,13 +16409,14 @@ size_t HUF_compress4X_repeat (void* dst, size_t dstSize,
                       const void* src, size_t srcSize,
                       unsigned maxSymbolValue, unsigned huffLog,
                       void* workSpace, size_t wkspSize,
-                      HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat, int bmi2, unsigned suspectUncompressible)
+                      HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat, int bmi2,
+                      unsigned suspectUncompressible, HUF_depth_mode depthMode)
 {
     DEBUGLOG(5, "HUF_compress4X_repeat (srcSize = %zu)", srcSize);
     return HUF_compress_internal(dst, dstSize, src, srcSize,
                                  maxSymbolValue, huffLog, HUF_fourStreams,
                                  workSpace, wkspSize,
-                                 hufTable, repeat, preferRepeat, bmi2, suspectUncompressible);
+                                 hufTable, repeat, preferRepeat, bmi2, suspectUncompressible, depthMode);
 }
 
 #ifndef ZSTD_NO_UNUSED_FUNCTIONS
@@ -18642,7 +18700,7 @@ size_t ZSTD_compressLiterals (ZSTD_hufCTables_t const* prevHuf,
                         const void* src, size_t srcSize,
                               void* entropyWorkspace, size_t entropyWorkspaceSize,
                         const int bmi2,
-                        unsigned suspectUncompressible);
+                        unsigned suspectUncompressible, HUF_depth_mode depthMode);
 
 #endif /* ZSTD_COMPRESS_LITERALS_H */
 /**** ended inlining zstd_compress_literals.h ****/
@@ -18733,7 +18791,7 @@ size_t ZSTD_compressLiterals (ZSTD_hufCTables_t const* prevHuf,
                         const void* src, size_t srcSize,
                               void* entropyWorkspace, size_t entropyWorkspaceSize,
                         const int bmi2,
-                        unsigned suspectUncompressible)
+                        unsigned suspectUncompressible, HUF_depth_mode depthMode)
 {
     size_t const minGain = ZSTD_minGain(srcSize, strategy);
     size_t const lhSize = 3 + (srcSize >= 1 KB) + (srcSize >= 16 KB);
@@ -18762,7 +18820,7 @@ size_t ZSTD_compressLiterals (ZSTD_hufCTables_t const* prevHuf,
     RETURN_ERROR_IF(dstCapacity < lhSize+1, dstSize_tooSmall, "not enough space for compression");
     {   HUF_repeat repeat = prevHuf->repeatMode;
         int const preferRepeat = (strategy < ZSTD_lazy) ? srcSize <= 1024 : 0;
-        typedef size_t (*huf_compress_f)(void*, size_t, const void*, size_t, unsigned, unsigned, void*, size_t, HUF_CElt*, HUF_repeat*, int, int, unsigned);
+        typedef size_t (*huf_compress_f)(void*, size_t, const void*, size_t, unsigned, unsigned, void*, size_t, HUF_CElt*, HUF_repeat*, int, int, unsigned, HUF_depth_mode);
         huf_compress_f huf_compress;
         if (repeat == HUF_repeat_valid && lhSize == 3) singleStream = 1;
         huf_compress = singleStream ? HUF_compress1X_repeat : HUF_compress4X_repeat;
@@ -18772,7 +18830,7 @@ size_t ZSTD_compressLiterals (ZSTD_hufCTables_t const* prevHuf,
                                 entropyWorkspace, entropyWorkspaceSize,
                                 (HUF_CElt*)nextHuf->CTable,
                                 &repeat, preferRepeat,
-                                bmi2, suspectUncompressible);
+                                bmi2, suspectUncompressible, depthMode);
         if (repeat != HUF_repeat_none) {
             /* reused the existing table */
             DEBUGLOG(5, "Reusing previous huffman table");
@@ -22969,6 +23027,8 @@ ZSTD_entropyCompressSeqStore_internal(seqStore_t* seqStorePtr,
         /* Base suspicion of uncompressibility on ratio of literals to sequences */
         unsigned const suspectUncompressible = (numSequences == 0) || (numLiterals / numSequences >= SUSPECT_UNCOMPRESSIBLE_LITERAL_RATIO);
         size_t const litSize = (size_t)(seqStorePtr->lit - literals);
+
+        HUF_depth_mode depthMode = cctxParams->cParams.strategy >= HUF_OPTIMAL_DEPTH_THRESHOLD ? HUF_depth_optimal : HUF_depth_fast;
         size_t const cSize = ZSTD_compressLiterals(
                                     &prevEntropy->huf, &nextEntropy->huf,
                                     cctxParams->cParams.strategy,
@@ -22976,7 +23036,7 @@ ZSTD_entropyCompressSeqStore_internal(seqStore_t* seqStorePtr,
                                     op, dstCapacity,
                                     literals, litSize,
                                     entropyWorkspace, entropyWkspSize,
-                                    bmi2, suspectUncompressible);
+                                    bmi2, suspectUncompressible, depthMode);
         FORWARD_IF_ERROR(cSize, "ZSTD_compressLiterals failed");
         assert(cSize <= dstCapacity);
         op += cSize;
@@ -23423,7 +23483,7 @@ static size_t ZSTD_buildBlockEntropyStats_literals(void* const src, size_t srcSi
                                                   ZSTD_hufCTables_t* nextHuf,
                                                   ZSTD_hufCTablesMetadata_t* hufMetadata,
                                                   const int literalsCompressionIsDisabled,
-                                                  void* workspace, size_t wkspSize)
+                                                  void* workspace, size_t wkspSize, HUF_depth_mode depthMode)
 {
     BYTE* const wkspStart = (BYTE*)workspace;
     BYTE* const wkspEnd = wkspStart + wkspSize;
@@ -23480,7 +23540,7 @@ static size_t ZSTD_buildBlockEntropyStats_literals(void* const src, size_t srcSi
 
     /* Build Huffman Tree */
     ZSTD_memset(nextHuf->CTable, 0, sizeof(nextHuf->CTable));
-    huffLog = HUF_optimalTableLog(huffLog, srcSize, maxSymbolValue);
+    huffLog = HUF_optimalTableLog(huffLog, srcSize, maxSymbolValue, nodeWksp, nodeWkspSize, nextHuf->CTable, countWksp, depthMode);
     assert(huffLog <= LitHufLog);
     {   size_t const maxBits = HUF_buildCTable_wksp((HUF_CElt*)nextHuf->CTable, countWksp,
                                                     maxSymbolValue, huffLog,
@@ -23584,12 +23644,15 @@ size_t ZSTD_buildBlockEntropyStats(seqStore_t* seqStorePtr,
                                    void* workspace, size_t wkspSize)
 {
     size_t const litSize = seqStorePtr->lit - seqStorePtr->litStart;
+    HUF_depth_mode depthMode = cctxParams->cParams.strategy >= HUF_OPTIMAL_DEPTH_THRESHOLD ? HUF_depth_optimal : HUF_depth_fast;
+
     entropyMetadata->hufMetadata.hufDesSize =
         ZSTD_buildBlockEntropyStats_literals(seqStorePtr->litStart, litSize,
                                             &prevEntropy->huf, &nextEntropy->huf,
                                             &entropyMetadata->hufMetadata,
                                             ZSTD_literalsCompressionIsDisabled(cctxParams),
-                                            workspace, wkspSize);
+                                            workspace, wkspSize, depthMode);
+
     FORWARD_IF_ERROR(entropyMetadata->hufMetadata.hufDesSize, "ZSTD_buildBlockEntropyStats_literals failed");
     entropyMetadata->fseMetadata.fseTablesSize =
         ZSTD_buildBlockEntropyStats_sequences(seqStorePtr,
@@ -37394,7 +37457,7 @@ size_t ZSTD_sizeof_DDict(const ZSTD_DDict* ddict)
 unsigned ZSTD_getDictID_fromDDict(const ZSTD_DDict* ddict)
 {
     if (ddict==NULL) return 0;
-    return ZSTD_getDictID_fromDict(ddict->dictContent, ddict->dictSize);
+    return ddict->dictID;
 }
 /**** ended inlining decompress/zstd_ddict.c ****/
 /**** start inlining decompress/zstd_decompress.c ****/
