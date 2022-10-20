@@ -162,7 +162,10 @@ void scale(ObjMesh& mesh, bool const unbiased = false) {
 	}
 	// Which gives the global mesh scale and offset
 	mesh.scale = (maxPosn - minPosn) * 0.5f;
-	mesh.scale = vec3::max(mesh.scale, vec3(1, 1, 1));
+	mesh.scale = vec3::max(mesh.scale, vec3(0.0001f, 0.0001f, 0.0001f));
+	// TODO: options for uniform scale (average, min and max?)
+	mesh.scale = (mesh.scale.x + mesh.scale.y + mesh.scale.z) / 3.0f;
+	// TODO: apply unbiased, plus bias only certains axes?
 	mesh.bias  = (maxPosn + minPosn) * 0.5f;
 	// Apply to each vert to normalise
 	for (std::vector<ObjVertex>::iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
@@ -222,7 +225,7 @@ int main(int argc, const char* argv[]) {
 	printf("Indices:   %d\n", static_cast<int>(mesh.index.size()));
 	printf("Triangles: %d\n", static_cast<int>(mesh.index.size() / 3));
 	// Maximum buffer size: metadata + vert posn, norm, uv, tans, bitans + indices
-	size_t const maxBufBytes = (5 * sizeof(uint32_t))
+	size_t const maxBufBytes = (10 * sizeof(uint32_t) + 2)
 			+ std::max(mesh.verts.size(), mesh.index.size())
 				* sizeof(float) * (3 + 3 + 2 + 3 + 3)
 			+ mesh.index.size() * sizeof(uint32_t);
@@ -243,38 +246,41 @@ int main(int argc, const char* argv[]) {
 		for (int n = 0; n < 5; n++) {
 			failed |= packer.add(0, VertexPacker::Storage::UINT32C);
 		}
+		// Buffer layout (attributes, sizes, offset, etc.)
+		failed |= layout.writeHeader(packer);
+		// TODO: write the scale and bias
 	}
+	unsigned headerBytes = static_cast<unsigned>(packer.size());
 	unsigned vertexBytes = 0;
+	unsigned indexBytes  = 0;
 	if (opts.idxs) {
 		// Indexed vertices
 		for (ObjVertex::Container::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
-			failed |= layout.write(packer, *it);
+			failed |= layout.writeVertex(packer, *it);
 		}
-		vertexBytes = static_cast<unsigned>(packer.size());
+		vertexBytes = static_cast<unsigned>(packer.size()) - headerBytes;
 		// Add the indices
 		for (std::vector<unsigned>::const_iterator it = mesh.index.begin(); it != mesh.index.end(); ++it) {
 			failed |= packer.add(static_cast<int>(*it), opts.idxs);
 		}
-		failed |= packer.align();
+		indexBytes  = static_cast<unsigned>(packer.size()) - (headerBytes + vertexBytes);
 	} else {
 		// Manually write unindexed vertices from the indices
 		for (std::vector<unsigned>::const_iterator it = mesh.index.begin(); it != mesh.index.end(); ++it) {
 			unsigned idx = static_cast<unsigned>(*it);
 			if (idx < mesh.verts.size()) {
-				failed |= layout.write(packer, mesh.verts[idx]);
+				failed |= layout.writeVertex(packer, mesh.verts[idx]);
 			}
 		}
-		vertexBytes = static_cast<unsigned>(packer.size());
+		vertexBytes = static_cast<unsigned>(packer.size()) - headerBytes;
 	}
-	unsigned indexBytes = static_cast<unsigned>(packer.size() - vertexBytes);
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_WRITE_METADATA)) {
-		// Offset the bytes by the metadata size, then overwrite in the space we reserved earlier
-		vertexBytes -= 20;
+		// Overwrite in the space for 5x ints we reserved earlier
 		VertexPacker header(backing.data(), 20, packOpts);
-		failed |= header.add(20,               VertexPacker::Storage::UINT32C);
-		failed |= header.add(vertexBytes,      VertexPacker::Storage::UINT32C);
-		failed |= header.add(20 + vertexBytes, VertexPacker::Storage::UINT32C);
-		failed |= header.add(indexBytes,       VertexPacker::Storage::UINT32C);
+		failed |= header.add(headerBytes,  VertexPacker::Storage::UINT32C);
+		failed |= header.add(vertexBytes,  VertexPacker::Storage::UINT32C);
+		failed |= header.add(headerBytes + vertexBytes, VertexPacker::Storage::UINT32C);
+		failed |= header.add(indexBytes,   VertexPacker::Storage::UINT32C);
 		failed |= header.add((opts.idxs) ? static_cast<int>(mesh.index.size()) : 0, VertexPacker::Storage::UINT32C);
 	}
 	if (failed) {
@@ -282,9 +288,10 @@ int main(int argc, const char* argv[]) {
 	}
 	// Dump the buffer sizes and GL layout calls
 	printf("\n");
+	printf("Header bytes: %d\n", headerBytes);
 	printf("Vertex bytes: %d\n", vertexBytes);
 	printf("Index bytes:  %d\n", indexBytes);
-	printf("Total bytes:  %d\n", vertexBytes + indexBytes);
+	printf("Total bytes:  %d\n", headerBytes + vertexBytes + indexBytes);
 	printf("\n");
 	layout.dump();
 	// Write the result

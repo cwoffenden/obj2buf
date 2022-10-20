@@ -168,7 +168,7 @@ static int32_t storeLegacy(int const val, VertexPacker::Storage const type) {
 	case VertexPacker::Storage::UINT16C:
 		return clamp<int32_t>(val, 0, UINT16_MAX);
 	case VertexPacker::Storage::SINT32C:
-		// None of the target systems have anything other than 32-bit int
+		// None of the target systems has anything other than 32-bit int
 		return clamp<int32_t>(val, INT32_MIN, INT32_MAX);
 	case VertexPacker::Storage::UINT32C:
 		// Here for completeness, clamped to a *signed* upper bound
@@ -197,7 +197,7 @@ static int32_t storeModern(int const val, VertexPacker::Storage const type) {
 	case VertexPacker::Storage::UINT16C:
 		return clamp<int32_t>(val, 0, UINT16_MAX);
 	case VertexPacker::Storage::SINT32C:
-		// None of the target systems have anything other than 32-bit int
+		// None of the target systems has anything other than 32-bit int
 		return clamp<int32_t>(val, INT32_MIN, INT32_MAX);
 	case VertexPacker::Storage::UINT32C:
 		// Here for completeness, clamped to a *signed* upper bound
@@ -256,9 +256,9 @@ VertexPacker::Failed VertexPacker::add(float const data, Storage const type) {
 				}
 			}
 		}
-		return false;
+		return VP_SUCCEEDED;
 	}
-	return true;
+	return VP_FAILED;
 }
 
 VertexPacker::Failed VertexPacker::add(int const data, Storage const type) {
@@ -312,9 +312,9 @@ VertexPacker::Failed VertexPacker::add(int const data, Storage const type) {
 				}
 			}
 		}
-		return false;
+		return VP_SUCCEEDED;
 	}
-	return true;
+	return VP_FAILED;
 }
 
 VertexPacker::Failed VertexPacker::align() {
@@ -325,10 +325,10 @@ VertexPacker::Failed VertexPacker::align() {
 				*next++ = 0;
 			}
 		} else {
-			return true;
+			return VP_FAILED;
 		}
 	}
-	return false;
+	return VP_SUCCEEDED;
 }
 
 void VertexPacker::rewind() {

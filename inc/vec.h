@@ -66,7 +66,7 @@ struct Vec2
 	 *
 	 * \param[in] dest vertex packer wrapping the destination buffer
 	 * \param[in] type conversion and byte storage
-	 * \return \c true if adding was successful (\c false if no more storage space is available)
+	 * \return \c VP_FAILED if adding failed (e.g. if no more storage space is available)
 	 */
 	VertexPacker::Failed store(VertexPacker& dest, VertexPacker::Storage const type) const {
 		VertexPacker::Failed failed = false;
