@@ -163,9 +163,9 @@ void scale(ObjMesh& mesh, bool const unbiased = false) {
 	// Which gives the global mesh scale and offset
 	mesh.scale = (maxPosn - minPosn) * 0.5f;
 	mesh.scale = vec3::max(mesh.scale, vec3(0.0001f, 0.0001f, 0.0001f));
-	// TODO: options for uniform scale (average, min and max?)
-	mesh.scale = (mesh.scale.x + mesh.scale.y + mesh.scale.z) / 3.0f;
-	// TODO: apply unbiased, plus bias only certains axes?
+	// TODO: options for uniform scale (needs to be max, otherwise the verts are clamped)
+	mesh.scale = std::max(std::max(mesh.scale.x, mesh.scale.y), mesh.scale.z);
+	// TODO: apply unbiased (which affects the scale, otherwise clamping occurs)
 	mesh.bias  = (maxPosn + minPosn) * 0.5f;
 	// Apply to each vert to normalise
 	for (std::vector<ObjVertex>::iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
@@ -248,7 +248,10 @@ int main(int argc, const char* argv[]) {
 		}
 		// Buffer layout (attributes, sizes, offset, etc.)
 		failed |= layout.writeHeader(packer);
-		// TODO: write the scale and bias
+		// TODO: write the scale and bias (6x floats)
+		// The align here is needed otherwise the vertex alignment is off
+		// TODO: separate the header and data packers?
+		failed |= packer.align();
 	}
 	unsigned headerBytes = static_cast<unsigned>(packer.size());
 	unsigned vertexBytes = 0;
