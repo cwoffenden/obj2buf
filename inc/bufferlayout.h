@@ -128,8 +128,8 @@ private:
 		 * attribute index, number of components, storage type, and offset (see
 		 * the source code for further details).
 		 *
-		 * \param[in] index index of the attribute in the shader
 		 * \param[in] packer target for the layout description
+		 * \param[in] index index of the attribute in the shader
 		 * \return \c VP_FAILED if the attribute could not be added to the packer
 		 */
 		VertexPacker::Failed write(VertexPacker& packer, unsigned const index) const;
