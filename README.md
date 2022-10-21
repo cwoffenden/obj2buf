@@ -14,7 +14,7 @@ mkdir build
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
-Work in progress (not all combinations have been thoroughly tested).
+Work in progress (not all combinations have been thoroughly tested). Examples for various APIs coming soon.
 ```
 Usage: obj2buf [-p|u|n|t|i type] [-s|sb|su] [-e|ez] [-b] [-m|o|l|z|a] in [out]
 	-p vertex positions type
