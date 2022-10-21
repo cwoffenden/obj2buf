@@ -45,9 +45,10 @@ public:
 	 *
 	 * \param[in] packer target for the packed vertex
 	 * \param[in] vertex data to write
+	 * \param[in] base offset from where vertex writing starts (see \c VertexPacker#align() )
 	 * \return \c VP_FAILED if adding to \a packer failed
 	 */
-	VertexPacker::Failed writeVertex(VertexPacker& packer, const ObjVertex& vertex) const;
+	VertexPacker::Failed writeVertex(VertexPacker& packer, const ObjVertex& vertex, size_t const base = 0) const;
 
 private:
 	BufferLayout  (const BufferLayout&) = delete; /**< Not copyable   */

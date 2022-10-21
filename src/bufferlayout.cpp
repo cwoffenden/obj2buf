@@ -171,7 +171,7 @@ VertexPacker::Failed BufferLayout::writeHeader(VertexPacker& packer) const {
 	return failed;
 }
 
-VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVertex& vertex) const {
+VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVertex& vertex, size_t const base) const {
 	VertexPacker::Failed failed = false;
 	/*
 	 * Positions and UVs are straightforward. They always write all components,
@@ -183,7 +183,7 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 			failed |= packer.add(vertex.sign, posn.storage);
 		}
 		if (posn.unaligned) {
-			failed |= packer.align();
+			failed |= packer.align(base);
 		}
 	}
 	if (uv_0) {
@@ -192,7 +192,7 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 			failed |= packer.add(vertex.sign, uv_0.storage);
 		}
 		if (uv_0.unaligned) {
-			failed |= packer.align();
+			failed |= packer.align(base);
 		}
 	}
 	if (norm) {
@@ -222,7 +222,7 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 			}
 		}
 		if (norm.unaligned) {
-			failed |= packer.align();
+			failed |= packer.align(base);
 		}
 	}
 	if (tans) {
@@ -234,7 +234,7 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 		if (packTans == PACK_NONE) {
 			failed |= vertex.tans.store(packer, tans.storage);
 			if (tans.unaligned) {
-				failed |= packer.align();
+				failed |= packer.align(base);
 			}
 		}
 	}
@@ -242,12 +242,29 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 		if (packTans == PACK_NONE && packSign == PACK_NONE) {
 			failed |= vertex.btan.store(packer, btan.storage);
 			if (btan.unaligned) {
-				failed |= packer.align();
+				failed |= packer.align(base);
 			}
 		}
 	}
 	return failed;
 }
+
+void BufferLayout::tryPacking(Packing& what, AttrParams& attr, int const numComps, Packing const where, bool const force) {
+	if (what == PACK_NONE) {
+		/*
+		 * Simple rules: attr is being used, isn't aligned so needs padding,
+		 * and whether adding extra components will still fit (our limit is GL,
+		 * which supports 1, 2, & 4).
+		 */
+		if (attr && (attr.components + numComps) <= 4 && (attr.unaligned || force)) {
+			attr.components += numComps;
+			what = where;
+			attr.validate();
+		}
+	}
+}
+
+//********************************* AttrParams ********************************/
 
 BufferLayout::AttrParams::AttrParams()
 	: storage   (VertexPacker::Storage::EXCLUDE)
@@ -304,19 +321,4 @@ VertexPacker::Failed BufferLayout::AttrParams::write(VertexPacker& packer, unsig
 		return failed;
 	}
 	return VP_SUCCEEDED;
-}
-
-void BufferLayout::tryPacking(Packing& what, AttrParams& attr, int const numComps, Packing const where, bool const force) {
-	if (what == PACK_NONE) {
-		/*
-		 * Simple rules: attr is being used, isn't aligned so needs padding,
-		 * and whether adding extra components will still fit (our limit is GL,
-		 * which supports 1, 2, & 4).
-		 */
-		if (attr && (attr.components + numComps) <= 4 && (attr.unaligned || force)) {
-			attr.components += numComps;
-			what = where;
-			attr.validate();
-		}
-	}
 }
