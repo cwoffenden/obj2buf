@@ -317,11 +317,15 @@ VertexPacker::Failed VertexPacker::add(int const data, Storage const type) {
 	return VP_FAILED;
 }
 
-VertexPacker::Failed VertexPacker::align() {
-	if (unsigned padding = static_cast<unsigned>(size()) & 3) {
-		padding = 4 - padding;
-		if (next + padding <= over) {
-			for (unsigned n = 0; n < padding; n++) {
+VertexPacker::Failed VertexPacker::align(size_t const base) {
+	size_t used = size();
+	if (used >= base) {
+		used -= base;
+	}
+	if (unsigned bytes = static_cast<unsigned>(used) & 3) {
+		bytes = 4 - bytes;
+		if (next + bytes <= over) {
+			for (unsigned n = 0; n < bytes; n++) {
 				*next++ = 0;
 			}
 		} else {

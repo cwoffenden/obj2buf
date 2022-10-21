@@ -413,9 +413,15 @@ public:
 	 * Add padding to 4-byte align the next \c #add(). This will add \c 1, \c 2
 	 * or \c 3 bytes if padding is required (otherwise zero).
 	 *
+	 * \note The \a base offset allows a large buffer to be split, without
+	 * needing to add alignments between each part (for example, a header
+	 * followed by vertex data doesn't need the header aligning in order to keep
+	 * the vertex data aligned, simply by passing the header size as the base).
+	 *
+	 * \param[in] base offset from the start to align against (defaulting to zero)
 	 * \return \c VP_FAILED if adding failed (e.g. if no more storage space is available)
 	 */
-	Failed align();
+	Failed align(size_t const base = 0);
 
 	/**
 	 * Starts adding to the stream from the beginning (overwriting any existing

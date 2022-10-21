@@ -249,9 +249,6 @@ int main(int argc, const char* argv[]) {
 		// Buffer layout (attributes, sizes, offset, etc.)
 		failed |= layout.writeHeader(packer);
 		// TODO: write the scale and bias (6x floats)
-		// The align here is needed otherwise the vertex alignment is off
-		// TODO: separate the header and data packers?
-		failed |= packer.align();
 	}
 	unsigned headerBytes = static_cast<unsigned>(packer.size());
 	unsigned vertexBytes = 0;
@@ -259,7 +256,7 @@ int main(int argc, const char* argv[]) {
 	if (opts.idxs) {
 		// Indexed vertices
 		for (ObjVertex::Container::const_iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
-			failed |= layout.writeVertex(packer, *it);
+			failed |= layout.writeVertex(packer, *it, headerBytes);
 		}
 		vertexBytes = static_cast<unsigned>(packer.size()) - headerBytes;
 		// Add the indices
@@ -272,7 +269,7 @@ int main(int argc, const char* argv[]) {
 		for (std::vector<unsigned>::const_iterator it = mesh.index.begin(); it != mesh.index.end(); ++it) {
 			unsigned idx = static_cast<unsigned>(*it);
 			if (idx < mesh.verts.size()) {
-				failed |= layout.writeVertex(packer, mesh.verts[idx]);
+				failed |= layout.writeVertex(packer, mesh.verts[idx], headerBytes);
 			}
 		}
 		vertexBytes = static_cast<unsigned>(packer.size()) - headerBytes;
