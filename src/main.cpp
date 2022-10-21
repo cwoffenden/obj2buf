@@ -151,7 +151,7 @@ bool open(const char* const srcPath, bool const genTans, ObjMesh& mesh) {
  * \param[in,out] mesh mesh to in-place scale
  * \param[in] unbiased  \c true if the origin should be maintained at zero (otherwise a bias is applied to make the most of the normalised range)
  */
-void scale(ObjMesh& mesh, bool const unbiased = false) {
+void scale(ObjMesh& mesh, bool const uniform = false, bool const unbiased = false) {
 	(void) unbiased;
 	// Get min and max for each component
 	vec3 minPosn({ FLT_MAX,  FLT_MAX,  FLT_MAX});
@@ -163,8 +163,10 @@ void scale(ObjMesh& mesh, bool const unbiased = false) {
 	// Which gives the global mesh scale and offset
 	mesh.scale = (maxPosn - minPosn) * 0.5f;
 	mesh.scale = vec3::max(mesh.scale, vec3(0.0001f, 0.0001f, 0.0001f));
-	// TODO: options for uniform scale (needs to be max, otherwise the verts are clamped)
-	mesh.scale = std::max(std::max(mesh.scale.x, mesh.scale.y), mesh.scale.z);
+	if (uniform) {
+		// Uniform needs to be max(), otherwise the verts could be clamped
+		mesh.scale = std::max(std::max(mesh.scale.x, mesh.scale.y), mesh.scale.z);
+	}
 	// TODO: apply unbiased (which affects the scale, otherwise clamping occurs)
 	mesh.bias  = (maxPosn + minPosn) * 0.5f;
 	// Apply to each vert to normalise
@@ -216,7 +218,8 @@ int main(int argc, const char* argv[]) {
 	}
 	// Perform an in-place scale/bias if requested
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_POSITIONS_SCALE)) {
-		scale(mesh, O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SCALE_NO_BIAS));
+		scale(mesh, O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SCALE_UNIFORM),
+					O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SCALE_NO_BIAS));
 	}
 	// Then the various optimisations
 	optimise(mesh);
@@ -242,13 +245,15 @@ int main(int argc, const char* argv[]) {
 	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
 	VertexPacker::Failed failed = false;
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_WRITE_METADATA)) {
-		// Metadata placeholder (retroactively written after the content)
+		// Metadata offsets placeholder (retroactively written after the content)
 		for (int n = 0; n < 5; n++) {
 			failed |= packer.add(0, VertexPacker::Storage::UINT32C);
 		}
+		// Mesh scale/bias (more than likely not used but it's only 24 bytes)
+		failed |= mesh.scale.store(packer, VertexPacker::Storage::FLOAT32);
+		failed |= mesh.bias.store (packer, VertexPacker::Storage::FLOAT32);
 		// Buffer layout (attributes, sizes, offset, etc.)
 		failed |= layout.writeHeader(packer);
-		// TODO: write the scale and bias (6x floats)
 	}
 	unsigned headerBytes = static_cast<unsigned>(packer.size());
 	unsigned vertexBytes = 0;

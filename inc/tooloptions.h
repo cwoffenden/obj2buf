@@ -48,13 +48,21 @@ public:
 		/**
 		 * Scale the positions so all coordinates fit in the range \c -1 to \c 1
 		 * (see \c #OPTS_SCALE_NO_BIAS, since the default is to apply a bias to
-		 * make full use of the underlying data format's range).
+		 * make full use of the underlying data format's range, and \c
+		 * OPTS_SCALE_UNIFORM, to maintain the proportions).
 		 */
 		OPTS_POSITIONS_SCALE,
 		/**
 		 * Maintain the origin for \c OPTS_POSITIONS_SCALE at zero.
 		 */
 		OPTS_SCALE_NO_BIAS,
+		/**
+		 * Maintains the proportions when using \c OPTS_POSITIONS_SCALE so the
+		 * mesh can be drawn without applying the scale (otherwise each axis
+		 * will be scaled individually). This trades resolution for ease of
+		 * drawing.
+		 */
+		OPTS_SCALE_UNIFORM,
 		/**
 		 * Normals and tangents are hemi-oct encoded (reconstituting X, Y and Z
 		 * at runtime). This, and when both \c #norm and \c #tans have the same

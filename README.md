@@ -14,28 +14,29 @@ mkdir build
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
-Work in progress: not all combinations have been tested.
+Work in progress (not all combinations have been thoroughly tested).
 ```
-Usage: obj2buf [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-m|o|l|z|a] in.obj [out.bin]
-        -p vertex positions type
-        -u vertex texture UVs type
-        -n vertex normals type
-        -t vertex tangents type (defaulting to none)
-        -i index buffer type (defaulting to shorts)
-        (vertex types are byte|short|half|float|none (none emits no data))
-        (index types are byte|short|int|none (none emits unindexed triangles))
-        -s normalises the positions to scale them in the range -1 to 1
-        -sb as -s but without a bias, keeping the origin at zero
-        -e encodes normals (and tangents) in two components as hemi-oct
-        -ez as -e but as raw XY without the Z
-        (encoded normals having the same type as tangents may be packed)
-        -b store only the sign for bitangents
-        (packing the sign if possible where any padding would normally go)
-        -m writes metadata describing the various buffer offsets and sizes
-        -o writes multi-byte values in big endian order
-        -l use the legacy OpenGL rule for normalised signed values
-        -z compresses the output buffer using Zstandard
-        -a writes the output as ASCII hex instead of binary
+Usage: obj2buf [-p|u|n|t|i type] [-s|sb|su] [-e|ez] [-b] [-m|o|l|z|a] in [out]
+	-p vertex positions type
+	-u vertex texture UVs type
+	-n vertex normals type
+	-t vertex tangents type (defaulting to none)
+	-i index buffer type (defaulting to shorts)
+	(vertex types are byte|short|half|float|none (none emits no data))
+	(index types are byte|short|int|none (none emits unindexed triangles))
+	-s normalises the positions to scale them in the range -1 to 1
+	-sb as -s but without a bias, keeping the origin at zero
+	-su as -s but with uniform scaling for all axes
+	-e encodes normals (and tangents) in two components as hemi-oct
+	-ez as -e but as raw XY without the Z
+	(encoded normals having the same type as tangents may be packed)
+	-b store only the sign for bitangents
+	(packing the sign if possible where any padding would normally go)
+	-m writes metadata describing the buffer offsets, sizes and types
+	-o writes multi-byte values in big endian order
+	-l use the legacy OpenGL rule for normalised signed values
+	-z compresses the output buffer using Zstandard
+	-a writes the output as ASCII hex instead of binary
 The default is float positions, normals and UVs, as uncompressed LE binary
 ```
 For simple cases it's probably enough to take the defaults, with the addition of the `-a` option to output a text file:
@@ -52,7 +53,7 @@ A more complex example could be:
 
 1. Vertex positions and UVs as `short`, normals and tangents as `byte`.
 
-2. `-s` option to scale the mesh in the range `-1` to `1` (allowing any object to be drawn without considering the camera or mesh size).
+2. `-su` option to scale the mesh uniformly in the range `-1` to `1` (allowing any object to be drawn without considering the camera position or mesh size).
 
 3. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions).
 
@@ -62,7 +63,7 @@ A more complex example could be:
 
 6. `-m` option to write metadata (offsets and number of bytes for the vertex and index data, and the number of triangles).
 ```
-obj2buf -p short -u short -n byte -t byte -s -ez -b -m -a cube.obj cube.inc
+obj2buf -p short -u short -n byte -t byte -su -ez -b -m -a cube.obj cube.inc
 ```
 The resulting layout would be:
 
@@ -71,8 +72,33 @@ The resulting layout would be:
 |   posn.x  |   posn.y   |
 |   posn.z  |    sign    |
 |    uv.x   |    uv.y    |
-|  norm.xy  |   tans.xy  |
+|  norm.xy  |  tans.xy   |
 
-With each vertex packed into 16 bytes (instead of the 44 bytes storing everything a floats).
+With each vertex packed into 16 bytes (instead of the 56 bytes storing everything a floats).
 
-The `-m` option adds an extra 20 bytes (5x32-bit integers) at the start, the vertex buffer offset and length, the index buffer offset and length, and the number of triangles (with zero representing unindexed triangles). The offsets are from the start of the file.
+The `-m` option adds an extra 50-66 bytes as a header at the start, depending on the attributes written:
+
+|       Data      |    Size    |
+|:---------------:|:----------:|
+| vertices offset | uint32     |
+| vertices bytes  | uint32     |
+| indices offset  | uint32     |
+| indices bytes   | uint32     |
+| indices count   | uint32     |
+| mesh scale      | 3x float32 |
+| mesh bias       | 3x float32 |
+| vertex stride   | uint8      |
+| attribute count | uint8      |
+| attributes      | 4-20 bytes |
+
+The offsets are from the start of the file. Each attribute entry is stored as:
+
+|       Data      |  Size |
+|:---------------:|:-----:|
+| shader index    | uint8 |
+| component count | uint8 |
+| data type       | uint8 |
+| offset          | uint8 |
+
+See the examples as for how this maps to various APIs.
+

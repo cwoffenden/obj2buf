@@ -152,7 +152,7 @@ void BufferLayout::dump() const {
 
 VertexPacker::Failed BufferLayout::writeHeader(VertexPacker& packer) const {
 	VertexPacker::Failed failed = false;
-	// Horrible but... count the used attribytes
+	// Horrible but... count the used attributes
 	unsigned attrs = 0;
 	attrs += (posn) ? 1 : 0;
 	attrs += (uv_0) ? 1 : 0;
@@ -160,8 +160,8 @@ VertexPacker::Failed BufferLayout::writeHeader(VertexPacker& packer) const {
 	attrs += (tans) ? 1 : 0;
 	attrs += (btan) ? 1 : 0;
 	// Write the header's header
-	failed |= packer.add(attrs,  VertexPacker::Storage::UINT08C);
 	failed |= packer.add(stride, VertexPacker::Storage::UINT08C);
+	failed |= packer.add(attrs,  VertexPacker::Storage::UINT08C);
 	// Then each attribute's (if it has no storage it writes nothing)
 	failed |= posn.write(packer, 0);
 	failed |= uv_0.write(packer, 1);
@@ -305,18 +305,18 @@ VertexPacker::Failed BufferLayout::AttrParams::write(VertexPacker& packer, unsig
 		 *
 		 * - index: 0..4, equating to VERT_POSN_ID, VERT_UV_0_ID, etc
 		 * - components: 2..4, xy, xyz & xyzw
-		 * - type: 1..8, TYPE_BYTE to TYPE_FLOAT, plus 1-bit for normalised
+		 * - type: 1..8, TYPE_BYTE to TYPE_FLOAT with the MSB set for normalised
 		 * - offset: 0..44 (given a maximum stride of 56)
 		 *
 		 * It's not worth the overhead of packing the bits to save a few bytes.
 		 */
 		int type = static_cast<int>(storage.toBasicType());
 		if (storage.isNormalized()) {
-			type = -type;
+			type |= 0x80;
 		}
 		failed |= packer.add(index,      VertexPacker::Storage::UINT08C);
 		failed |= packer.add(components, VertexPacker::Storage::UINT08C);
-		failed |= packer.add(type,       VertexPacker::Storage::SINT08C);
+		failed |= packer.add(type,       VertexPacker::Storage::UINT08C);
 		failed |= packer.add(offset,     VertexPacker::Storage::UINT08C);
 		return failed;
 	}
