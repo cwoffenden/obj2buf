@@ -61,7 +61,7 @@ A more complex example could be:
 
 5. Since normals and tangents are both bytes and encoded, they will be packed.
 
-6. `-m` option to write metadata (offsets and number of bytes for the vertex and index data, and the number of triangles).
+6. `-m` option to add metadata.
 ```
 obj2buf -p short -u short -n byte -t byte -su -ez -b -m -a cube.obj cube.inc
 ```
