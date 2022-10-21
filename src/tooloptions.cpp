@@ -219,6 +219,10 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 			O2B_SET_OPT(opts, OPTS_POSITIONS_SCALE);
 			if (strcmp(arg + 1, "sb") == 0) {
 				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
+			} else {
+				if (strcmp(arg + 1, "su") == 0) {
+					O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
+				}
 			}
 			break;
 		case 'e': // encoded normals and tangents
@@ -276,7 +280,17 @@ const char* ToolOptions::filename(const char* const path) {
 void ToolOptions::dump() const {
 	printf("Positions:   %s",   posn.toString());
 	if (O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
-		printf(" (apply %s)",   O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)   ? "scale"   : "scale & bias");
+		const char* scaleOpts;
+		if (O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)) {
+			scaleOpts = "scale";
+		} else {
+			if (O2B_HAS_OPT(opts, OPTS_SCALE_UNIFORM)) {
+				scaleOpts = "uniform scale";
+			} else {
+				scaleOpts = "scale & bias";
+			}
+		}
+		printf(" (apply %s)", scaleOpts);
 	}
 	printf("\n");
 	printf("Texture UVs: %s\n", text.toString());
@@ -310,7 +324,7 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|u|n|t|i type] [-s|sb] [-e|ez] [-b] [-m|o|l|z|a] in.obj [out.bin]\n", name);
+	printf("Usage: %s [-p|u|n|t|i type] [-s|sb|su] [-e|ez] [-b] [-m|o|l|z|a] in [out]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-u vertex texture UVs type\n");
 	printf("\t-n vertex normals type\n");
@@ -320,6 +334,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t(index types are byte|short|int|none (none emits unindexed triangles))\n");
 	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
 	printf("\t-sb as -s but without a bias, keeping the origin at zero\n");
+	printf("\t-su as -s but with uniform scaling for all axes\n");
 	printf("\t-e encodes normals (and tangents) in two components as hemi-oct\n");
 	printf("\t-ez as -e but as raw XY without the Z\n");
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
