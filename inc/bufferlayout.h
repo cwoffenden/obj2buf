@@ -62,11 +62,33 @@ private:
 	enum Packing {
 		PACK_NONE,   /**< No packing, either the component isn't used or there was no space. */
 		PACK_POSN_W, /**< Packed in the position's \c w (4th) component. */
-		PACK_UV_0_Z, /**< Packed in UV channel 0's \c z (3rd) component. */
+		PACK_TEX0_Z, /**< Packed in UV channel 0's \c z (3rd) component. */
 		PACK_NORM_Z, /**< Packed in the encoded normal's \c z (3rd) component. */
 		PACK_NORM_W, /**< Packed in the normal's \c w (4th) component. */
 		PACK_TANS_Z, /**< Packed in the encoded tangent's \c z (3rd) component. */
 		PACK_TANS_W, /**< Packed in the tangent's \c w (4th) component. */
+	};
+
+	/*
+	 * Vertex attribute IDs, see \c AttrParams#write(). In GL, for example,
+	 * these can be used to map indices to attribute names:
+	 * \code
+	 *	glBindAttribLocation(progId, VERT_POSN_ID, "aPosn");
+	 * \endcode
+	 * Then the shader attribute \a aPosn can be referred in code, e.g.:
+	 * \code
+	 *	glEnableVertexAttribArray(VERT_POSN_ID);
+	 * \endcode
+	 * \note If using these directly with GL with \c glBindAttribLocation, the
+	 * values can be changed but there must be a zero entry (\c VERT_POSN_ID
+	 * here) otherwise setting the remaining indices will fail.
+	 */
+	enum VertexID {
+		VERT_POSN_ID = 0, /**< Vertex positions. */
+		VERT_TEX0_ID = 1, /**< Vertex texture coordinates channel 0. */
+		VERT_NORM_ID = 2, /**< Vertex nomals. */
+		VERT_TANS_ID = 3, /**< Vertex tangents. */
+		VERT_BTAN_ID = 4, /**< Vertex bitangents. */
 	};
 
 	/**
@@ -124,12 +146,12 @@ private:
 		void dump(unsigned const stride, const char* name) const;
 
 		/**
-		 * Write the attribute description, packed into \c 4 bytes: shader's
-		 * attribute index, number of components, storage type, and offset (see
+		 * Write the attribute description, packed into \c 4 bytes: \c VertexID,
+		 * number of components, storage type, and offset (see
 		 * the source code for further details).
 		 *
 		 * \param[in] packer target for the layout description
-		 * \param[in] index index of the attribute in the shader
+		 * \param[in] index index of the attribute in the shader (see \c VertexID )
 		 * \return \c VP_FAILED if the attribute could not be added to the packer
 		 */
 		VertexPacker::Failed write(VertexPacker& packer, unsigned const index) const;
@@ -187,7 +209,7 @@ private:
 	Packing packSign; /**< Where the single tangent sign was packed. */
 	Packing packTans; /**< Where the encoded tangents pair were packed. */
 	AttrParams posn;  /**< Position attributes. */
-	AttrParams uv_0;  /**< UV channel 0 attributes. */
+	AttrParams tex0;  /**< UV channel 0 attributes. */
 	AttrParams norm;  /**< Normal attributes. */
 	AttrParams tans;  /**< Tangent attributes. */
 	AttrParams btan;  /**< Bitangent attributes. */
