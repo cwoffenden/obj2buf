@@ -44,11 +44,11 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 		 * is more suited). We try to fit the bitangent sign, but since signed
 		 * bytes are the only type that will work, it's unlikely to go here.
 		 */
-		uv_0.fill(opts.text, offset, 2);
+		tex0.fill(opts.text, offset, 2);
 		if (hasBitansSign && opts.text.isSigned()) {
-			tryPacking(packSign, uv_0, 1, PACK_UV_0_Z);
+			tryPacking(packSign, tex0, 1, PACK_TEX0_Z);
 		}
-		offset += uv_0.getAlignedSize();
+		offset += tex0.getAlignedSize();
 	}
 	if (opts.norm) {
 		/*
@@ -101,7 +101,7 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 
 void BufferLayout::dump() const {
 	posn.dump(stride, "VERT_POSN_ID");
-	uv_0.dump(stride, "VERT_UV_0_ID");
+	tex0.dump(stride, "VERT_TEX0_ID");
 	norm.dump(stride, "VERT_NORM_ID");
 	if (tans) {
 		/*
@@ -124,8 +124,8 @@ void BufferLayout::dump() const {
 			case PACK_POSN_W:
 				element = "posn.w";
 				break;
-			case PACK_UV_0_Z:
-				element = "uv_0.z";
+			case PACK_TEX0_Z:
+				element = "tex0.z";
 				numComp = "three";
 				break;
 			case PACK_NORM_Z:
@@ -155,7 +155,7 @@ VertexPacker::Failed BufferLayout::writeHeader(VertexPacker& packer) const {
 	// Horrible but... count the used attributes
 	unsigned attrs = 0;
 	attrs += (posn) ? 1 : 0;
-	attrs += (uv_0) ? 1 : 0;
+	attrs += (tex0) ? 1 : 0;
 	attrs += (norm) ? 1 : 0;
 	attrs += (tans) ? 1 : 0;
 	attrs += (btan) ? 1 : 0;
@@ -163,11 +163,11 @@ VertexPacker::Failed BufferLayout::writeHeader(VertexPacker& packer) const {
 	failed |= packer.add(stride, VertexPacker::Storage::UINT08C);
 	failed |= packer.add(attrs,  VertexPacker::Storage::UINT08C);
 	// Then each attribute's (if it has no storage it writes nothing)
-	failed |= posn.write(packer, 0);
-	failed |= uv_0.write(packer, 1);
-	failed |= norm.write(packer, 2);
-	failed |= tans.write(packer, 3);
-	failed |= btan.write(packer, 4);
+	failed |= posn.write(packer, VERT_POSN_ID);
+	failed |= tex0.write(packer, VERT_TEX0_ID);
+	failed |= norm.write(packer, VERT_NORM_ID);
+	failed |= tans.write(packer, VERT_TANS_ID);
+	failed |= btan.write(packer, VERT_BTAN_ID);
 	return failed;
 }
 
@@ -186,12 +186,12 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 			failed |= packer.align(base);
 		}
 	}
-	if (uv_0) {
-		failed |= vertex.uv_0.store(packer, uv_0.storage);
-		if (packSign == PACK_UV_0_Z) {
-			failed |= packer.add(vertex.sign, uv_0.storage);
+	if (tex0) {
+		failed |= vertex.tex0.store(packer, tex0.storage);
+		if (packSign == PACK_TEX0_Z) {
+			failed |= packer.add(vertex.sign, tex0.storage);
 		}
-		if (uv_0.unaligned) {
+		if (tex0.unaligned) {
 			failed |= packer.align(base);
 		}
 	}
@@ -303,7 +303,7 @@ VertexPacker::Failed BufferLayout::AttrParams::write(VertexPacker& packer, unsig
 		/*
 		 * This has a limited number of values:
 		 *
-		 * - index: 0..4, equating to VERT_POSN_ID, VERT_UV_0_ID, etc
+		 * - index: 0..4, equating to VERT_POSN_ID, VERT_TEX0_ID, etc
 		 * - components: 2..4, xy, xyz & xyzw
 		 * - type: 1..8, TYPE_BYTE to TYPE_FLOAT with the MSB set for normalised
 		 * - offset: 0..44 (given a maximum stride of 56)

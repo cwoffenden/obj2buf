@@ -227,8 +227,8 @@ int main(int argc, const char* argv[]) {
 	printf("Vertices:  %d\n", static_cast<int>(mesh.verts.size()));
 	printf("Indices:   %d\n", static_cast<int>(mesh.index.size()));
 	printf("Triangles: %d\n", static_cast<int>(mesh.index.size() / 3));
-	// Maximum buffer size: metadata + vert posn, norm, uv, tans, bitans + indices
-	size_t const maxBufBytes = (10 * sizeof(uint32_t) + 2)
+	// Maximum buffer size: metadata + vert posn, norm, UVs, tans, bitans + indices
+	size_t const maxBufBytes = 68 //<-- max metadata size
 			+ std::max(mesh.verts.size(), mesh.index.size())
 				* sizeof(float) * (3 + 3 + 2 + 3 + 3)
 			+ mesh.index.size() * sizeof(uint32_t);
@@ -245,6 +245,8 @@ int main(int argc, const char* argv[]) {
 	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
 	VertexPacker::Failed failed = false;
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_WRITE_METADATA)) {
+		// Endianness test/file magic
+		packer.add(0xBDA7, VertexPacker::Storage::UINT16C);
 		// Metadata offsets placeholder (retroactively written after the content)
 		for (int n = 0; n < 5; n++) {
 			failed |= packer.add(0, VertexPacker::Storage::UINT32C);
@@ -280,8 +282,8 @@ int main(int argc, const char* argv[]) {
 		vertexBytes = static_cast<unsigned>(packer.size()) - headerBytes;
 	}
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_WRITE_METADATA)) {
-		// Overwrite in the space for 5x ints we reserved earlier
-		VertexPacker header(backing.data(), 20, packOpts);
+		// Overwrite in the space for 5x ints we reserved earlier (+2 for the magic)
+		VertexPacker header(backing.data() + 2, 20, packOpts);
 		failed |= header.add(headerBytes,  VertexPacker::Storage::UINT32C);
 		failed |= header.add(vertexBytes,  VertexPacker::Storage::UINT32C);
 		failed |= header.add(headerBytes + vertexBytes, VertexPacker::Storage::UINT32C);

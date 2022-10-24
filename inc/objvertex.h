@@ -44,7 +44,7 @@ struct ObjVertex
 	//*************************************************************************/
 
 	vec3 posn; /**< Positions (from the \c .obj file). */
-	vec2 uv_0; /**< UV channel 0 (from the \c .obj file). */
+	vec2 tex0; /**< UV channel 0 (from the \c .obj file). */
 	vec3 norm; /**< Normals (from the \c .obj file). */
 	vec3 tans; /**< Tangents (generated if needed). */
 	vec3 btan; /**< Bitangents (generated if needed). */

@@ -93,14 +93,14 @@ namespace mtsutil {
 	/**
 	 * \see SMikkTSpaceInterface#m_getTexCoord
 	 * \param[in] ctx MikkTSpace C interface context
-	 * \param[out] uv_0 where to store the \c ObjVertex#uv_0 values
+	 * \param[out] tex0 where to store the \c ObjVertex#tex0 values
 	 * \param[in] face triangle index
 	 * \param[in] vert which of the triangle vertices (\c 0, \c 1 or \c 2)
 	 */
-	static void getTexCoord(const SMikkTSpaceContext* ctx, float uv_0[], int const face, int const vert) {
+	static void getTexCoord(const SMikkTSpaceContext* ctx, float tex0[], int const face, int const vert) {
 		if (const ObjVertex* entry = getVertAt(ctx, face, vert)) {
-			uv_0[0] = entry->uv_0.x;
-			uv_0[1] = entry->uv_0.y;
+			tex0[0] = entry->tex0.x;
+			tex0[1] = entry->tex0.y;
 		}
 	}
 	/**
@@ -131,8 +131,8 @@ ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	posn.x = obj->positions[idx->p * 3 + 0];
 	posn.y = obj->positions[idx->p * 3 + 1];
 	posn.z = obj->positions[idx->p * 3 + 2];
-	uv_0.x = obj->texcoords[idx->t * 2 + 0];
-	uv_0.y = obj->texcoords[idx->t * 2 + 1];
+	tex0.x = obj->texcoords[idx->t * 2 + 0];
+	tex0.y = obj->texcoords[idx->t * 2 + 1];
 	norm.x = obj->normals  [idx->n * 3 + 0];
 	norm.y = obj->normals  [idx->n * 3 + 1];
 	norm.z = obj->normals  [idx->n * 3 + 2];
