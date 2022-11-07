@@ -72,9 +72,10 @@ struct ObjMesh
  *
  * \param[in] obj valid \c fast_obj content
  * \param[in] genTans \c true if tangents should be generated
+ * \param[in] flipG generate tangents for a flipped green channel (by negating the texture's y-axis)
  * \param[out] mesh destination for the \c .obj file content
  */
-void extract(fastObjMesh* const obj, bool const genTans, ObjMesh& mesh) {
+void extract(fastObjMesh* const obj, bool const genTans, bool const flipG, ObjMesh& mesh) {
 	// No objects or groups, just one big triangle mesh from the file
 	ObjVertex::Container verts;
 	// Content should be in tris but we're going to create fans from any polys
@@ -115,7 +116,7 @@ void extract(fastObjMesh* const obj, bool const genTans, ObjMesh& mesh) {
 		vertBase += faceVerts;
 	}
 	if (genTans) {
-		ObjVertex::generateTangents(verts);
+		ObjVertex::generateTangents(verts, flipG);
 	}
 	// Generate the indices
 	std::vector<unsigned> remap(maxVerts);
@@ -131,13 +132,14 @@ void extract(fastObjMesh* const obj, bool const genTans, ObjMesh& mesh) {
  *
  * \param[in] srcPath filename of the \c .obj file
  * \param[in] genTans \c true if tangents should be generated
+ * \param[in] flipG generate tangents for a flipped green channel (by negating the texture's y-axis)
  * \param[out] mesh destination for the \c .obj file content
  * \return \c true if the file was valid and \a mesh has its content
  */
-bool open(const char* const srcPath, bool const genTans, ObjMesh& mesh) {
+bool open(const char* const srcPath, bool const genTans, bool const flipG, ObjMesh& mesh) {
 	if (srcPath) {
 		if (fastObjMesh* obj = fast_obj_read(srcPath)) {
-			extract(obj, genTans, mesh);
+			extract(obj, genTans, flipG, mesh);
 			fast_obj_destroy(obj);
 			return true;
 		}
@@ -212,7 +214,8 @@ int main(int argc, const char* argv[]) {
 	// Decide how the options create the buffer layout
 	BufferLayout const layout(opts);
 	// Now we start
-	if (!open(srcPath, opts.tans != VertexPacker::Storage::EXCLUDE, mesh)) {
+	bool flipG = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_FLIP_G);
+	if (!open(srcPath, opts.tans != VertexPacker::Storage::EXCLUDE, flipG, mesh)) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
 		return EXIT_FAILURE;
 	}

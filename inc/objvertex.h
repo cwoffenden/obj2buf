@@ -37,9 +37,10 @@ struct ObjVertex
 	 * data. \a cont is expected to contain unindexed triangles.
 	 *
 	 * \param[in,out] verts collection of triangles
+	 * \param[in] flipG generate tangents for a flipped green channel (by negating the texture's y-axis)
 	 * \return \c true if generation was successful
 	 */
-	static bool generateTangents(Container& verts);
+	static bool generateTangents(Container& verts, bool const flipG);
 
 	//*************************************************************************/
 

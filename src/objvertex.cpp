@@ -14,14 +14,40 @@
  */
 namespace mtsutil {
 	/**
-	 * Helper to pull the (immutable) vertex \c Container from a \e MikkTSpace context.
+	 * Passed to \c SMikkTSpaceContext as the \e user \e data, containing the
+	 * vertices and any options.
+	 *
+	 * \param[in,out] verts collection of triangles
+	 * \param[in] flipG generate tangents for a flipped green channel
+	 */
+	struct UserData {
+		UserData(ObjVertex::Container& verts, bool const flipG)
+			: verts(verts)
+			, flipG(flipG) {};
+		/**
+		 * Collection of triangles.
+		 *
+		 * \note No ownership is passed and this lives for as the call to \c
+		 * genTangSpaceDefault().
+		 */
+		ObjVertex::Container& verts;
+		/**
+		 * \c true if the normal map's green-channel should be flipped, which is
+		 * performed by negating the Y-axis when extracting UVs. This depends on
+		 * the source content and whether it needs matching to the render API.
+		 */
+		bool flipG;
+	};
+	/*
+	 * Helper to pull the \c UserData containing the vertex \c Container from a
+	 * \e MikkTSpace context.
 	 *
 	 * \param[in] mCtx MikkTSpace C interface context
 	 * \return vertex collection (or \c null if \a mCtx is incomplete)
 	 */
-	static const ObjVertex::Container* getVerts(const SMikkTSpaceContext* mCtx) {
+	static const UserData* getUserData(const SMikkTSpaceContext* mCtx) {
 		if (mCtx && mCtx->m_pUserData) {
-			return reinterpret_cast<const ObjVertex::Container*>(mCtx->m_pUserData);
+			return reinterpret_cast<const UserData*>(mCtx->m_pUserData);
 		}
 		return nullptr;
 	}
@@ -29,16 +55,16 @@ namespace mtsutil {
 	 * Given a \e MikkTSpace context holding a \c Container as its \e user \e
 	 * data, extracts the correct vertex from the face and vertex indices.
 	 *
-	 * \param[in] mCtx MikkTSpace C interface context
+	 * \param[in] ctx MikkTSpace C interface context
 	 * \param[in] face triangle index (given that we only operate on triangles)
 	 * \param[in] vert which of the triangle vertices (\c 0, \c 1 or \c 2)
 	 * \return the requested vertex or \c null if the indices are out of bounds
 	 */
-	static const ObjVertex* getVertAt(const SMikkTSpaceContext* mCtx, int const face, int const vert) {
-		if (const ObjVertex::Container* verts = getVerts(mCtx)) {
+	static ObjVertex* getVertAt(const SMikkTSpaceContext* mCtx, int const face, int const vert) {
+		if (const UserData* udata = getUserData(mCtx)) {
 			size_t idx = face * 3 + vert;
-			if (idx < verts->size()) {
-				return &((*verts)[idx]);
+			if (idx < udata->verts.size()) {
+				return &((udata->verts)[idx]);
 			}
 		}
 		return nullptr;
@@ -46,17 +72,19 @@ namespace mtsutil {
 	//************************** Interface Functions **************************/
 	/**
 	 * \see SMikkTSpaceInterface#m_getNumFaces
-	 * \param[in] ctx MikkTSpace C interface context
+	 *
+	 * \param[in] mCtx MikkTSpace C interface context
 	 * \return the container size divided by \c 3 (since we only work internally in triangles)
 	 */
-	static int getNumFaces(const SMikkTSpaceContext* ctx) {
-		if (const ObjVertex::Container* verts = getVerts(ctx)) {
-			return static_cast<int>(verts->size() / 3);
+	static int getNumFaces(const SMikkTSpaceContext* mCtx) {
+		if (const UserData* udata = getUserData(mCtx)) {
+			return static_cast<int>(udata->verts.size() / 3);
 		}
 		return 0;
 	}
 	/**
 	 * \see SMikkTSpaceInterface#m_getNumVerticesOfFace
+	 *
 	 * \return \c 3 (since we only work internally in triangles)
 	 */
 	static int getNumVerticesOfFace(const SMikkTSpaceContext*, int) {
@@ -64,13 +92,14 @@ namespace mtsutil {
 	}
 	/**
 	 * \see SMikkTSpaceInterface#m_getPosition
-	 * \param[in] ctx MikkTSpace C interface context
+	 *
+	 * \param[in] mCtx MikkTSpace C interface context
 	 * \param[out] posn where to store the \c ObjVertex#posn values
 	 * \param[in] face triangle index
 	 * \param[in] vert which of the triangle vertices (\c 0, \c 1 or \c 2)
 	 */
-	static void getPosition(const SMikkTSpaceContext* ctx, float posn[], int const face, int const vert) {
-		if (const ObjVertex* entry = getVertAt(ctx, face, vert)) {
+	static void getPosition(const SMikkTSpaceContext* mCtx, float posn[], int const face, int const vert) {
+		if (const ObjVertex* entry = getVertAt(mCtx, face, vert)) {
 			posn[0] = entry->posn.x;
 			posn[1] = entry->posn.y;
 			posn[2] = entry->posn.z;
@@ -78,13 +107,14 @@ namespace mtsutil {
 	}
 	/**
 	 * \see SMikkTSpaceInterface#m_getNormal
-	 * \param[in] ctx MikkTSpace C interface context
+	 *
+	 * \param[in] mCtx MikkTSpace C interface context
 	 * \param[out] norm where to store the \c ObjVertex#norm values
 	 * \param[in] face triangle index
 	 * \param[in] vert which of the triangle vertices (\c 0, \c 1 or \c 2)
 	 */
-	static void getNormal(const SMikkTSpaceContext* ctx, float norm[], int const face, int const vert) {
-		if (const ObjVertex* entry = getVertAt(ctx, face, vert)) {
+	static void getNormal(const SMikkTSpaceContext* mCtx, float norm[], int const face, int const vert) {
+		if (const ObjVertex* entry = getVertAt(mCtx, face, vert)) {
 			norm[0] = entry->norm.x;
 			norm[1] = entry->norm.y;
 			norm[2] = entry->norm.z;
@@ -92,28 +122,38 @@ namespace mtsutil {
 	}
 	/**
 	 * \see SMikkTSpaceInterface#m_getTexCoord
-	 * \param[in] ctx MikkTSpace C interface context
+	 *
+	 * \param[in] mCtx MikkTSpace C interface context
 	 * \param[out] tex0 where to store the \c ObjVertex#tex0 values
 	 * \param[in] face triangle index
 	 * \param[in] vert which of the triangle vertices (\c 0, \c 1 or \c 2)
 	 */
-	static void getTexCoord(const SMikkTSpaceContext* ctx, float tex0[], int const face, int const vert) {
-		if (const ObjVertex* entry = getVertAt(ctx, face, vert)) {
+	static void getTexCoord(const SMikkTSpaceContext* mCtx, float tex0[], int const face, int const vert) {
+		if (const ObjVertex* entry = getVertAt(mCtx, face, vert)) {
 			tex0[0] = entry->tex0.x;
-			tex0[1] = entry->tex0.y;
+			/*
+			 * Handle the G-channel flip by negating the Y-axis. Note, since
+			 * entry is non-null, getUserData() will always be valid too.
+			 */
+			if (getUserData(mCtx)->flipG) {
+				tex0[1] = -entry->tex0.y;
+			} else {
+				tex0[1] =  entry->tex0.y;
+			}
 		}
 	}
 	/**
 	 * \see SMikkTSpaceInterface#m_setTSpace
-	 * \param[in,out] ctx MikkTSpace C interface context (note: the interface is const but we need to store the results here)
+	 *
+	 * \param[in,out] mCtx MikkTSpace C interface context (note: the interface is const but we need to store the results here)
 	 * \param[in] tans generated tangents (\c 0, \c 1 and \c 2 or \c x, \c y and \c z)
 	 * \param[in] btan generated bitangents (\c 0, \c 1 and \c 2 or \c x, \c y and \c z)
 	 * \param[in] sign \c true if \c ObjVertex#sign is assigned \c 1.0, otherwise \c -1.0 (used if we wish to calculated instead of store the bitangent)
 	 * \param[in] face triangle index
 	 * \param[in] vert which of the triangle vertices (\c 0, \c 1 or \c 2)
 	 */
-	static void setTSpace(const SMikkTSpaceContext* ctx, const float tans[], const float btan[], float, float, tbool const sign, int const face, int const vert) {
-		if (ObjVertex* entry = const_cast<ObjVertex*>(getVertAt(ctx, face, vert))) {
+	static void setTSpace(const SMikkTSpaceContext* mCtx, const float tans[], const float btan[], float, float, tbool const sign, int const face, int const vert) {
+		if (ObjVertex* entry = getVertAt(mCtx, face, vert)) {
 			entry->sign   = (sign) ? 1.0f : -1.0f;
 			entry->tans.x = tans[0];
 			entry->tans.y = tans[1];
@@ -141,7 +181,7 @@ ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	sign   = 0.0f;
 }
 
-bool ObjVertex::generateTangents(Container& verts) {
+bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
 	/*
 	 * We use the default generation call with the non-basic function.
 	 */
@@ -154,9 +194,10 @@ bool ObjVertex::generateTangents(Container& verts) {
 		nullptr, // basic
 		mtsutil::setTSpace
 	};
+	mtsutil::UserData udata(verts, flipG);
 	SMikkTSpaceContext const mCtx = {
 		&iface,
-		&verts,
+		&udata,
 	};
 	return genTangSpaceDefault(&mCtx) != 0;
 }
