@@ -231,6 +231,9 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 				O2B_SET_OPT(opts, OPTS_NORMALS_XY_ONLY);
 			}
 			break;
+		case 'g':
+			O2B_SET_OPT(opts, OPTS_TANGENTS_FLIP_G);
+			break;
 		case 'b': // bitangents as sign-only
 			O2B_SET_OPT(opts, OPTS_BITANGENTS_SIGN);
 			break;
@@ -296,18 +299,26 @@ void ToolOptions::dump() const {
 	printf("Texture UVs: %s\n", text.toString());
 	printf("Normals:     %s",   norm.toString());
 	if (norm && O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
-		printf(" (as %s)",      O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
+		printf(" (as %s)", O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
 	}
 	printf("\n");
 	printf("Tangents:    %s",   tans.toString());
 	if (tans) {
-		const bool bitanSign = O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN);
-		if (O2B_HAS_OPT(opts, OPTS_TANGENTS_PACKED)) {
-			printf(" (packed in normals%s)", bitanSign ? ", bitangents as sign" : "");
-		} else {
-			if (bitanSign) {
-				printf(" (bitangents as sign)");
+		bool flip = O2B_HAS_OPT(opts, OPTS_TANGENTS_FLIP_G);
+		bool pack = O2B_HAS_OPT(opts, OPTS_TANGENTS_PACKED);
+		bool sign = O2B_HAS_OPT(opts, OPTS_BITANGENTS_SIGN);
+		if (flip || pack || sign) {
+			printf(" (");
+			if (flip) {
+				printf("g-flipped%s", (pack || sign) ? ", " : "");
 			}
+			if (pack) {
+				printf("packed in normals%s", (sign) ? ", " : "");
+			}
+			if (sign) {
+				printf("bitangents as sign");
+			}
+			printf(")");
 		}
 	}
 	printf("\n");
@@ -324,7 +335,7 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|u|n|t|i type] [-s|sb|su] [-e|ez] [-b] [-m|o|l|z|a] in [out]\n", name);
+	printf("Usage: %s [-p|u|n|t|i type] [-s|sb|su] [-e|ez] [-g|b|m|o|l|z|a] in [out]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-u vertex texture UVs type\n");
 	printf("\t-n vertex normals type\n");
@@ -338,6 +349,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-e encodes normals (and tangents) in two components as hemi-oct\n");
 	printf("\t-ez as -e but as raw XY without the Z\n");
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
+	printf("\t-g flip the green channel when generating tangents (e.g. match 3ds Max)\n");
 	printf("\t-b store only the sign for bitangents\n");
 	printf("\t(packing the sign if possible where any padding would normally go)\n");
 	printf("\t-m writes metadata describing the buffer offsets, sizes and types\n");

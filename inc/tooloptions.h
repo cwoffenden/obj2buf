@@ -75,6 +75,13 @@ public:
 		 */
 		OPTS_NORMALS_XY_ONLY,
 		/**
+		 * When generating tangents, negate the texture coordinates' Y-channel,
+		 * which effectively inverts the normal map's green channel. The would
+		 * match 3ds Max's convention, for example (the alternative being to
+		 * invert in the shader).
+		 */
+		OPTS_TANGENTS_FLIP_G,
+		/**
 		 * Try to pack tangents with the normals. See \c OPTS_NORMALS_ENCODED
 		 * (this is not a manually set option).
 		 */
