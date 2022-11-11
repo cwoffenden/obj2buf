@@ -165,6 +165,74 @@ namespace mtsutil {
 	}
 }
 
+/*
+ * Helper for the encoding (and test decoding) of normal vectors.
+ *
+ * \see https://jcgt.org/published/0003/02/01/paper.pdf
+ *
+ * We keep this simple and dismiss more precise options such as \c oct16P, etc.,
+ * from the document, choosing decode speed as the priority. Some graphical
+ * comparisons here:
+ *
+ * \see https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/
+ *
+ * \todo compare with https://gist.github.com/Niadb/794ea32f856820bc7e4f5a67c4246791
+ */
+namespace impl {
+/**
+ * Returns the sign of \a val with \c 0 considered as \c +1 (whereas the
+ * standard \c std::sign() would return zero).
+ *
+ * \param[in] val value to derive the sign
+ * \return either \c -1 or \c +1 depending on \a val
+ */
+inline
+float _sign_(float const val) {
+	return (val >= 0.0f) ? 1.0f : -1.0f;
+}
+/**
+ * Encode a normal vector with octahedron encoding (Meyer et al. 2010).
+ *
+ * \param[in] vec normal vector (the emphasis on this being normalised)
+ * \return encoded normal
+ */
+vec2 encodeOct(const vec3& vec) {
+	float sum  = std::abs(vec.x) + std::abs(vec.y) + std::abs(vec.z);
+	float vecX = (sum != 0.0f) ? (vec.x / sum) : 0.0f;
+	float vecY = (sum != 0.0f) ? (vec.y / sum) : 0.0f;
+	return vec2(
+		(vec.z <= 0.0f) ? ((1.0f - std::abs(vecY)) * _sign_(vecX)) : vecX,
+		(vec.z <= 0.0f) ? ((1.0f - std::abs(vecX)) * _sign_(vecY)) : vecY);
+}
+/**
+ * Performs the reverse of \c encodeOct() returning a normal vector from an
+ * octahedron encoding.
+ *
+ * \note This is here for test purposes and is \e not optimal.
+ *
+ * \param[in] enc encoded normal
+ * \return normal vector
+ */
+vec3 decodeOct(const vec2& enc) {
+	vec3 vec(enc.x, enc.y, 1.0f - std::abs(enc.x) - std::abs(enc.y));
+	if (vec.z < 0.0f) {
+		vec.x = (1.0f - std::abs(enc.y)) * _sign_(enc.x);
+		vec.y = (1.0f - std::abs(enc.x)) * _sign_(enc.y);
+	}
+	return vec.normalize();;
+}
+
+/**
+ * Encode a normal vector with hemi-oct encoding (van Waveren and Castaño 2008).
+ *
+ * \param[in] vec normal vector (the emphasis on this being normalised)
+ * \return encoded normal
+ */
+vec2 encodeHemiOct(const vec3& /*vec*/) {
+	return vec2(0.0f, 0.0f);
+}
+}
+
 //*****************************************************************************/
 
 ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
@@ -200,4 +268,23 @@ bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
 		&udata,
 	};
 	return genTangSpaceDefault(&mCtx) != 0;
+}
+
+void ObjVertex::encodeNormals(Container& verts, bool const /*hemi*/, bool const tans) {
+	for (Container::iterator it = verts.begin(); it != verts.end(); ++it) {
+		vec2 enc = impl::encodeOct(it->norm);
+		it->norm.x = enc.x;
+		it->norm.y = enc.y;
+		it->norm.z = 0.0f;
+		if (tans) {
+			enc = impl::encodeOct(it->tans);
+			it->tans.x = enc.x;
+			it->tans.y = enc.y;
+			it->tans.z = 0.0f;
+			enc = impl::encodeOct(it->btan);
+			it->btan.x = enc.x;
+			it->btan.y = enc.y;
+			it->btan.z = 0.0f;
+		}
+	}
 }
