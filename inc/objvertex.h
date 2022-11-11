@@ -32,15 +32,37 @@ struct ObjVertex
 	 * \param[in] idx current face index being processed
 	 */
 	ObjVertex(fastObjMesh* obj, fastObjIndex* idx);
+
+	//****************************** Conversions ******************************/
+
 	/**
 	 * Generates the \c #tans, \c #btan and \c #sign from the extracted \c .obj
 	 * data. \a cont is expected to contain unindexed triangles.
+	 *
+	 * \note This \e must be called before running \c #encodeNormals() since it
+	 * requires unencoded normals.
 	 *
 	 * \param[in,out] verts collection of triangles
 	 * \param[in] flipG generate tangents for a flipped green channel (by negating the texture's y-axis)
 	 * \return \c true if generation was successful
 	 */
 	static bool generateTangents(Container& verts, bool const flipG);
+
+	/*
+	 * In-place encoding of normals, tangents and bitangents. This in-place
+	 * conversion zeroes the Z and stores the encoded results in the X and Y
+	 * for each of the affected attributes.
+	 *
+	 * \note Hemi-oct encoding trades a slightly higher error for simpler
+	 * decoder (but as its name suggests, works on a single hemisphere).
+	 *
+	 * \todo look at spherical encoding? Is it worth the overhead?
+	 *
+	 * \param[in,out] verts collection of triangles
+	 * \param[in] hemi \c true to encode using hemi-ict (otherwise octahedron encoding is used)
+	 * \param[in] tans \c true if tangents and bitangents should also be converted (otherwise only normals are affected)
+	 */
+	static void encodeNormals(Container& verts, bool const hemi, bool const tans);
 
 	//*************************************************************************/
 

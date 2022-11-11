@@ -1,9 +1,6 @@
 /**
  * \file main.cpp
  * Wavefront \c .obj to packed buffer.
- *
- * \todo read again the HemiOct16 details, page 27 here: https://jcgt.org/published/0003/02/01/paper.pdf
- * \todo and compare with https://gist.github.com/Niadb/794ea32f856820bc7e4f5a67c4246791
  */
 
 #include <cfloat>
@@ -214,8 +211,9 @@ int main(int argc, const char* argv[]) {
 	// Decide how the options create the buffer layout
 	BufferLayout const layout(opts);
 	// Now we start
-	bool flipG = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_FLIP_G);
-	if (!open(srcPath, opts.tans != VertexPacker::Storage::EXCLUDE, flipG, mesh)) {
+	bool tans = opts.tans != VertexPacker::Storage::EXCLUDE;
+	bool flip = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_FLIP_G);
+	if (!open(srcPath, tans, flip, mesh)) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
 		return EXIT_FAILURE;
 	}
@@ -223,6 +221,12 @@ int main(int argc, const char* argv[]) {
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_POSITIONS_SCALE)) {
 		scale(mesh, O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SCALE_UNIFORM),
 					O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SCALE_NO_BIAS));
+	}
+	// In-place normals/tangents/bitangents encode
+	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED)) {
+		if (!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_XY_ONLY)) {
+			ObjVertex::encodeNormals(mesh.verts, false, tans);
+		}
 	}
 	// Then the various optimisations
 	optimise(mesh);

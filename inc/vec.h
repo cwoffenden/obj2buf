@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include <cmath>
+
 #include "vertexpacker.h"
 
 /**
@@ -109,6 +111,11 @@ struct Vec3
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(*)
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(/)
 	VEC3_SIMPLE_OPERATOR_WITH_SCALAR(*)
+	Vec3 normalize() const {
+		T len = x * x + y * y + z * z;
+		len = (len > T(0)) ? std::sqrt(len) : T(1);
+		return Vec3(x / len, y / len, z / len);
+	}
 	/**
 	 * \copydoc Vec2::store()
 	 */
