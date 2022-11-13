@@ -48,10 +48,10 @@ struct ObjVertex
 	 */
 	static bool generateTangents(Container& verts, bool const flipG);
 
-	/*
+	/**
 	 * In-place encoding of normals, tangents and bitangents. This in-place
-	 * conversion zeroes the Z and stores the encoded results in the X and Y
-	 * for each of the affected attributes.
+	 * conversion zeroes the Z and stores the encoded results in the X and Y for
+	 * each of the affected attributes.
 	 *
 	 * \note Hemi-oct encoding trades a slightly higher error for simpler
 	 * decoder (but as its name suggests, works on a single hemisphere).
@@ -60,9 +60,10 @@ struct ObjVertex
 	 *
 	 * \param[in,out] verts collection of triangles
 	 * \param[in] hemi \c true to encode using hemi-ict (otherwise octahedron encoding is used)
-	 * \param[in] tans \c true if tangents and bitangents should also be converted (otherwise only normals are affected)
+	 * \param[in] tans \c true if tangents should also be converted
+	 * \param[in] btan \c true if bitangents should also be converted
 	 */
-	static void encodeNormals(Container& verts, bool const hemi, bool const tans);
+	static void encodeNormals(Container& verts, bool const hemi, bool const tans, bool const btan = true);
 
 	//*************************************************************************/
 
