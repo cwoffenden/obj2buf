@@ -5,6 +5,10 @@
  */
 #include "objvertex.h"
 
+#ifndef NDEBUG
+#include <cstdio>
+#endif
+
 #include "mikktspace.h"
 
 /**
