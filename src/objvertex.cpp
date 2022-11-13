@@ -180,6 +180,44 @@ namespace mtsutil {
  */
 namespace impl {
 /**
+ * Helper to accumulate error differences.
+ */
+class Accumulator {
+public:
+	/**
+	 * Starts with zero errors.
+	 */
+	Accumulator()
+		: sumAbs(0.0f)
+		, maxAbs(0.0f)
+		, count (0) {}
+	/**
+	 * Adds the \e absolute difference of two vectors.
+	 *
+	 * \param[in] a first entry
+	 * \param[in] b second entry
+	 */
+	void add(const vec3& a, const vec3& b) {
+		vec3 diff = a - b;
+		float sum = std::abs(diff.x) + std::abs(diff.y) + std::abs(diff.z);
+		sumAbs += sum;
+		maxAbs = std::max(maxAbs, sum);
+		count++;
+	}
+	/**
+	 * Prints the average and maximum errors.
+	 *
+	 * \param[in] name title to prefix the output, e.g. \c error
+	 */
+	void print(const char* const name) const {
+		printf("%s: average: %0.5f, maximum: %0.5f\n", name, sumAbs / count, maxAbs);
+	}
+private:
+	float sumAbs;   /**< Absolute sum of the entries added. */
+	float maxAbs;   /**< Absolute maximum of any of the entries added. */
+	unsigned count; /**< Number of entries added. */
+};
+/**
  * Returns the sign of \a val with \c 0 considered as \c +1 (whereas the
  * standard \c std::sign() would return zero).
  *
@@ -270,21 +308,47 @@ bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
 	return genTangSpaceDefault(&mCtx) != 0;
 }
 
-void ObjVertex::encodeNormals(Container& verts, bool const /*hemi*/, bool const tans) {
+void ObjVertex::encodeNormals(Container& verts, bool const /*hemi*/, bool const tans, bool const btan) {
+#ifndef NDEBUG
+	impl::Accumulator normErr;
+	impl::Accumulator tansErr;
+	impl::Accumulator btanErr;
+#endif
 	for (Container::iterator it = verts.begin(); it != verts.end(); ++it) {
 		vec2 enc = impl::encodeOct(it->norm);
+	#ifndef NDEBUG
+		normErr.add(it->norm, impl::decodeOct(enc));
+	#endif
 		it->norm.x = enc.x;
 		it->norm.y = enc.y;
 		it->norm.z = 0.0f;
 		if (tans) {
 			enc = impl::encodeOct(it->tans);
+		#ifndef NDEBUG
+			tansErr.add(it->tans, impl::decodeOct(enc));
+		#endif
 			it->tans.x = enc.x;
 			it->tans.y = enc.y;
 			it->tans.z = 0.0f;
-			enc = impl::encodeOct(it->btan);
-			it->btan.x = enc.x;
-			it->btan.y = enc.y;
-			it->btan.z = 0.0f;
+			if (btan) {
+				enc = impl::encodeOct(it->btan);
+			#ifndef NDEBUG
+				btanErr.add(it->btan, impl::decodeOct(enc));
+			#endif
+				it->btan.x = enc.x;
+				it->btan.y = enc.y;
+				it->btan.z = 0.0f;
+			}
 		}
 	}
+#ifndef NDEBUG
+	printf("\n");
+	normErr.print("Encoded normals error");
+	if (tans) {
+		tansErr.print("Encoded tangents error");
+		if (btan) {
+			btanErr.print("Encoded bitangents error");
+		}
+	}
+#endif
 }
