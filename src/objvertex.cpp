@@ -167,10 +167,11 @@ namespace mtsutil {
 	}
 }
 
-/*
+/**
  * Helper for the encoding (and test decoding) of normal vectors.
  *
  * \see https://jcgt.org/published/0003/02/01/paper.pdf
+ * \see https://developer.download.nvidia.com/whitepapers/2008/real-time-normal-map-dxt-compression.pdf
  *
  * We keep this simple and dismiss more precise options such as \c oct16P, etc.,
  * from the document, choosing decode speed as the priority. Some graphical
@@ -212,7 +213,7 @@ public:
 	 * \param[in] name title to prefix the output, e.g. \c error
 	 */
 	void print(const char* const name) const {
-		printf("%s: average: %0.5f, maximum: %0.5f\n", name, sumAbs / count, maxAbs);
+		printf("%s: average: %0.7f, maximum: %0.7f\n", name, sumAbs / count, maxAbs);
 	}
 private:
 	float sumAbs;   /**< Absolute sum of the entries added. */
@@ -261,15 +262,32 @@ vec3 decodeOct(const vec2& enc) {
 	}
 	return vec.normalize();;
 }
-
 /**
  * Encode a normal vector with hemi-oct encoding (van Waveren and Castaño 2008).
  *
  * \param[in] vec normal vector (the emphasis on this being normalised)
  * \return encoded normal
  */
-vec2 encodeHemiOct(const vec3& /*vec*/) {
-	return vec2(0.0f, 0.0f);
+vec2 encodeHemiOct(const vec3& vec) {
+	float sum = std::abs(vec.x) + std::abs(vec.y) + vec.z;
+	float x   = (sum != 0.0f) ? (vec.x / sum) : 0.0f;
+	float y   = (sum != 0.0f) ? (vec.y / sum) : 0.0f;
+	return vec2(x + y, x - y);
+}
+/**
+ * Performs the reverse of \c encodeHemiOct() returning a normal vector from a
+ * hemi-oct encoding.
+ *
+ * \note This is here for test purposes and is \e not optimal.
+ *
+ * \param[in] enc encoded normal
+ * \return normal vector
+ */
+vec3 decodeHemiOct(const vec2& enc) {
+	float x  = (enc.x + enc.y) * 0.5f;
+	float y  = (enc.x - enc.y) * 0.5f;
+	vec3 vec = vec3(x, y, 1.0f - std::abs(x) - std::abs(y));
+	return vec.normalize();
 }
 }
 
@@ -287,6 +305,11 @@ ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	tans   = 0.0f;
 	btan   = 0.0f;
 	sign   = 0.0f;
+	/*
+	 * Max's default .obj exporter writes all floats at four decimal places, so
+	 * the normals benefit from renormalising (plus any encoding is off too).
+	 */
+	norm.normalize();
 }
 
 bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
@@ -310,7 +333,7 @@ bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
 	return genTangSpaceDefault(&mCtx) != 0;
 }
 
-void ObjVertex::encodeNormals(Container& verts, bool const /*hemi*/, bool const tans, bool const btan) {
+void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan) {
 #ifndef NDEBUG
 	impl::Accumulator normErr;
 	impl::Accumulator tansErr;
@@ -345,11 +368,11 @@ void ObjVertex::encodeNormals(Container& verts, bool const /*hemi*/, bool const 
 	}
 #ifndef NDEBUG
 	printf("\n");
-	normErr.print("Encoded normals error");
+	normErr.print("Encoded norm error");
 	if (tans) {
-		tansErr.print("Encoded tangents error");
+		tansErr.print("Encoded tans error");
 		if (btan) {
-			btanErr.print("Encoded bitangents error");
+			btanErr.print("Encoded btan error");
 		}
 	}
 #endif
