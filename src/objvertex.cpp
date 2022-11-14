@@ -168,10 +168,10 @@ namespace mtsutil {
 }
 
 /**
- * Helper for the encoding (and test decoding) of normal vectors.
+ * Helper for the encoding (and test decoding) of normal vectors. This paper
+ * describes various schemes:
  *
  * \see https://jcgt.org/published/0003/02/01/paper.pdf
- * \see https://developer.download.nvidia.com/whitepapers/2008/real-time-normal-map-dxt-compression.pdf
  *
  * We keep this simple and dismiss more precise options such as \c oct16P, etc.,
  * from the document, choosing decode speed as the priority. Some graphical
@@ -179,7 +179,14 @@ namespace mtsutil {
  *
  * \see https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/
  *
- * \todo compare with https://gist.github.com/Niadb/794ea32f856820bc7e4f5a67c4246791
+ * Other links of interest:
+ *
+ * \see https://developer.download.nvidia.com/whitepapers/2008/real-time-normal-map-dxt-compression.pdf
+ * \see https://aras-p.info/texts/CompactNormalStorage.html
+ *
+ * And this, though we're out of places to pack the extra bits required:
+ *
+ * \see https://johnwhite3d.blogspot.com/2017/10/signed-octahedron-normal-encoding.html
  */
 namespace impl {
 /**
@@ -220,6 +227,7 @@ private:
 	float maxAbs;   /**< Absolute maximum of any of the entries added. */
 	unsigned count; /**< Number of entries added. */
 };
+
 /**
  * Returns the sign of \a val with \c 0 considered as \c +1 (whereas the
  * standard \c std::sign() would return zero).
@@ -232,7 +240,7 @@ float _sign_(float const val) {
 	return (val >= 0.0f) ? 1.0f : -1.0f;
 }
 /**
- * Encode a normal vector with octahedron encoding (Meyer et al. 2010).
+ * Encode a normal vector with octahedral encoding (Meyer et al. 2010).
  *
  * \param[in] vec normal vector (the emphasis on this being normalised)
  * \return encoded normal
@@ -247,7 +255,7 @@ vec2 encodeOct(const vec3& vec) {
 }
 /**
  * Performs the reverse of \c encodeOct() returning a normal vector from an
- * octahedron encoding.
+ * octahedral encoding.
  *
  * \note This is here for test purposes and is \e not optimal.
  *
@@ -261,33 +269,6 @@ vec3 decodeOct(const vec2& enc) {
 		vec.y = (1.0f - std::abs(enc.x)) * _sign_(enc.y);
 	}
 	return vec.normalize();;
-}
-/**
- * Encode a normal vector with hemi-oct encoding (van Waveren and Castaño 2008).
- *
- * \param[in] vec normal vector (the emphasis on this being normalised)
- * \return encoded normal
- */
-vec2 encodeHemiOct(const vec3& vec) {
-	float sum = std::abs(vec.x) + std::abs(vec.y) + vec.z;
-	float x   = (sum != 0.0f) ? (vec.x / sum) : 0.0f;
-	float y   = (sum != 0.0f) ? (vec.y / sum) : 0.0f;
-	return vec2(x + y, x - y);
-}
-/**
- * Performs the reverse of \c encodeHemiOct() returning a normal vector from a
- * hemi-oct encoding.
- *
- * \note This is here for test purposes and is \e not optimal.
- *
- * \param[in] enc encoded normal
- * \return normal vector
- */
-vec3 decodeHemiOct(const vec2& enc) {
-	float x  = (enc.x + enc.y) * 0.5f;
-	float y  = (enc.x - enc.y) * 0.5f;
-	vec3 vec = vec3(x, y, 1.0f - std::abs(x) - std::abs(y));
-	return vec.normalize();
 }
 }
 

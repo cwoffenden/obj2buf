@@ -64,9 +64,9 @@ public:
 		 */
 		OPTS_SCALE_UNIFORM,
 		/**
-		 * Normals and tangents are hemi-oct encoded (reconstituting X, Y and Z
-		 * at runtime). This, and when both \c #norm and \c #tans have the same
-		 * type, will result in \c OPTS_TANGENTS_PACKED being set.
+		 * Normals and tangents are octahedral encoded (reconstituting X, Y and
+		 * Z at runtime). This, and when both \c #norm and \c #tans have the
+		 * same type, will result in \c OPTS_TANGENTS_PACKED being set.
 		 */
 		OPTS_NORMALS_ENCODED,
 		/**

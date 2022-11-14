@@ -27,7 +27,7 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|sb|su] [-e|ez] [-g|b|m|o|l|z|a] in [out]
 	-s normalises the positions to scale them in the range -1 to 1
 	-sb as -s but without a bias, keeping the origin at zero
 	-su as -s but with uniform scaling for all axes
-	-e encodes normals (and tangents) in two components as hemi-oct
+	-e octahedral encoded normals (and tangents) in two components
 	-ez as -e but as raw XY without the Z
 	(encoded normals having the same type as tangents may be packed)
 	-g flip the green channel when generating tangents (e.g. match 3ds Max)

@@ -299,7 +299,7 @@ void ToolOptions::dump() const {
 	printf("Texture UVs: %s\n", text.toString());
 	printf("Normals:     %s",   norm.toString());
 	if (norm && O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
-		printf(" (as %s)", O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "hemi-oct");
+		printf(" (as %s)", O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "octahedral");
 	}
 	printf("\n");
 	printf("Tangents:    %s",   tans.toString());
@@ -346,7 +346,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
 	printf("\t-sb as -s but without a bias, keeping the origin at zero\n");
 	printf("\t-su as -s but with uniform scaling for all axes\n");
-	printf("\t-e encodes normals (and tangents) in two components as hemi-oct\n");
+	printf("\t-e octahedral encoded normals (and tangents) in two components\n");
 	printf("\t-ez as -e but as raw XY without the Z\n");
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
 	printf("\t-g flip the green channel when generating tangents (e.g. match 3ds Max)\n");
