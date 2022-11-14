@@ -225,7 +225,8 @@ int main(int argc, const char* argv[]) {
 	// In-place normals/tangents/bitangents encode
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED)) {
 		if (!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_XY_ONLY)) {
-			ObjVertex::encodeNormals(mesh.verts, false, tans);
+			ObjVertex::encodeNormals(mesh.verts, tans,
+				!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN));
 		}
 	}
 	// Then the various optimisations

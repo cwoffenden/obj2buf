@@ -59,11 +59,10 @@ struct ObjVertex
 	 * \todo look at spherical encoding? Is it worth the overhead?
 	 *
 	 * \param[in,out] verts collection of triangles
-	 * \param[in] hemi \c true to encode using hemi-ict (otherwise octahedron encoding is used)
 	 * \param[in] tans \c true if tangents should also be converted
 	 * \param[in] btan \c true if bitangents should also be converted
 	 */
-	static void encodeNormals(Container& verts, bool const hemi, bool const tans, bool const btan = true);
+	static void encodeNormals(Container& verts, bool const tans, bool const btan = true);
 
 	//*************************************************************************/
 

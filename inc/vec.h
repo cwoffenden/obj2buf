@@ -111,10 +111,23 @@ struct Vec3
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(*)
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(/)
 	VEC3_SIMPLE_OPERATOR_WITH_SCALAR(*)
-	Vec3 normalize() const {
-		T len = x * x + y * y + z * z;
-		len = (len > T(0)) ? std::sqrt(len) : T(1);
-		return Vec3(x / len, y / len, z / len);
+	/**
+	 * In-place normalise this vector.
+	 *
+	 * \note Normalising a zero vector returns a zero vector (and not a vector
+	 * of \c NaN as may be expected) which allows this template to be used with
+	 * integer types too.
+	 *
+	 * \return \c this
+	 */
+	Vec3& normalize() {
+		T len = static_cast<T>(std::sqrt(x * x + y * y + z * z));
+		if (len > T(0)) {
+			x /= len;
+			y /= len;
+			z /= len;
+		}
+		return *this;
 	}
 	/**
 	 * \copydoc Vec2::store()
