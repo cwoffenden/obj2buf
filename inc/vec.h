@@ -112,6 +112,12 @@ struct Vec3
 	VEC3_SIMPLE_OPERATOR_WITH_VECTOR(/)
 	VEC3_SIMPLE_OPERATOR_WITH_SCALAR(*)
 	/**
+	 * Vector length.
+	 */
+	T len() const {
+		return static_cast<T>(std::sqrt(x * x + y * y + z * z));
+	}
+	/**
 	 * In-place normalise this vector.
 	 *
 	 * \note Normalising a zero vector returns a zero vector (and not a vector
@@ -121,11 +127,11 @@ struct Vec3
 	 * \return \c this
 	 */
 	Vec3& normalize() {
-		T len = static_cast<T>(std::sqrt(x * x + y * y + z * z));
-		if (len > T(0)) {
-			x /= len;
-			y /= len;
-			z /= len;
+		T l = len();
+		if (l > T(0)) {
+			x /= l;
+			y /= l;
+			z /= l;
 		}
 		return *this;
 	}
@@ -138,6 +144,22 @@ struct Vec3
 		failed |= dest.add(y, type);
 		failed |= dest.add(z, type);
 		return failed;
+	}
+	/**
+	 * Dot product.
+	 */
+	static T dot(const Vec3& a, const Vec3& b) {
+		return a.x * b.x + a.y * b.y + a.z * b.z;
+	}
+	/**
+	 * Cross product.
+	 */
+	static Vec3 cross(const Vec3& lhs, const Vec3& rhs) {
+		return Vec3(
+			lhs.y * rhs.z - lhs.z - rhs.y,
+			lhs.z * rhs.x - lhs.x - rhs.z,
+			lhs.x * rhs.y - lhs.y - rhs.x
+		);
 	}
 	/**
 	 * Component-wise minimum of two vectors.
