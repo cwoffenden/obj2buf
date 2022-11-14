@@ -190,7 +190,7 @@ namespace mtsutil {
  */
 namespace impl {
 /**
- * Helper to accumulate error differences.
+ * Helper to accumulate angular errors.
  */
 class Accumulator {
 public:
@@ -202,16 +202,17 @@ public:
 		, maxAbs(0.0f)
 		, count (0) {}
 	/**
-	 * Adds the \e absolute difference of two vectors.
+	 * Adds the \e absolute angular error between two \e normalised vectors.
 	 *
-	 * \param[in] a first entry
-	 * \param[in] b second entry
+	 * \param[in] a first entry (e.g. original value)
+	 * \param[in] b second entry (e.g. decoded value)
 	 */
 	void add(const vec3& a, const vec3& b) {
-		vec3 diff = a - b;
-		float sum = std::abs(diff.x) + std::abs(diff.y) + std::abs(diff.z);
-		sumAbs += sum;
-		maxAbs = std::max(maxAbs, sum);
+		// float rounding errors can product a dot product greater than one
+		float rad = std::acos(std::min(vec3::dot(a, b), 1.0f));
+		float deg = rad * 180.0f / float(M_PI);
+		sumAbs += deg;
+		maxAbs = std::max(maxAbs, deg);
 		count++;
 	}
 	/**
@@ -220,7 +221,7 @@ public:
 	 * \param[in] name title to prefix the output, e.g. \c error
 	 */
 	void print(const char* const name) const {
-		printf("%s: average: %0.7f, maximum: %0.7f\n", name, sumAbs / count, maxAbs);
+		printf("%s: average: %0.5f, maximum: %0.5f (all in degrees)\n", name, sumAbs / count, maxAbs);
 	}
 private:
 	float sumAbs;   /**< Absolute sum of the entries added. */
