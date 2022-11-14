@@ -181,9 +181,7 @@ namespace mtsutil {
  *
  * \see https://jcgt.org/published/0003/02/01/paper.pdf
  *
- * We keep this simple and dismiss more precise options such as \c oct16P, etc.,
- * from the document, choosing decode speed as the priority. Some graphical
- * comparisons here:
+ * Some graphical comparisons here:
  *
  * \see https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/
  *
@@ -195,10 +193,15 @@ namespace mtsutil {
  * And this, though we're out of places to pack the extra bits required:
  *
  * \see https://johnwhite3d.blogspot.com/2017/10/signed-octahedron-normal-encoding.html
+ *
+ * \todo add support of \c oct16P (the decoder is the same, but we optimise of a known bit depth)
  */
 namespace impl {
 /**
  * Helper to accumulate angular errors.
+ *
+ * \note We're not (currently) using this to look at the actual encoded error
+ * when lowering the bit-depth, it's for verifying any encoding is correct.
  */
 class Accumulator {
 public:
