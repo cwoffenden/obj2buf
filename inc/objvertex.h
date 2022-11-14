@@ -53,9 +53,6 @@ struct ObjVertex
 	 * conversion zeroes the Z and stores the encoded results in the X and Y for
 	 * each of the affected attributes.
 	 *
-	 * \note Hemi-oct encoding trades a slightly higher error for simpler
-	 * decoder (but as its name suggests, works on a single hemisphere).
-	 *
 	 * \todo look at spherical encoding? Is it worth the overhead?
 	 *
 	 * \param[in,out] verts collection of triangles
