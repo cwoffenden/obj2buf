@@ -58,8 +58,9 @@ struct ObjVertex
 	 * \param[in,out] verts collection of triangles
 	 * \param[in] tans \c true if tangents should also be converted
 	 * \param[in] btan \c true if bitangents should also be converted
+	 * \param[in] bits bit-depth the encoded value will be stored in (e.g. \c 8 for byte storage)
 	 */
-	static void encodeNormals(Container& verts, bool const tans, bool const btan = true);
+	static void encodeNormals(Container& verts, bool const tans, bool const btan = true, unsigned const bits = 8);
 
 	//*************************************************************************/
 

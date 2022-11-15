@@ -46,6 +46,42 @@
 #define VEC3_SIMPLE_OPERATOR_WITH_SCALAR(op) Vec3 operator op(T   const   val) const {return Vec3(x op val,   y op val,   z op val  );}
 #endif
 
+/**
+ * \def VEC2_SIMPLE_OPERATOR_WITH_VECTOR
+ * Helper to emit code for the simple operators such as \c +, \c -, etc., for
+ * the \c vec2 type with a vector parameter. For example, with a \c + as its
+ * parameter the macro will output:
+ * \code
+ *	Vec2 operator +(const Vec2& vec) const {
+ *		return Vec2(
+ *			x + vec.x,
+ *			y + vec.y
+ *		);
+ *	}
+ * \endcode
+ */
+#ifndef VEC2_SIMPLE_OPERATOR_WITH_VECTOR
+#define VEC2_SIMPLE_OPERATOR_WITH_VECTOR(op) Vec2 operator op(const Vec2& vec) const {return Vec2(x op vec.x, y op vec.y);}
+#endif
+
+/**
+ * \def VEC2_SIMPLE_OPERATOR_WITH_VECTOR
+ * Helper to emit code for the simple operators such as \c +, \c -, etc., for
+ * the \c vec2 type with a scalar parameter. For example, with a \c + as its
+ * parameter the macro will output:
+ * \code
+ *	Vec2 operator +(T const val) const {
+ *		return Vec2(
+ *			x + val,
+ *			y + val
+ *		);
+ *	}
+ * \endcode
+ */
+#ifndef VEC2_SIMPLE_OPERATOR_WITH_SCALAR
+#define VEC2_SIMPLE_OPERATOR_WITH_SCALAR(op) Vec2 operator op(T   const   val) const {return Vec2(x op val,   y op val  );}
+#endif
+
 template<typename T>
 struct Vec2
 {
@@ -63,6 +99,11 @@ struct Vec2
 	operator T*() {
 		return &x;
 	}
+	VEC2_SIMPLE_OPERATOR_WITH_VECTOR(+)
+	VEC2_SIMPLE_OPERATOR_WITH_VECTOR(-)
+	VEC2_SIMPLE_OPERATOR_WITH_VECTOR(*)
+	VEC2_SIMPLE_OPERATOR_WITH_VECTOR(/)
+	VEC2_SIMPLE_OPERATOR_WITH_SCALAR(*)
 	/**
 	 * Adds this vector to a buffer.
 	 *
@@ -75,6 +116,12 @@ struct Vec2
 		failed |= dest.add(x, type);
 		failed |= dest.add(y, type);
 		return failed;
+	}
+	/**
+	 * Dot product.
+	 */
+	static T dot(const Vec2& a, const Vec2& b) {
+		return a.x * b.x + a.y * b.y;
 	}
 };
 
@@ -118,20 +165,22 @@ struct Vec3
 		return static_cast<T>(std::sqrt(x * x + y * y + z * z));
 	}
 	/**
-	 * In-place normalise this vector.
+	 * Return a normalised copy of this vector.
 	 *
 	 * \note Normalising a zero vector returns a zero vector (and not a vector
 	 * of \c NaN as may be expected) which allows this template to be used with
 	 * integer types too.
 	 *
-	 * \return \c this
+	 * \return normalised vector
 	 */
-	Vec3& normalize() {
+	Vec3 normalize() const {
 		T l = len();
 		if (l > T(0)) {
-			x /= l;
-			y /= l;
-			z /= l;
+			return Vec3(
+				x / l,
+				y / l,
+				z / l
+			);
 		}
 		return *this;
 	}

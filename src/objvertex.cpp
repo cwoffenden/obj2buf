@@ -219,7 +219,11 @@ public:
 	 * \param[in] b second entry (e.g. decoded value)
 	 */
 	void add(const vec3& a, const vec3& b) {
-		// float rounding errors can product a dot product greater than one
+		/*
+		 * Notes: float rounding errors can product a dot product greater than
+		 * one; none of the angles should be larger than 90 degrees (even at
+		 * 4-bit precision the maximum error is approx 10 degrees).
+		 */
 		float rad = std::acos(std::min(vec3::dot(a, b), 1.0f));
 		float deg = rad * 180.0f / float(M_PI);
 		sumAbs += deg;
@@ -240,6 +244,50 @@ private:
 	unsigned count; /**< Number of entries added. */
 };
 
+/**
+ * Helper to constrain a value between upper and lower bounds.
+ *
+ * \param[in] val value to constrain
+ * \param[in] min lower bound (inclusive)
+ * \param[in] max upper bound (inclusive)
+ * \return \a val constrained
+ * \tparam T numeric type (e.g. \c float)
+ */
+template<typename T>
+static inline T clamp(T const val, T const min, T const max) {
+	return std::min(max, std::max(min, val));
+}
+/**
+ * Helper to constrain a vector's contents between upper and lower bounds.
+ *
+ * \param[in] val vector to constrain
+ * \param[in] min lower bound (inclusive)
+ * \param[in] max upper bound (inclusive)
+ * \return a copy of \a vec constrained
+ * \tparam T numeric type (e.g. \c float)
+ */
+template<typename T>
+static Vec2<T> clamp(const Vec2<T>& vec, T const min, T const max) {
+	return Vec2<T>(
+		clamp(vec.x, min, max),
+		clamp(vec.y, min, max)
+	);
+}
+/**
+ * Helper to run a function per vector component.
+ *
+ * \param[in] func function to run (e.g. \c std::floor)
+ * \param[in] vec vector on which to operate
+ * \return a copy of \a vec having run \a func on each component
+ * \tparam T numeric type (e.g. \c float)
+ */
+template<typename T>
+static Vec2<T> run(T (* const func)(T), const Vec2<T>& vec) {
+	return Vec2<T>(
+		func(vec.x),
+		func(vec.y)
+	);
+}
 /**
  * Returns the sign of \a val with \c 0 considered as \c +1 (whereas the
  * standard \c std::sign() would return zero).
@@ -282,6 +330,62 @@ vec3 decodeOct(const vec2& enc) {
 	}
 	return vec.normalize();;
 }
+/**
+ * Performs \c encodeOct() optimising for a more precise decode knowing the
+ * number of bits the result will be stored in.
+ *
+ * \note The \e modern approach to storing signed values is used, e.g. for a
+ * bit-depth of \c 8 the range is \c -127 to \c +127 preserving zero.
+ *
+ * \todo is it worth adding a choice to use the legacy storage?
+ *
+ * \param[in] vec normal vector (the emphasis on this being normalised)
+ * \param[in] bits bit-depth the encoded value will be stored in (e.g. \c 8 for byte storage)
+ * \return encoded normal
+ */
+vec2 encodeOct(const vec3& vec, unsigned const bits) {
+	/*
+	 * This is adapted from float32x3_to_octn_precise() in the Survey paper at
+	 * the top, from the GLSL code instead of the C++ implementation, operating
+	 * on the data as floats instead of the float-bits (flip-flopping between
+	 * the floor() and ceil() for the two components).
+	 *
+	 * Start with the signed normalised value of one for the given bit-depth,
+	 * and calculate the base (floor) from which other variants will be created.
+	 *
+	 * Note: the original C++ implementation wasn't tested against this for
+	 * performance, so might be better. This GLSL adaptation was written because
+	 * it's smaller, not relying on any support code that isn't already in use.
+	 */
+	float const one = (1 << (bits - 1)) - 1.0f;
+	vec2 const base = run(std::floor, (clamp(encodeOct(vec), -1.0f, 1.0f) * one)) * (1.0f / one);
+	/*
+	 * Then test the combination of floor() and ceil() to better (u = 0, v = 0)
+	 * and its angular error (from the unencoded value).
+	 *
+	 * From the original paper: no attempt is made to wrap the oct boundaries,
+	 * but this should be a worse encoding (when decoded) and never class best.
+	 */
+	vec2 best = base;
+	float err = vec3::dot(vec, decodeOct(base));
+	for (unsigned u = 0; u < 2; u++) {
+		for (unsigned v = 0; v < 2; v++) {
+			if ((u != 0) || (v != 0)) {
+				/*
+				 * We're adding or not the LSB (e.g. 1/127th for 8-bits) before
+				 * testing the error. The original C++ tests the 
+				 */
+				vec2 test = (vec2(u, v) * (1.0f / one)) + base;
+				float cos = vec3::dot(vec, decodeOct(test));
+				if (cos  > err) {
+					err  = cos;
+					best = test;
+				}
+			}
+		}
+	}
+	return best;
+}
 }
 
 //*****************************************************************************/
@@ -302,7 +406,7 @@ ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	 * Max's default .obj exporter writes all floats at four decimal places, so
 	 * the normals benefit from renormalising (plus any encoding is off too).
 	 */
-	norm.normalize();
+	norm   = norm.normalize();
 }
 
 bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
@@ -326,7 +430,7 @@ bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
 	return genTangSpaceDefault(&mCtx) != 0;
 }
 
-void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan) {
+void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan, unsigned const /*bits*/) {
 #ifndef NDEBUG
 	impl::Accumulator normErr;
 	impl::Accumulator tansErr;
