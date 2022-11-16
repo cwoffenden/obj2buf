@@ -375,7 +375,7 @@ vec2 encodeOct(const vec3& vec, unsigned const bits) {
 				 * We're adding or not the LSB (e.g. 1/127th for 8-bits) before
 				 * testing the error. The original C++ tests the 
 				 */
-				vec2 test = (vec2(u, v) * (1.0f / one)) + base;
+				vec2 test = (vec2(float(u), float(v)) * (1.0f / one)) + base;
 				float cos = vec3::dot(vec, decodeOct(test));
 				if (cos  > err) {
 					err  = cos;
