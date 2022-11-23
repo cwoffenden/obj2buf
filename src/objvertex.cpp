@@ -224,7 +224,11 @@ public:
 		 * one; none of the angles should be larger than 90 degrees (even at
 		 * 4-bit precision the maximum error is approx 10 degrees).
 		 */
-		float rad = std::acos(std::min(vec3::dot(a, b), 1.0f));
+		float dot = vec3::dot(a, b);
+		if (dot < 0.0f) {
+			dot = 0.0f;
+		}
+		float rad = std::acos(std::min(dot, 1.0f));
 		float deg = rad * 180.0f / float(M_PI);
 		sumAbs += deg;
 		maxAbs = std::max(maxAbs, deg);
@@ -328,7 +332,7 @@ vec3 decodeOct(const vec2& enc) {
 		vec.x = (1.0f - std::abs(enc.y)) * _sign_(enc.x);
 		vec.y = (1.0f - std::abs(enc.x)) * _sign_(enc.y);
 	}
-	return vec.normalize();;
+	return vec.normalize();
 }
 /**
  * Performs \c encodeOct() optimising for a more precise decode knowing the
@@ -337,7 +341,11 @@ vec3 decodeOct(const vec2& enc) {
  * \note The \e modern approach to storing signed values is used, e.g. for a
  * bit-depth of \c 8 the range is \c -127 to \c +127 preserving zero.
  *
- * \todo is it worth adding a choice to use the legacy storage?
+ * \not Whilst this is designed for normalised ints it also improves encoding
+ * for floats. Pass in \c 23 as the number of \a bits (the fraction bits for a
+ * 32-bit float) and it will significantly reduce the average error.
+ *
+ * \todo is it worth adding a choice to use the legacy storage? Yes.
  *
  * \param[in] vec normal vector (the emphasis on this being normalised)
  * \param[in] bits bit-depth the encoded value will be stored in (e.g. \c 8 for byte storage)
@@ -350,7 +358,7 @@ vec2 encodeOct(const vec3& vec, unsigned const bits) {
 	 * on the data as floats instead of the float-bits (flip-flopping between
 	 * the floor() and ceil() for the two components).
 	 *
-	 * Start with the signed normalised value of one for the given bit-depth,
+	 * Start with the signed normalised value of one (for the given bit-depth),
 	 * and calculate the base (floor) from which other variants will be created.
 	 *
 	 * Note: the original C++ implementation wasn't tested against this for
@@ -359,32 +367,50 @@ vec2 encodeOct(const vec3& vec, unsigned const bits) {
 	 */
 	float const one = (1 << (bits - 1)) - 1.0f;
 	vec2 const base = run(std::floor, (clamp(encodeOct(vec), -1.0f, 1.0f) * one)) * (1.0f / one);
+	vec2 bestEnc = base;
+	vec3 bestDec = decodeOct(base);
 	/*
 	 * Then test the combination of floor() and ceil() to better (u = 0, v = 0)
-	 * and its angular error (from the unencoded value).
+	 * and its angular error (from the decoded value, closest to zero).
 	 *
 	 * From the original paper: no attempt is made to wrap the oct boundaries,
-	 * but this should be a worse encoding (when decoded) and never class best.
+	 * but since this this should be a worse encoding (when decoded) it will
+	 * never class as best.
 	 */
-	vec2 best = base;
-	float err = vec3::dot(vec, decodeOct(base));
+	float bestErr = std::abs(1.0f - vec3::dot(bestDec, vec));
+	float bestLen = std::abs(1.0f - bestDec.len());
 	for (unsigned u = 0; u < 2; u++) {
 		for (unsigned v = 0; v < 2; v++) {
 			if ((u != 0) || (v != 0)) {
 				/*
-				 * We're adding or not the LSB (e.g. 1/127th for 8-bits) before
-				 * testing the error. The original C++ tests the 
+				 * We're adding (or not) the LSB (e.g. 1/127th for 8-bits)
+				 * before testing the angular error. We pick the best angular
+				 * error (closest to zero) and if we have a tie, the closest to
+				 * unit length (best difference from 1.0).
 				 */
-				vec2 test = (vec2(float(u), float(v)) * (1.0f / one)) + base;
-				float cos = vec3::dot(vec, decodeOct(test));
-				if (cos  > err) {
-					err  = cos;
-					best = test;
+				vec2  testEnc = (vec2(float(u), float(v)) * (1.0f / one)) + base;
+				vec3  testDec = decodeOct(testEnc);
+				float testErr = std::abs(1.0f - vec3::dot(testDec, vec));
+				if (testErr <= bestErr) {
+					float testLen = std::abs(1.0f - testDec.len());
+					if (testErr == bestErr) {
+						if (testLen < bestLen) {
+							bestEnc = testEnc;
+							bestLen = testLen;
+						}
+					} else {
+						bestEnc = testEnc;
+						bestLen = testLen;
+					}
 				}
+			}
+			if (bestErr == 0.0f && bestLen == 0.0f) {
+				goto zeroed;
 			}
 		}
 	}
-	return best;
+zeroed:
+	return bestEnc;
 }
 }
 
