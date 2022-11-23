@@ -121,7 +121,8 @@ struct Vec2
 	 * Dot product.
 	 */
 	static T dot(const Vec2& a, const Vec2& b) {
-		return a.x * b.x + a.y * b.y;
+		return a.x * b.x
+			 + a.y * b.y;
 	}
 };
 
@@ -165,11 +166,11 @@ struct Vec3
 		return static_cast<T>(std::sqrt(x * x + y * y + z * z));
 	}
 	/**
-	 * Return a normalised copy of this vector.
+	 * Return a normalised \e copy of this vector.
 	 *
-	 * \note Normalising a zero vector returns a zero vector (and not a vector
-	 * of \c NaN as may be expected) which allows this template to be used with
-	 * integer types too.
+	 * \note Normalising a zero vector returns a new zero vector (and not a
+	 * vector of \c NaN as may be expected) which allows this template to be
+	 * used with integer types too.
 	 *
 	 * \return normalised vector
 	 */
@@ -182,7 +183,11 @@ struct Vec3
 				z / l
 			);
 		}
-		return *this;
+		return Vec3(
+			T(0),
+			T(0),
+			T(0)
+		);
 	}
 	/**
 	 * \copydoc Vec2::store()
@@ -198,7 +203,9 @@ struct Vec3
 	 * Dot product.
 	 */
 	static T dot(const Vec3& a, const Vec3& b) {
-		return a.x * b.x + a.y * b.y + a.z * b.z;
+		return a.x * b.x
+			 + a.y * b.y
+			 + a.z * b.z;
 	}
 	/**
 	 * Cross product.
