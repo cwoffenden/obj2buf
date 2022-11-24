@@ -225,9 +225,6 @@ public:
 		 * 4-bit precision the maximum error is approx 10 degrees).
 		 */
 		float dot = vec3::dot(a, b);
-		if (dot < 0.0f) {
-			dot = 0.0f;
-		}
 		float rad = std::acos(std::min(dot, 1.0f));
 		float deg = rad * 180.0f / float(M_PI);
 		sumAbs += deg;
