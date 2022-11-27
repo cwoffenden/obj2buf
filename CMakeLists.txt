@@ -48,7 +48,7 @@ else()
 endif()
 
 file(GLOB INCS "inc/*.h")
-file(GLOB SRCS "src/*.cpp" "src/*.c")
+file(GLOB SRCS "src/*.cpp" "src/*.c" "src/meshopt/*.cpp")
 
 include_directories("inc")
 
