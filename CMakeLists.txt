@@ -48,7 +48,24 @@ else()
 endif()
 
 file(GLOB INCS "inc/*.h")
-file(GLOB SRCS "src/*.cpp" "src/*.c" "src/meshopt/*.cpp")
+file(GLOB SRCS "src/*.cpp" "src/*.c")
+set(SRCS ${SRCS}
+#	"src/meshopt/allocator.cpp"
+#	"src/meshopt/clusterizer.cpp"
+#	"src/meshopt/indexcodec.cpp"
+	"src/meshopt/indexgenerator.cpp"
+#	"src/meshopt/overdrawanalyzer.cpp"
+	"src/meshopt/overdrawoptimizer.cpp"
+#	"src/meshopt/simplifier.cpp"
+#	"src/meshopt/spatialorder.cpp"
+#	"src/meshopt/stripifier.cpp"
+#	"src/meshopt/vcacheanalyzer.cpp"
+	"src/meshopt/vcacheoptimizer.cpp"
+#	"src/meshopt/vertexcodec.cpp"
+#	"src/meshopt/vertexfilter.cpp"
+#	"src/meshopt/vfetchanalyzer.cpp"
+	"src/meshopt/vfetchoptimizer.cpp"
+)
 
 include_directories("inc")
 
