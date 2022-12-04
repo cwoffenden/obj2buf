@@ -367,8 +367,8 @@ vec2 encodeOct(const vec3& vec, unsigned const bits) {
 	vec2 bestEnc = base;
 	vec3 bestDec = decodeOct(base);
 	/*
-	 * Then test the combination of floor() and ceil() to better (u = 0, v = 0)
-	 * and its angular error (from the decoded value, closest to zero).
+	 * Then test the combination of floor() and ceil() to better bestDec's
+	 * angular error (from the decoded value, closest to zero, with u & v = 0).
 	 *
 	 * From the original paper: no attempt is made to wrap the oct boundaries,
 	 * but since this this should be a worse encoding (when decoded) it will
