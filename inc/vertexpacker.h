@@ -181,7 +181,7 @@ public:
 			return type != EXCLUDE;
 		}
 
-		//*********************** Helpers/Conversions ************************/
+		//************************ Helpers/Conversions ************************/
 
 		/**
 		 * Returns the number of bytes each storage type requires, for example

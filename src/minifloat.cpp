@@ -121,8 +121,8 @@ public:
 	}
 
 	/**
-	 * Converts a single-precision float to half-precision (noting the limitations
-	 * of the conversion with respect to the precision, etc.).
+	 * Converts a single-precision float to half-precision (noting the
+	 * limitations of the conversion with respect to the precision, etc.).
 	 *
 	 * \param[in] val single-precision float
 	 * \return equivalent half-precision float
@@ -132,27 +132,29 @@ public:
 		/*
 		 * Some notes:
 		 *
-		 * Probing Clang's implementation of casting float to _Float16 shows that with
-		 * the default 'round to nearest' it follows the IEEE spec precisely, in that
-		 * numerical ties are further resolved by rounding to the nearest even (in the
-		 * combined large and small range tests this was 3243 entries out of the 48M
-		 * tested).
+		 * Probing Clang's implementation of casting float to _Float16 shows
+		 * that with the default 'round to nearest' it follows the IEEE spec
+		 * precisely, in that numerical ties are further resolved by rounding to
+		 * the nearest even (in the combined large and small range tests this
+		 * was 3243 entries out of the 48M tested).
 		 *
-		 * Different methods were tried here for the rounding, the simplest being: as
-		 * floats, add a single LSB below where the 10 bits of the 16-bit float
-		 * reside. This fails on sub-0.01 percent of entries, but nearly half of these
-		 * are in 0x0000-0xFFFF roundtrip range, so this idea was dropped.
+		 * Different methods were tried here for the rounding, the simplest
+		 * being: as floats, add a single LSB below where the 10 bits of the
+		 * 16-bit float reside. This fails on sub-0.01 percent of entries, but
+		 * nearly half of these are in 0x0000-0xFFFF roundtrip range, so this
+		 * idea was dropped.
 		 *
-		 * In the end, the rounding method chosen here also adds the LSB from beyond
-		 * the 10 bits mantissa range, but as an integer (which still correctly wraps
-		 * into the exponent). This gets us within a reasonable margin of a full IEEE
-		 * implementation with just a few instructions over the Fox Toolkit method
-		 * without the rounding. Testing the entire 0x0000-0xFFFF range gives an exact
-		 * result, and the rest of 48M values tested have an off-by-1 LSB for 3244 of
-		 * the entries, so all of the nearest even mentioned at the start, plus one.
+		 * In the end, the rounding method chosen here also adds the LSB from
+		 * beyond the 10 bits mantissa range, but as an integer (which still
+		 * correctly wraps into the exponent). This gets us within a reasonable
+		 * margin of a full IEEE implementation with just a few instructions
+		 * over the non-rounded Fox Toolkit method. Testing the entire
+		 * 0x0000-0xFFFF range gives an exact result, and the rest of 48M values
+		 * tested have an off-by-1 LSB for 3244 of the entries, so all of the
+		 * nearest even mentioned at the start, plus one.
 		 *
-		 * Testing shows it to be on-par with Clang's ARM implementation (which has,
-		 * one would assume, CPU specific instructions for F16C and Neon).
+		 * Testing shows it to be on-par with Clang's ARM implementation (which
+		 * has, one would assume, CPU specific instructions for F16C and Neon).
 		 */
 		union {
 			float    f; // where we write
@@ -165,7 +167,7 @@ public:
 
 private:
 
-	//******************************** Tables *******************************/
+	//******************************** Tables *********************************/
 
 	/**
 	 * Look-up table for the \e supported single-precision float exponents to
@@ -290,7 +292,7 @@ private:
 		return 0x38000000 | (bits << 13);
 	}
 
-	//******************************** Tables *******************************/
+	//******************************** Tables *********************************/
 
 	/**
 	 * Look-up table for the 5-bit half-precision float exponents to their
