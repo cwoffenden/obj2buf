@@ -16,7 +16,7 @@ cmake --build build --config Release
 ```
 Work in progress (not all combinations have been thoroughly tested). Examples for various APIs coming soon.
 ```
-Usage: obj2buf [-p|u|n|t|i type] [-s|sb|su] [-e|ez] [-g|b|m|o|l|z|a] in [out]
+Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|ez] [-g|b|m|o|l|z|a] in [out]
 	-p vertex positions type
 	-u vertex texture UVs type
 	-n vertex normals type
@@ -25,8 +25,8 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|sb|su] [-e|ez] [-g|b|m|o|l|z|a] in [out]
 	(vertex types are byte|short|half|float|none (none emits no data))
 	(index types are byte|short|int|none (none emits unindexed triangles))
 	-s normalises the positions to scale them in the range -1 to 1
-	-sb as -s but without a bias, keeping the origin at zero
 	-su as -s but with uniform scaling for all axes
+	-sz as -s but without a bias, keeping the origin at zero
 	-e octahedral encoded normals (and tangents) in two components
 	-ez as -e but as raw XY without the Z
 	(encoded normals having the same type as tangents may be packed)
