@@ -17,7 +17,9 @@
 #include "tooloptions.h"
 
 /**
- * The \c obj file as a vertex and index data.
+ * The \c obj file as vertex and index data. The mesh is loaded into here,
+ * manipulated in-place, then saved out. Once the process starts, if the
+ * original mesh data is needed it will need to be reloaded.
  */
 struct ObjMesh
 {
@@ -25,8 +27,8 @@ struct ObjMesh
 	 * Creates a zero-sized buffer.
 	 */
 	ObjMesh()
-		: scale(1, 1, 1)
-		, bias (0, 0, 0) {};
+		: scale(1.0f, 1.0f, 1.0f)
+		, bias (0.0f, 0.0f, 0.0f) {};
 	/**
 	 * Resizes the buffers (usually as a prelude to filling them).
 	 */
@@ -43,11 +45,11 @@ struct ObjMesh
 	 */
 	std::vector<unsigned> index;
 	/**
-	 * Scale to apply to each vertex position when drawing (the default is \c 1).
+	 * Scale to apply to each vertex position when drawing (the default is \c 1.0).
 	 */
 	vec3 scale;
 	/**
-	 * Offset to apply to each vertex position when drawing (the default is \c 0).
+	 * Offset to apply to each vertex position when drawing (the default is \c 0.0).
 	 */
 	vec3 bias;
 };
