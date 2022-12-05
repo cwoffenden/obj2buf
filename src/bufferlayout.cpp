@@ -26,7 +26,7 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 	if (opts.posn) {
 		/*
 		 * Positions are always X, Y & Z (and the offset will always be zero).
-		 * For a storage size or 1 or 2, the total bytes will 3 or 6, needing 1
+		 * For a storage size of 1 or 2, the total bytes will 3 or 6, needing 1
 		 * or 2 bytes padding, or (for signed types) allowing the bitangent
 		 * sign to be packed.
 		 */
