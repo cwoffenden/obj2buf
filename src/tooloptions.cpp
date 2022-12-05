@@ -217,11 +217,16 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 			break;
 		case 's': // scaled positions
 			O2B_SET_OPT(opts, OPTS_POSITIONS_SCALE);
-			if (strcmp(arg + 1, "sb") == 0) {
-				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
-			}
 			if (strcmp(arg + 1, "su") == 0) {
 				O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
+			}
+			if (strcmp(arg + 1, "sz") == 0) {
+				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
+			}
+			if (strcmp(arg + 1, "suz") == 0 ||
+				strcmp(arg + 1, "szu") == 0) {
+				O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
+				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
 			}
 			break;
 		case 'e': // encoded normals and tangents
@@ -283,13 +288,17 @@ void ToolOptions::dump() const {
 	printf("Positions:   %s",   posn.toString());
 	if (O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
 		const char* scaleOpts;
-		if (O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)) {
-			scaleOpts = "scale";
-		} else {
-			if (O2B_HAS_OPT(opts, OPTS_SCALE_UNIFORM)) {
+		if (O2B_HAS_OPT(opts, OPTS_SCALE_UNIFORM)) {
+			if (O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)) {
 				scaleOpts = "uniform scale";
 			} else {
-				scaleOpts = "scale & bias";
+				scaleOpts = "uniform scale with bias";
+			}
+		} else {
+			if (O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)) {
+				scaleOpts = "scale";
+			} else {
+				scaleOpts = "scale with bias";
 			}
 		}
 		printf(" (apply %s)", scaleOpts);
@@ -334,7 +343,7 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|u|n|t|i type] [-s|sb|su] [-e|ez] [-g|b|m|o|l|z|a] in [out]\n", name);
+	printf("Usage: %s [-p|u|n|t|i type] [-s|su|sz] [-e|ez] [-g|b|m|o|l|z|a] in [out]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-u vertex texture UVs type\n");
 	printf("\t-n vertex normals type\n");
@@ -343,8 +352,8 @@ void ToolOptions::help(const char* const path) {
 	printf("\t(vertex types are byte|short|half|float|none (none emits no data))\n");
 	printf("\t(index types are byte|short|int|none (none emits unindexed triangles))\n");
 	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
-	printf("\t-sb as -s but without a bias, keeping the origin at zero\n");
 	printf("\t-su as -s but with uniform scaling for all axes\n");
+	printf("\t-sz as -s but without a bias, keeping the origin at zero\n");
 	printf("\t-e octahedral encoded normals (and tangents) in two components\n");
 	printf("\t-ez as -e but as raw XY without the Z\n");
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");

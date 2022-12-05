@@ -53,16 +53,16 @@ public:
 		 */
 		OPTS_POSITIONS_SCALE,
 		/**
-		 * Maintain the origin for \c OPTS_POSITIONS_SCALE at zero.
-		 */
-		OPTS_SCALE_NO_BIAS,
-		/**
 		 * Maintains the proportions when using \c OPTS_POSITIONS_SCALE so the
 		 * mesh can be drawn without applying the scale (otherwise each axis
 		 * will be scaled individually). This trades resolution for ease of
 		 * drawing.
 		 */
 		OPTS_SCALE_UNIFORM,
+		/**
+		 * Maintain the origin for \c OPTS_POSITIONS_SCALE at zero.
+		 */
+		OPTS_SCALE_NO_BIAS,
 		/**
 		 * Normals and tangents are octahedral encoded (reconstituting X, Y and
 		 * Z at runtime). This, and when both \c #norm and \c #tans have the

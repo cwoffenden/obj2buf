@@ -150,10 +150,10 @@ bool open(const char* const srcPath, bool const genTans, bool const flipG, ObjMe
  * Scale the mesh positions so that each is normalised between \c -1 and \c 1.
  *
  * \param[in,out] mesh mesh to in-place scale
+ * \param[in] uniform \c true if the same scale should be applied to all axes (otherwise a per-axis scale is applied)
  * \param[in] unbiased  \c true if the origin should be maintained at zero (otherwise a bias is applied to make the most of the normalised range)
  */
-void scale(ObjMesh& mesh, bool const uniform = false, bool const unbiased = false) {
-	(void) unbiased;
+void scale(ObjMesh& mesh, bool const uniform, bool const unbiased) {
 	// Get min and max for each component
 	vec3 minPosn({ FLT_MAX,  FLT_MAX,  FLT_MAX});
 	vec3 maxPosn({-FLT_MAX, -FLT_MAX, -FLT_MAX});
@@ -162,14 +162,19 @@ void scale(ObjMesh& mesh, bool const uniform = false, bool const unbiased = fals
 		maxPosn = vec3::max(maxPosn, it->posn);
 	}
 	// Which gives the global mesh scale and offset
-	mesh.scale = (maxPosn - minPosn) * 0.5f;
-	mesh.scale = vec3::max(mesh.scale, vec3(0.0001f, 0.0001f, 0.0001f));
+	mesh.scale = (maxPosn - minPosn);
+	if (!unbiased) {
+		mesh.scale = mesh.scale / 2.0f;
+	}
+	// Clamp scale (to approx. 1/127) so we don't divide-by-zero on 2D meshes
+	mesh.scale = vec3::max(mesh.scale, vec3(0.01f, 0.01f, 0.01f));
 	if (uniform) {
 		// Uniform needs to be max(), otherwise the verts could be clamped
 		mesh.scale = std::max(std::max(mesh.scale.x, mesh.scale.y), mesh.scale.z);
 	}
-	// TODO: apply unbiased (which affects the scale, otherwise clamping occurs)
-	mesh.bias  = (maxPosn + minPosn) * 0.5f;
+	if (!unbiased) {
+		mesh.bias  = (maxPosn + minPosn) * 0.5f;
+	}
 	// Apply to each vert to normalise
 	for (std::vector<ObjVertex>::iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
 		it->posn = (it->posn - mesh.bias) / mesh.scale;
