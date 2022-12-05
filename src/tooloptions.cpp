@@ -219,10 +219,9 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 			O2B_SET_OPT(opts, OPTS_POSITIONS_SCALE);
 			if (strcmp(arg + 1, "sb") == 0) {
 				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
-			} else {
-				if (strcmp(arg + 1, "su") == 0) {
-					O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
-				}
+			}
+			if (strcmp(arg + 1, "su") == 0) {
+				O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
 			}
 			break;
 		case 'e': // encoded normals and tangents
@@ -323,7 +322,7 @@ void ToolOptions::dump() const {
 	}
 	printf("\n");
 	printf("Indices:     %s\n", idxs.toString());
-	printf("Metadata:    %s\n", O2B_HAS_OPT(opts, OPTS_WRITE_METADATA)  ? "yes"     : "no");
+	printf("Metadata:    %s\n", O2B_HAS_OPT(opts, OPTS_WRITE_METADATA)  ? "yes"     : "no (raw)");
 	printf("Endianness:  %s\n", O2B_HAS_OPT(opts, OPTS_BIG_ENDIAN)      ? "big"     : "little");
 	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)   ? "legacy"  : "modern");
 	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
