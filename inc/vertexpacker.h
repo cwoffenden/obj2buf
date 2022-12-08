@@ -337,6 +337,31 @@ public:
 			}
 		}
 
+		/**
+		 * Returns the number of bits used to pack the fractional part of a
+		 * number. All the clamped types return zero, 8- and 16-bit normalised
+		 * types \c 8 and \c 16 respectively, single-precision floats \c 23,
+		 * and half-precision \c 10.
+		 *
+		 * \return number of fractional bits for a type
+		 */
+		unsigned fractionBits() const {
+			switch (type) {
+			case SINT08N:
+			case UINT08N:
+				return 8;
+			case SINT16N:
+			case UINT16N:
+				return 16;
+			case FLOAT16:
+				return 10;
+			case FLOAT32:
+				return 23;
+			default:
+				return 0;
+			}
+		}
+
 	private:
 		/**
 		 * Internal type.
