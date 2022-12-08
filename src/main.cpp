@@ -17,6 +17,16 @@
 #include "tooloptions.h"
 
 /**
+ * \def O2B_SMALL_VERT_POS
+ * Value that's considered \e small for a vertex postion. Values above this can
+ * be normalised, below this no processing is done. We choose 1/127, the LSB in
+ * a signed 8-bit range (it's just small, and a number had to be picked).
+ */
+#ifndef O2B_SMALL_VERT_POS
+#define O2B_SMALL_VERT_POS (1.0f / 127.0f)
+#endif
+
+/**
  * The \c obj file as vertex and index data. The mesh is loaded into here,
  * manipulated in-place, then saved out. Once the process starts, if the
  * original mesh data is needed it will need to be reloaded.
@@ -166,14 +176,15 @@ void scale(ObjMesh& mesh, bool const uniform, bool const unbiased) {
 	if (!unbiased) {
 		mesh.scale = mesh.scale / 2.0f;
 	}
-	// Clamp scale (to approx. 1/127) so we don't divide-by-zero on 2D meshes
-	mesh.scale = vec3::max(mesh.scale, vec3(0.01f, 0.01f, 0.01f));
+	// Clamp scale so we don't divide-by-zero on 2D meshes
+	mesh.scale = vec3::max(mesh.scale, vec3(O2B_SMALL_VERT_POS, O2B_SMALL_VERT_POS, O2B_SMALL_VERT_POS));
 	if (uniform) {
 		// Uniform needs to be max(), otherwise the verts could be clamped
 		mesh.scale = std::max(std::max(mesh.scale.x, mesh.scale.y), mesh.scale.z);
 	}
+	// Optionally bias to make the most of the range
 	if (!unbiased) {
-		mesh.bias  = (maxPosn + minPosn) * 0.5f;
+		mesh.bias  = (maxPosn + minPosn) / 2.0f;
 	}
 	// Apply to each vert to normalise
 	for (std::vector<ObjVertex>::iterator it = mesh.verts.begin(); it != mesh.verts.end(); ++it) {
@@ -233,7 +244,8 @@ int main(int argc, const char* argv[]) {
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED)) {
 		if (!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_XY_ONLY)) {
 			ObjVertex::encodeNormals(mesh.verts, tans,
-				!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN));
+				!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN),
+					std::max(opts.norm.fractionBits(), opts.tans.fractionBits()));
 		}
 	}
 	// Then the various optimisations

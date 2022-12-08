@@ -349,6 +349,9 @@ vec3 decodeOct(const vec2& enc) {
  * \return encoded normal
  */
 vec2 encodeOct(const vec3& vec, unsigned const bits) {
+	if (bits == 0) {
+		return encodeOct(vec);
+	}
 	/*
 	 * This is adapted from float32x3_to_octn_precise() in the Survey paper at
 	 * the top, from the GLSL code instead of the C++ implementation, operating
@@ -454,14 +457,14 @@ bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
 	return genTangSpaceDefault(&mCtx) != 0;
 }
 
-void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan, unsigned const /*bits*/) {
+void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan, unsigned const bits) {
 #ifndef NDEBUG
 	impl::Accumulator normErr;
 	impl::Accumulator tansErr;
 	impl::Accumulator btanErr;
 #endif
 	for (Container::iterator it = verts.begin(); it != verts.end(); ++it) {
-		vec2 enc = impl::encodeOct(it->norm);
+		vec2 enc = impl::encodeOct(it->norm, bits);
 	#ifndef NDEBUG
 		normErr.add(it->norm, impl::decodeOct(enc));
 	#endif
@@ -469,7 +472,7 @@ void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan
 		it->norm.y = enc.y;
 		it->norm.z = 0.0f;
 		if (tans) {
-			enc = impl::encodeOct(it->tans);
+			enc = impl::encodeOct(it->tans, bits);
 		#ifndef NDEBUG
 			tansErr.add(it->tans, impl::decodeOct(enc));
 		#endif
@@ -477,7 +480,7 @@ void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan
 			it->tans.y = enc.y;
 			it->tans.z = 0.0f;
 			if (btan) {
-				enc = impl::encodeOct(it->btan);
+				enc = impl::encodeOct(it->btan, bits);
 			#ifndef NDEBUG
 				btanErr.add(it->btan, impl::decodeOct(enc));
 			#endif
