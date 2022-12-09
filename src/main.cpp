@@ -240,7 +240,7 @@ int main(int argc, const char* argv[]) {
 		scale(mesh, O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SCALE_UNIFORM),
 					O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SCALE_NO_BIAS));
 	}
-	// In-place normals/tangents/bitangents encode
+	// In-place normals/tangents/bitangents encode (into the X/Y components)
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED)) {
 		if (!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_XY_ONLY)) {
 			ObjVertex::encodeNormals(mesh.verts, tans,
