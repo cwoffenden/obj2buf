@@ -193,8 +193,6 @@ namespace mtsutil {
  * And this, though we're out of places to pack the extra bits required:
  *
  * \see https://johnwhite3d.blogspot.com/2017/10/signed-octahedron-normal-encoding.html
- *
- * \todo add support of \c oct16P (the decoder is the same, but we optimise of a known bit depth)
  */
 namespace impl {
 /**
@@ -223,6 +221,14 @@ public:
 		 * Notes: float rounding errors can product a dot product greater than
 		 * one; none of the angles should be larger than 90 degrees (even at
 		 * 4-bit precision the maximum error is approx 10 degrees).
+		 *
+		 * Note: we're currently clamping the dot product but what about
+		 * measuring these greater than 1.0 errors? We do this when tuning the
+		 * precision. Something like:
+		 *
+		 *	dot = 1.0f - std::abs(1.0f - dot);
+		 *
+		 * This would add a penalty for these errors too.
 		 */
 		float dot = vec3::dot(a, b);
 		float rad = std::acos(std::min(dot, 1.0f));
@@ -338,9 +344,10 @@ vec3 decodeOct(const vec2& enc) {
  * \note The \e modern approach to storing signed values is used, e.g. for a
  * bit-depth of \c 8 the range is \c -127 to \c +127 preserving zero.
  *
- * \not Whilst this is designed for normalised ints it also improves encoding
+ * \note Whilst this is designed for normalised ints it also improves encoding
  * for floats. Pass in \c 23 as the number of \a bits (the fraction bits for a
- * 32-bit float) and it will significantly reduce the average error.
+ * 32-bit float) and it will significantly reduce the average error. Use \c 10
+ * for half-floats.
  *
  * \todo is it worth adding a choice to use the legacy storage? Yes.
  *
