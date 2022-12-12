@@ -304,7 +304,7 @@ void ToolOptions::dump() const {
 	printf("Texture UVs: %s\n", text.toString());
 	printf("Normals:     %s",   norm.toString());
 	if (norm && O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
-		printf(" (octahedral)");
+		printf(" (octahedral encoded)");
 	}
 	printf("\n");
 	printf("Tangents:    %s",   tans.toString());
