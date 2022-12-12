@@ -82,6 +82,22 @@
 #define VEC2_SIMPLE_OPERATOR_WITH_SCALAR(op) Vec2 operator op(T   const   val) const {return Vec2(x op val,   y op val  );}
 #endif
 
+/**
+ * \def NO_DISCARD
+ * Attribute to verify that a function return is used.
+ */
+#ifndef NO_DISCARD
+#if __cplusplus >= 201703L
+#define NO_DISCARD [[nodiscard]]
+#else
+#if defined(__GNUC__) || defined(__llvm__)
+#define NO_DISCARD __attribute__((warn_unused_result))
+#else
+#define NO_DISCARD 
+#endif
+#endif
+#endif
+
 template<typename T>
 struct Vec2
 {
@@ -176,6 +192,7 @@ struct Vec3
 	 *
 	 * \return normalised vector
 	 */
+	NO_DISCARD
 	Vec3 normalize() const {
 		T l = len();
 		if (l > T(0)) {
