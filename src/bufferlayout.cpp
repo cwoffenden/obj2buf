@@ -271,8 +271,8 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 void BufferLayout::tryPacking(Packing& what, AttrParams& attr, int const numComps, Packing const where, bool const force) {
 	if (what == PACK_NONE) {
 		/*
-		 * Simple rules: attr is being used, isn't aligned so needs padding,
-		 * and whether adding extra components will still fit (our limit is GL,
+		 * Simple rules: attr is being used, isn't aligned so needs padding, and
+		 * whether adding extra components will still fit (our limit is GL,
 		 * which supports 1, 2, & 4).
 		 */
 		if (attr && (attr.components + numComps) <= 4 && (attr.unaligned || force)) {
