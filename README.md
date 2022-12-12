@@ -63,7 +63,7 @@ A more complex example could be:
 
 6. `-m` option to add metadata.
 ```
-obj2buf -p short -u short -n byte -t byte -su -ez -b -m -a cube.obj cube.inc
+obj2buf -p short -u short -n byte -t byte -su -e -b -m -a cube.obj cube.inc
 ```
 The resulting layout would be:
 
