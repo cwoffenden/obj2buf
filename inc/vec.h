@@ -9,6 +9,22 @@
 #include "vertexpacker.h"
 
 /**
+ * \def NO_DISCARD
+ * Attribute to verify that a function return is used.
+ */
+#ifndef NO_DISCARD
+#if __cplusplus >= 201703L
+#define NO_DISCARD [[nodiscard]]
+#else
+#if defined(__GNUC__) || defined(__llvm__)
+#define NO_DISCARD __attribute__((warn_unused_result))
+#else
+#define NO_DISCARD
+#endif
+#endif
+#endif
+
+/**
  * \def VEC3_SIMPLE_OPERATOR_WITH_VECTOR
  * Helper to emit code for the simple operators such as \c +, \c -, etc., for
  * the \c vec3 type with a vector parameter. For example, with a \c + as its
@@ -24,7 +40,7 @@
  * \endcode
  */
 #ifndef VEC3_SIMPLE_OPERATOR_WITH_VECTOR
-#define VEC3_SIMPLE_OPERATOR_WITH_VECTOR(op) Vec3 operator op(const Vec3& vec) const {return Vec3(x op vec.x, y op vec.y, z op vec.z);}
+#define VEC3_SIMPLE_OPERATOR_WITH_VECTOR(op) NO_DISCARD Vec3 operator op(const Vec3& vec) const {return Vec3(x op vec.x, y op vec.y, z op vec.z);}
 #endif
 
 /**
@@ -43,7 +59,7 @@
  * \endcode
  */
 #ifndef VEC3_SIMPLE_OPERATOR_WITH_SCALAR
-#define VEC3_SIMPLE_OPERATOR_WITH_SCALAR(op) Vec3 operator op(T   const   val) const {return Vec3(x op val,   y op val,   z op val  );}
+#define VEC3_SIMPLE_OPERATOR_WITH_SCALAR(op) NO_DISCARD Vec3 operator op(T   const   val) const {return Vec3(x op val,   y op val,   z op val  );}
 #endif
 
 /**
@@ -61,7 +77,7 @@
  * \endcode
  */
 #ifndef VEC2_SIMPLE_OPERATOR_WITH_VECTOR
-#define VEC2_SIMPLE_OPERATOR_WITH_VECTOR(op) Vec2 operator op(const Vec2& vec) const {return Vec2(x op vec.x, y op vec.y);}
+#define VEC2_SIMPLE_OPERATOR_WITH_VECTOR(op) NO_DISCARD Vec2 operator op(const Vec2& vec) const {return Vec2(x op vec.x, y op vec.y);}
 #endif
 
 /**
@@ -79,23 +95,7 @@
  * \endcode
  */
 #ifndef VEC2_SIMPLE_OPERATOR_WITH_SCALAR
-#define VEC2_SIMPLE_OPERATOR_WITH_SCALAR(op) Vec2 operator op(T   const   val) const {return Vec2(x op val,   y op val  );}
-#endif
-
-/**
- * \def NO_DISCARD
- * Attribute to verify that a function return is used.
- */
-#ifndef NO_DISCARD
-#if __cplusplus >= 201703L
-#define NO_DISCARD [[nodiscard]]
-#else
-#if defined(__GNUC__) || defined(__llvm__)
-#define NO_DISCARD __attribute__((warn_unused_result))
-#else
-#define NO_DISCARD 
-#endif
-#endif
+#define VEC2_SIMPLE_OPERATOR_WITH_SCALAR(op) NO_DISCARD Vec2 operator op(T   const   val) const {return Vec2(x op val,   y op val  );}
 #endif
 
 template<typename T>
@@ -137,6 +137,7 @@ struct Vec2
 	/**
 	 * Dot product.
 	 */
+	NO_DISCARD
 	static T dot(const Vec2& a, const Vec2& b) {
 		return a.x * b.x
 			 + a.y * b.y;
@@ -168,6 +169,7 @@ struct Vec3
 	 *
 	 * \return a new 2-component vector
 	 */
+	NO_DISCARD
 	Vec2<T> xy() const {
 		return Vec2<T>(x, y);
 	}
@@ -180,6 +182,7 @@ struct Vec3
 	/**
 	 * Vector length.
 	 */
+	NO_DISCARD
 	T len() const {
 		return static_cast<T>(std::sqrt(x * x + y * y + z * z));
 	}
@@ -229,6 +232,7 @@ struct Vec3
 	/**
 	 * Cross product.
 	 */
+	NO_DISCARD
 	static Vec3 cross(const Vec3& lhs, const Vec3& rhs) {
 		return Vec3(
 			lhs.y * rhs.z - lhs.z - rhs.y,
@@ -239,6 +243,7 @@ struct Vec3
 	/**
 	 * Component-wise minimum of two vectors.
 	 */
+	NO_DISCARD
 	static Vec3 min(const Vec3& a, const Vec3& b) {
 		return Vec3(
 			a.x < b.x ? a.x : b.x,
@@ -249,6 +254,7 @@ struct Vec3
 	/**
 	 * Component-wise maximum of two vectors.
 	 */
+	NO_DISCARD
 	static Vec3 max(const Vec3& a, const Vec3& b) {
 		return Vec3(
 			a.x > b.x ? a.x : b.x,
@@ -280,6 +286,7 @@ struct Vec4
 	 *
 	 * \return a new 3-component vector
 	 */
+	NO_DISCARD
 	Vec3<T> xyz() const {
 		return Vec3<T>(x, y, z);
 	}
