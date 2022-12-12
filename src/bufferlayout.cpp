@@ -10,6 +10,25 @@
 #include "objvertex.h"
 #include "tooloptions.h"
 
+/**
+ * Helper to switch between 2- and 3-component \e stores.
+ *
+ * \param[in] vec data to store
+ * \param[in] dest vertex packer wrapping the destination buffer
+ * \param[in] type conversion and byte storage
+ * \param[in] xy \c true if only the \c x and \c y components should be written (otherwise write all)
+ * \return \c VP_FAILED if storing failed (e.g. if no more storage space is available)
+ */
+template<typename T>
+static VertexPacker::Failed store(const Vec3<T>& vec, VertexPacker& dest, VertexPacker::Storage const type, bool const xy) {
+	if (xy) {
+		return vec.xy().store(dest, type);
+	}
+	return vec.store(dest, type);
+}
+
+//*****************************************************************************/
+
 BufferLayout::BufferLayout(const ToolOptions& opts)
 	: packSign(PACK_NONE)
 	, packTans(PACK_NONE)
@@ -215,11 +234,7 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 				 * Otherwise differentiate between 2- or 3-components, with
 				 * the optional sign packed at the end.
 				 */
-				if (norm.components == 2) {
-					failed |= vertex.norm.xy().store(packer, norm.storage);
-				} else {
-					failed |= vertex.norm.store(packer, norm.storage);
-				}
+				failed |= store(vertex.norm, packer, norm.storage, norm.components == 2);
 				if (packSign == PACK_NORM_W) {
 					failed |= packer.add(vertex.sign, norm.storage);
 				}
@@ -236,11 +251,7 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 		 * TODO: this is unfinished
 		 */
 		if (packTans == PACK_NONE) {
-			if (tans.components == 2) {
-				failed |= vertex.tans.xy().store(packer, tans.storage);
-			} else {
-				failed |= vertex.tans.store(packer, tans.storage);
-			}
+			failed |= store(vertex.tans, packer, tans.storage, tans.components == 2);
 			if (tans.unaligned) {
 				failed |= packer.align(base);
 			}
@@ -248,11 +259,7 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 	}
 	if (btan) {
 		if (packTans == PACK_NONE && packSign == PACK_NONE) {
-			if (btan.components == 2) {
-				failed |= vertex.btan.xy().store(packer, btan.storage);
-			} else {
-				failed |= vertex.btan.store(packer, btan.storage);
-			}
+			failed |= store(vertex.btan, packer, btan.storage, btan.components == 2);
 			if (btan.unaligned) {
 				failed |= packer.align(base);
 			}

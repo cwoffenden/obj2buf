@@ -11,6 +11,8 @@
 /**
  * \def NO_DISCARD
  * Attribute to verify that a function return is used.
+ *
+ * \note In the current CMake build these are only enabled in release.
  */
 #ifndef NO_DISCARD
 #if __cplusplus >= 201703L
