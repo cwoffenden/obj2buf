@@ -16,7 +16,7 @@ cmake --build build --config Release
 ```
 Work in progress (not all combinations have been thoroughly tested). Examples for various APIs coming soon.
 ```
-Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|ez] [-g|b|m|o|l|z|a] in [out]
+Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]
 	-p vertex positions type
 	-u vertex texture UVs type
 	-n vertex normals type
@@ -28,7 +28,6 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|ez] [-g|b|m|o|l|z|a] in [out]
 	-su as -s but with uniform scaling for all axes
 	-sz as -s but without a bias, keeping the origin at zero
 	-e octahedral encoded normals (and tangents) in two components
-	-ez as -e but as raw XY without the Z
 	(encoded normals having the same type as tangents may be packed)
 	-g flip the green channel when generating tangents (e.g. match 3ds Max)
 	-b store only the sign for bitangents
@@ -58,7 +57,7 @@ A more complex example could be:
 
 3. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions).
 
-4. `-ez` option to encode normals and tangents as drop-Z.
+4. `-e` option to encode normals and tangents.
 
 5. Since normals and tangents are both bytes and encoded, they will be packed.
 

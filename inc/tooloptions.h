@@ -70,11 +70,6 @@ public:
 		 */
 		OPTS_NORMALS_ENCODED,
 		/**
-		 * Normals and tangents are written as X- and Y-coordinates (recovering
-		 * the Z at runtime). An option for \c OPTS_NORMALS_ENCODED.
-		 */
-		OPTS_NORMALS_XY_ONLY,
-		/**
 		 * When generating tangents, negate the texture coordinates' Y-channel,
 		 * which effectively inverts the normal map's green channel. The would
 		 * match 3ds Max's convention, for example (the alternative being to

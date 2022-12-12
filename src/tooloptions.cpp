@@ -231,9 +231,6 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 			break;
 		case 'e': // encoded normals and tangents
 			O2B_SET_OPT(opts, OPTS_NORMALS_ENCODED);
-			if (strcmp(arg + 1, "ez") == 0) {
-				O2B_SET_OPT(opts, OPTS_NORMALS_XY_ONLY);
-			}
 			break;
 		case 'g':
 			O2B_SET_OPT(opts, OPTS_TANGENTS_FLIP_G);
@@ -307,7 +304,7 @@ void ToolOptions::dump() const {
 	printf("Texture UVs: %s\n", text.toString());
 	printf("Normals:     %s",   norm.toString());
 	if (norm && O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED)) {
-		printf(" (as %s)", O2B_HAS_OPT(opts, OPTS_NORMALS_XY_ONLY) ? "XY-only" : "octahedral");
+		printf(" (octahedral)");
 	}
 	printf("\n");
 	printf("Tangents:    %s",   tans.toString());
@@ -343,7 +340,7 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|u|n|t|i type] [-s|su|sz] [-e|ez] [-g|b|m|o|l|z|a] in [out]\n", name);
+	printf("Usage: %s [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-u vertex texture UVs type\n");
 	printf("\t-n vertex normals type\n");
@@ -355,7 +352,6 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-su as -s but with uniform scaling for all axes\n");
 	printf("\t-sz as -s but without a bias, keeping the origin at zero\n");
 	printf("\t-e octahedral encoded normals (and tangents) in two components\n");
-	printf("\t-ez as -e but as raw XY without the Z\n");
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
 	printf("\t-g flip the green channel when generating tangents (e.g. match 3ds Max)\n");
 	printf("\t-b store only the sign for bitangents\n");
