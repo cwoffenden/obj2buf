@@ -18,7 +18,7 @@
 
 /**
  * \def O2B_SMALL_VERT_POS
- * Value that's considered \e small for a vertex postion. Values above this can
+ * Value that's considered \e small for a vertex position. Values above this can
  * be normalised, below this no processing is done. We choose 1/127, the LSB in
  * a signed 8-bit range (it's just small, and a number had to be picked).
  */

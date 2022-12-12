@@ -212,10 +212,14 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 				failed |= packer.add(vertex.sign, norm.storage);
 			} else {
 				/*
-				 * Otherwise we have unencoded, 3-component normals, with the
-				 * optional sign packed at the end.
+				 * Otherwise differentiate between 2- or 3-components, with
+				 * the optional sign packed at the end.
 				 */
-				failed |= vertex.norm.store(packer, norm.storage);
+				if (norm.components == 2) {
+					failed |= vertex.norm.xy().store(packer, norm.storage);
+				} else {
+					failed |= vertex.norm.store(packer, norm.storage);
+				}
 				if (packSign == PACK_NORM_W) {
 					failed |= packer.add(vertex.sign, norm.storage);
 				}
@@ -232,7 +236,11 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 		 * TODO: this is unfinished
 		 */
 		if (packTans == PACK_NONE) {
-			failed |= vertex.tans.store(packer, tans.storage);
+			if (tans.components == 2) {
+				failed |= vertex.tans.xy().store(packer, tans.storage);
+			} else {
+				failed |= vertex.tans.store(packer, tans.storage);
+			}
 			if (tans.unaligned) {
 				failed |= packer.align(base);
 			}
@@ -240,7 +248,11 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 	}
 	if (btan) {
 		if (packTans == PACK_NONE && packSign == PACK_NONE) {
-			failed |= vertex.btan.store(packer, btan.storage);
+			if (btan.components == 2) {
+				failed |= vertex.btan.xy().store(packer, btan.storage);
+			} else {
+				failed |= vertex.btan.store(packer, btan.storage);
+			}
 			if (btan.unaligned) {
 				failed |= packer.align(base);
 			}
@@ -303,7 +315,7 @@ VertexPacker::Failed BufferLayout::AttrParams::write(VertexPacker& packer, unsig
 		/*
 		 * This has a limited number of values:
 		 *
-		 * - index: 0..4, equating to VERT_POSN_ID, VERT_TEX0_ID, etc
+		 * - index: 0..4, equating to VERT_POSN_ID, VERT_TEX0_ID, etc.
 		 * - components: 2..4, xy, xyz & xyzw
 		 * - type: 1..8, TYPE_BYTE to TYPE_FLOAT with the MSB set for normalised
 		 * - offset: 0..44 (given a maximum stride of 56)
