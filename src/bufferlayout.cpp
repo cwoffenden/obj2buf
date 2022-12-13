@@ -33,11 +33,9 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 	: packSign(PACK_NONE)
 	, packTans(PACK_NONE)
 {
-	/*
-	 * No packing if we don't have tangents.
-	 */
-	bool const hasBitansSign = opts.tans && O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN);
-	bool const hasTansPacked = opts.tans && O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_PACKED);
+	bool const hasEncNormals = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED);
+	bool const hasBitansSign = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN) && opts.tans;
+	bool const hasTansPacked = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_PACKED) && opts.tans;
 	/*
 	 * Starting with all the params at zero, we try to find the best fit.
 	 */
@@ -73,18 +71,16 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 		/*
 		 * Unencoded normals are X, Y & Z, encoded are two components (referred
 		 * to as X & Y for simplicity). Unencoded can squeeze in the bitangent
-		 * sign, but encoded can also fit the encoded tangents. The type should
-		 * always be signed.
-		 *
-		 * TODO: test that we can pack encoded normals and tangents as shorts, for example, taking 8 bytes
+		 * sign, but *encoded* can also fit the encoded tangents into Z & W
+		 * (note the 'true' to force the packing). The type should always be
+		 * signed.
 		 */
-		bool const encoded = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED);
-		norm.fill(opts.norm, offset, (encoded) ? 2 : 3);
-		if (hasTansPacked && encoded) {
-			tryPacking(packTans, norm, 2, PACK_NORM_Z);
+		norm.fill(opts.norm, offset, (hasEncNormals) ? 2 : 3);
+		if (hasTansPacked && hasEncNormals) {
+			tryPacking(packTans, norm, 2, PACK_NORM_Z, true);
 		} else {
 			if (hasBitansSign) {
-				tryPacking(packSign, norm, 1, (encoded) ? PACK_NORM_Z : PACK_NORM_W);
+				tryPacking(packSign, norm, 1, (hasEncNormals) ? PACK_NORM_Z : PACK_NORM_W);
 			}
 		}
 		offset += norm.getAlignedSize();
@@ -96,11 +92,10 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 		 * we've made it to here with unpacked items the formats chosen aren't
 		 * packable).
 		 */
-		bool const encoded = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED);
 		if (packTans == PACK_NONE) {
-			tans.fill(opts.tans, offset, (encoded) ? 2 : 3);
+			tans.fill(opts.tans, offset, (hasEncNormals) ? 2 : 3);
 			if (hasBitansSign) {
-				tryPacking(packSign, tans, 1, (encoded) ? PACK_TANS_Z : PACK_TANS_W);
+				tryPacking(packSign, tans, 1, (hasEncNormals) ? PACK_TANS_Z : PACK_TANS_W);
 			}
 			offset += tans.getAlignedSize();
 		}
@@ -108,10 +103,10 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 			/*
 			 * Hmm, we've not packed the sign, so haven't picked where the
 			 * bitangents will go. We write standalone with the following
-			 * components: 1, the sign, 2 encoded, or 3 unencoded. Worst case
-			 * is the sign and 3 bytes of padding.
+			 * components: 1, the sign, 2 encoded, or 3 unencoded. Worst case is
+			 * the sign and 3 bytes of padding.
 			 */
-			btan.fill(opts.tans, offset, (hasBitansSign) ? 1 : ((encoded) ? 2 : 3));
+			btan.fill(opts.tans, offset, (hasBitansSign) ? 1 : ((hasEncNormals) ? 2 : 3));
 			offset += btan.getAlignedSize();
 		}
 	}

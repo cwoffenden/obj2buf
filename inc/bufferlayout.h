@@ -60,13 +60,13 @@ private:
 	 * encoded tangents, this marks the first entry.
 	 */
 	enum Packing {
-		PACK_NONE,   /**< No packing, either the component isn't used or there was no space. */
-		PACK_POSN_W, /**< Packed in the position's \c w (4th) component. */
-		PACK_TEX0_Z, /**< Packed in UV channel 0's \c z (3rd) component. */
-		PACK_NORM_Z, /**< Packed in the encoded normal's \c z (3rd) component. */
-		PACK_NORM_W, /**< Packed in the normal's \c w (4th) component. */
-		PACK_TANS_Z, /**< Packed in the encoded tangent's \c z (3rd) component. */
-		PACK_TANS_W, /**< Packed in the tangent's \c w (4th) component. */
+		PACK_NONE   = 0, /**< No packing, either the component isn't used or there was no space. */
+		PACK_POSN_W = 1, /**< Packed in the position's \c w (4th) component. */
+		PACK_TEX0_Z = 2, /**< Packed in UV channel 0's \c z (3rd) component. */
+		PACK_NORM_Z = 3, /**< Packed in the encoded normal's \c z (3rd) component. */
+		PACK_NORM_W = 4, /**< Packed in the normal's \c w (4th) component. */
+		PACK_TANS_Z = 5, /**< Packed in the encoded tangent's \c z (3rd) component. */
+		PACK_TANS_W = 6, /**< Packed in the tangent's \c w (4th) component. */
 	};
 
 	/*
