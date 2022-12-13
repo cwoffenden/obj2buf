@@ -150,8 +150,10 @@ void ToolOptions::fixUp() {
 		/*
 		 * Encoded normals with both normals and tangents having the same type
 		 * mean with can pack the tangents with the normals.
+		 *
+		 * TODO: for bytes and shorts this is interesting, but for floats is this worth it?
 		 */
-		if (O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED) && norm == tans) {
+		if (O2B_HAS_OPT(opts, OPTS_NORMALS_ENCODED) && norm == tans && norm.bytes() <= 2) {
 			O2B_SET_OPT(opts, OPTS_TANGENTS_PACKED);
 		}
 	} else {

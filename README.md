@@ -55,11 +55,11 @@ A more complex example could be:
 
 2. `-su` option to scale the mesh uniformly in the range `-1` to `1` (allowing any object to be drawn without considering the camera position or mesh size).
 
-3. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions).
+3. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions, so the `w` component).
 
 4. `-e` option to encode normals and tangents.
 
-5. Since normals and tangents are both bytes and encoded, they will be packed.
+5. Since normals and tangents are both bytes and encoded, they will be packed together (normals in `xy`, tangents in `zw`).
 
 6. `-m` option to add metadata.
 ```
