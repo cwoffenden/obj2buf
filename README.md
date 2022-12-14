@@ -29,7 +29,7 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]
 	-sz as -s but without a bias, keeping the origin at zero
 	-e octahedral encoded normals (and tangents) in two components
 	(encoded normals having the same type as tangents may be packed)
-	-g flip the green channel when generating tangents (e.g. match 3ds Max)
+	-g tangents are generate for a flipped g-channel (e.g. match 3ds Max)
 	-b store only the sign for bitangents
 	(packing the sign if possible where any padding would normally go)
 	-m writes metadata describing the buffer offsets, sizes and types

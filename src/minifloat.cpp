@@ -106,7 +106,7 @@ public:
 							 * preserving as many mantissa bits as possible.
 							 *
 							 * TODO: the edge-case here is that some of the NaNs
-							 * get slightly changed, but since all the signaling
+							 * get slightly changed, but since all signalling
 							 * NaNs are changed anyway it can be ignored.
 							 */
 							base[n | 0x000] = 0x7C00;
