@@ -355,7 +355,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-sz as -s but without a bias, keeping the origin at zero\n");
 	printf("\t-e octahedral encoded normals (and tangents) in two components\n");
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
-	printf("\t-g flip the green channel when generating tangents (e.g. match 3ds Max)\n");
+	printf("\t-g tangents are generate for a flipped g-channel (e.g. match 3ds Max)\n");
 	printf("\t-b store only the sign for bitangents\n");
 	printf("\t(packing the sign if possible where any padding would normally go)\n");
 	printf("\t-m writes metadata describing the buffer offsets, sizes and types\n");
