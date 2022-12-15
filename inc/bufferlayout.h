@@ -58,6 +58,8 @@ private:
 	 * Packing of the tangent's sign or other components. Where multiple
 	 * components are packed, as would be the case for a second UV channel or
 	 * encoded tangents, this marks the first entry.
+	 *
+	 * \note Currently only the tangents and bitangent sign are packed.
 	 */
 	enum Packing {
 		PACK_NONE   = 0, /**< No packing, either the component isn't used or there was no space. */

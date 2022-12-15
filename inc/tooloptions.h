@@ -37,21 +37,16 @@ class ToolOptions
 public:
 	/**
 	 * Additional tool output options. These values are the ordinals, requiring
-	 * conversion to the bitpattern via \c OPT_TO_FLAG.
+	 * conversion to the bit-pattern via \c OPT_TO_FLAG.
 	 */
 	enum Options {
-		/**
-		 * Default options: normals have three components (plus padding); data
-		 * are written as uncompressed binary in little endian ordering.
-		 */
-		OPTS_DEFAULT = 0,
 		/**
 		 * Scale the positions so all coordinates fit in the range \c -1 to \c 1
 		 * (see \c #OPTS_SCALE_NO_BIAS, since the default is to apply a bias to
 		 * make full use of the underlying data format's range, and \c
 		 * OPTS_SCALE_UNIFORM, to maintain the proportions).
 		 */
-		OPTS_POSITIONS_SCALE,
+		OPTS_POSITIONS_SCALE = 0,
 		/**
 		 * Maintains the proportions when using \c OPTS_POSITIONS_SCALE so the
 		 * mesh can be drawn without applying the scale (otherwise each axis
@@ -76,11 +71,6 @@ public:
 		 * invert in the shader).
 		 */
 		OPTS_TANGENTS_FLIP_G,
-		/**
-		 * Try to pack tangents with the normals. See \c OPTS_NORMALS_ENCODED
-		 * (this is not a manually set option).
-		 */
-		OPTS_TANGENTS_PACKED,
 		/**
 		 * Only the sign is stored for bitangents (requiring reconstitution
 		 * from the normals and tangents at runtime).
@@ -110,6 +100,27 @@ public:
 		 * files can be included as headers or otherwise in-lined into code.
 		 */
 		OPTS_ASCII_FILE,
+		/**
+		 * Reserved for future use.
+		 */
+		OPTS_RESERVED,
+
+		//******************* Start of the internal options *******************/
+
+		/**
+		 * Try to pack tangents with the normals. See \c OPTS_NORMALS_ENCODED
+		 * (this is not a manually set option).
+		 */
+		OPTS_TANGENTS_PACKED,
+		/**
+		 * Last user-settable option bit.
+		 */
+		OPTS_LAST_USER = OPTS_RESERVED,
+		/**
+		 * Default options: normals have three components (plus padding); data
+		 * are written as uncompressed binary in little endian ordering.
+		 */
+		OPTS_DEFAULT = 0,
 	};
 
 	/**
@@ -201,6 +212,16 @@ private:
 	 * example, index buffer types should be unsigned clamped.
 	 */
 	void fixUp();
+
+	/**
+	 * Take all the \e settable options and combine them into a single shortcut.
+	 * This allows for repeatable favourite options from a single numeric value.
+	 *
+	 * \note \e Settable options, since some are internal.
+	 *
+	 * \return packing and options as a single integer
+	 */
+	uint32_t getAllOptions() const;
 
 	/**
 	 * Print the CLI help then exit.

@@ -29,7 +29,7 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]
 	-sz as -s but without a bias, keeping the origin at zero
 	-e octahedral encoded normals (and tangents) in two components
 	(encoded normals having the same type as tangents may be packed)
-	-g tangents are generate for a flipped g-channel (e.g. match 3ds Max)
+	-g tangents are generated for an inverted G-channel (e.g. match 3ds Max)
 	-b store only the sign for bitangents
 	(packing the sign if possible where any padding would normally go)
 	-m writes metadata describing the buffer offsets, sizes and types
@@ -37,6 +37,7 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]
 	-l use the legacy OpenGL rule for normalised signed values
 	-z compresses the output buffer using Zstandard
 	-a writes the output as ASCII hex instead of binary
+	-c hex shortcode encompassing all the options
 The default is float positions, normals and UVs, as uncompressed LE binary
 ```
 For simple cases it's probably enough to take the defaults, with the addition of the `-a` option to output a text file:
@@ -55,15 +56,21 @@ A more complex example could be:
 
 2. `-su` option to scale the mesh uniformly in the range `-1` to `1` (allowing any object to be drawn without considering the camera position or mesh size).
 
-3. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions, so the `w` component).
+3. `-e` option to octahedral encode normals and tangents.
 
-4. `-e` option to encode normals and tangents.
+4. `-g` options to generate tangents for a 3ds Max-style normal map with an inverted G-channel.
 
 5. Since normals and tangents are both bytes and encoded, they will be packed together (normals in `xy`, tangents in `zw`).
 
-6. `-m` option to add metadata.
+6. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions, so the `w` component).
+
+7. `-m` option to add metadata.
 ```
-obj2buf -p short -u short -n byte -t byte -su -e -b -m -a cube.obj cube.inc
+obj2buf -p short -u short -n byte -t byte -su -e -g -b -m -a cube.obj cube.inc
+```
+Or using the `-c` shortcode option, where the options are serialised:
+```
+obj2buf -c 8115547B cube.obj cube.inc
 ```
 The resulting layout would be:
 
