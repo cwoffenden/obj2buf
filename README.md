@@ -37,7 +37,7 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]
 	-l use the legacy OpenGL rule for normalised signed values
 	-z compresses the output buffer using Zstandard
 	-a writes the output as ASCII hex instead of binary
-	-c hex shortcode encompassing all the options
+	-c hexadecimal shortcode encompassing all the options
 The default is float positions, normals and UVs, as uncompressed LE binary
 ```
 For simple cases it's probably enough to take the defaults, with the addition of the `-a` option to output a text file:
