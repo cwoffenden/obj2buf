@@ -187,6 +187,21 @@ void ToolOptions::fixUp() {
 	}
 }
 
+uint32_t ToolOptions::getAllOptions() const {
+	/*
+	 * There are currently 11 user settable options, plus one reserved, which
+	 * take up the first 12 bits, then each of the storage types is packed into
+	 * 4 bits.
+	 */
+	uint32_t val = opts & ((1 << (OPTS_LAST_USER + 1)) - 1);
+	val |= posn << (OPTS_LAST_USER + 1 +  0);
+	val |= text << (OPTS_LAST_USER + 1 +  4);
+	val |= norm << (OPTS_LAST_USER + 1 +  8);
+	val |= tans << (OPTS_LAST_USER + 1 + 12);
+	val |= idxs << (OPTS_LAST_USER + 1 + 16);
+	return val;
+}
+
 int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 	if (next < 0 || next >= argc) {
 		/*
@@ -335,6 +350,8 @@ void ToolOptions::dump() const {
 	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)   ? "legacy"  : "modern");
 	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
 	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)      ? "ASCII"   : "binary");
+	printf("\n");
+	printf("(Shortcode:  %08X)\n", getAllOptions());
 }
 
 void ToolOptions::help(const char* const path) {
@@ -343,6 +360,7 @@ void ToolOptions::help(const char* const path) {
 		 name = "obj2buf";
 	}
 	printf("Usage: %s [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]\n", name);
+	printf("Usage: %s [-c shortcode] in [out]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-u vertex texture UVs type\n");
 	printf("\t-n vertex normals type\n");
@@ -355,7 +373,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-sz as -s but without a bias, keeping the origin at zero\n");
 	printf("\t-e octahedral encoded normals (and tangents) in two components\n");
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
-	printf("\t-g tangents are generate for a flipped g-channel (e.g. match 3ds Max)\n");
+	printf("\t-g tangents are generated for an inverted G-channel (e.g. match 3ds Max)\n");
 	printf("\t-b store only the sign for bitangents\n");
 	printf("\t(packing the sign if possible where any padding would normally go)\n");
 	printf("\t-m writes metadata describing the buffer offsets, sizes and types\n");
@@ -363,6 +381,7 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-l use the legacy OpenGL rule for normalised signed values\n");
 	printf("\t-z compresses the output buffer using Zstandard\n");
 	printf("\t-a writes the output as ASCII hex instead of binary\n");
+	printf("\t-c hexadecimal shortcode encompassing all the options\n");
 	printf("The default is float positions, normals and UVs, as uncompressed LE binary\n");
 	exit(EXIT_FAILURE);
 }

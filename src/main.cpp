@@ -1,6 +1,15 @@
 /**
  * \file main.cpp
  * Wavefront \c .obj to packed buffer.
+ *
+ * A common command-line test would be:
+ * \code
+ *	obj2buf -p short -u short -n byte -t byte -su -e -g -b -m -a
+ * \endcode
+ * Positions and UVs as shorts, normals and tangents encoded and packed as
+ * bytes, positions uniformly scaled, octahedral encoded normals and tangents,
+ * inverted Max-style G-channel for the normal map, only store the bitangent
+ * sign (implicitly packed in the position's W-component), metadata header.
  */
 
 #include <cfloat>
