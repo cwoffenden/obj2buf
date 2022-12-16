@@ -30,6 +30,13 @@
 #endif
 
 /**
+ * Helper to constrain the deserialised type to valid values.
+ */
+#ifndef O2B_VALIDATE_TYPE
+#define O2B_VALIDATE_TYPE(type) ((((type) >= VertexPacker::Storage::EXCLUDE) && ((type) <= VertexPacker::Storage::FLOAT32)) ? static_cast<VertexPacker::Storage::Type>(type) : VertexPacker::Storage::FLOAT32)
+#endif
+
+/**
  * Helper to convert a string data type to a storage type. \c b becomes \c
  * SINT08C (signed 8-bit int), \c ub becomes \c UINT08C (unsigned 8-bit int),
  * etc.
@@ -202,6 +209,19 @@ uint32_t ToolOptions::getAllOptions() const {
 	return val;
 }
 
+void ToolOptions::setAllOptions(uint32_t const val) {
+	/*
+	 * See above for the serialisation. The only thing special here is the
+	 * types are constrained to valid values.
+	 */
+	opts = val & ((1 << (OPTS_LAST_USER + 1)) - 1);
+	posn = O2B_VALIDATE_TYPE((val >> (OPTS_LAST_USER + 1 +  0)) & 0xF);
+	text = O2B_VALIDATE_TYPE((val >> (OPTS_LAST_USER + 1 +  4)) & 0xF);
+	norm = O2B_VALIDATE_TYPE((val >> (OPTS_LAST_USER + 1 +  8)) & 0xF);
+	tans = O2B_VALIDATE_TYPE((val >> (OPTS_LAST_USER + 1 + 12)) & 0xF);
+	idxs = O2B_VALIDATE_TYPE((val >> (OPTS_LAST_USER + 1 + 16)) & 0xF);
+}
+
 int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 	if (next < 0 || next >= argc) {
 		/*
@@ -269,6 +289,15 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 			break;
 		case 'a': // ASCII
 			O2B_SET_OPT(opts, OPTS_ASCII_FILE);
+			break;
+		case 'c': // shortcode
+			if (next + 2 < argc) {
+				setAllOptions(static_cast<uint32_t>(strtoul(argv[++next], nullptr, 16)));
+				fixUp();
+			} else {
+				fprintf(stderr, "Missing shortcode\n");
+				help();
+			}
 			break;
 		default:
 			fprintf(stderr, "Unknown argument: %s\n", arg);

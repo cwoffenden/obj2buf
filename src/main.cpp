@@ -4,12 +4,17 @@
  *
  * A common command-line test would be:
  * \code
- *	obj2buf -p short -u short -n byte -t byte -su -e -g -b -m -a
+ *	obj2buf -p short -u short -n byte -t byte -su -e -g -b -m -a in.obj out.inc
  * \endcode
  * Positions and UVs as shorts, normals and tangents encoded and packed as
  * bytes, positions uniformly scaled, octahedral encoded normals and tangents,
  * inverted Max-style G-channel for the normal map, only store the bitangent
  * sign (implicitly packed in the position's W-component), metadata header.
+ *
+ * Alternatively the above command-line could be replaced with a \e shortcode:
+ * \code
+ *	obj2buf -c 8115547B in.obj out.inc
+ * \endcode
  */
 
 #include <cfloat>

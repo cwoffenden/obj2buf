@@ -224,6 +224,15 @@ private:
 	uint32_t getAllOptions() const;
 
 	/**
+	 * Sets all of the options from a single shortcut, performing the opposite
+	 * of \c #getAllOptions(). After setting \c #fixUp() should be called to
+	 * tweak the internal settings.
+	 *
+	 * \param[in] val packing and options as a single integer
+	 */
+	void setAllOptions(uint32_t const val);
+
+	/**
 	 * Print the CLI help then exit.
 	 *
 	 * \param[in] path the application path as passed-in as the first parameter from the CLI
