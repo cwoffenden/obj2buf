@@ -374,13 +374,12 @@ void ToolOptions::dump() const {
 	}
 	printf("\n");
 	printf("Indices:     %s\n", idxs.toString());
-	printf("Metadata:    %s\n", O2B_HAS_OPT(opts, OPTS_WRITE_METADATA)  ? "yes"     : "no (raw)");
-	printf("Endianness:  %s\n", O2B_HAS_OPT(opts, OPTS_BIG_ENDIAN)      ? "big"     : "little");
-	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)   ? "legacy"  : "modern");
-	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)   ? "Zstd"    : "none");
-	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)      ? "ASCII"   : "binary");
-	printf("\n");
-	printf("(Shortcode:  %08X)\n", getAllOptions());
+	printf("Metadata:    %s\n", O2B_HAS_OPT(opts, OPTS_WRITE_METADATA) ? "yes"    : "no (raw)");
+	printf("Endianness:  %s\n", O2B_HAS_OPT(opts, OPTS_BIG_ENDIAN)     ? "big"    : "little");
+	printf("Signed rule: %s\n", O2B_HAS_OPT(opts, OPTS_SIGNED_LEGACY)  ? "legacy" : "modern");
+	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)  ? "Zstd"   : "none");
+	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)     ? "ASCII"  : "binary");
+	printf("(As -c code: %08X)\n", getAllOptions());
 }
 
 void ToolOptions::help(const char* const path) {
