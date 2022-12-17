@@ -76,7 +76,10 @@ bool write(const char* const dstPath, const void* const data, size_t const size,
 		if (zstd) {
 			/*
 			 * We use the simple API to compress the entire buffer in one go
-			 * (with a mono-threaded Zstd).
+			 * (with a mono-threaded Zstd). This *should* generate a single Zstd
+			 * frame, containing a magic in the first four bytes, 0xFD2FB528,
+			 * always little endian, and the original frame content size (making
+			 * the compressed data self contained).
 			 */
 			size_t bounds = ZSTD_compressBound(size);
 			void* compBuf = malloc(bounds);
@@ -85,7 +88,11 @@ bool write(const char* const dstPath, const void* const data, size_t const size,
 				if (ZSTD_isError(compSize)) {
 					fprintf(stderr, "Compression failed: %s\n", ZSTD_getErrorName(compSize));
 				} else {
-					success = impl::write(dstPath, compBuf, compSize, text);
+					if (size == static_cast<size_t>(ZSTD_getFrameContentSize(compBuf, compSize))) {
+						success = impl::write(dstPath, compBuf, compSize, text);
+					} else {
+						fprintf(stderr, "Unexpected frame content size (internal error)\n");
+					}
 				}
 				free(compBuf);
 			}
