@@ -33,7 +33,7 @@
  * Helper to constrain the deserialised type to valid values.
  */
 #ifndef O2B_VALIDATE_TYPE
-#define O2B_VALIDATE_TYPE(type) ((((type) >= VertexPacker::Storage::EXCLUDE) && ((type) <= VertexPacker::Storage::FLOAT32)) ? static_cast<VertexPacker::Storage::Type>(type) : VertexPacker::Storage::FLOAT32)
+#define O2B_VALIDATE_TYPE(type) (((type) <= VertexPacker::Storage::FLOAT32) ? static_cast<VertexPacker::Storage::Type>(type) : VertexPacker::Storage::FLOAT32)
 #endif
 
 /**
