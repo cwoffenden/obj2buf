@@ -4,7 +4,7 @@
  *
  * A common command-line test would be:
  * \code
- *	obj2buf -p short -u short -n byte -t byte -su -e -g -b -m -a in.obj out.inc
+ *	obj2buf -p short -u short -n byte -t byte -su -o -g -b -m -a in.obj out.inc
  * \endcode
  * Positions and UVs as shorts, normals and tangents encoded and packed as
  * bytes, positions uniformly scaled, octahedral encoded normals and tangents,

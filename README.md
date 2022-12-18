@@ -16,7 +16,7 @@ cmake --build build --config Release
 ```
 Work in progress (not all combinations have been thoroughly tested). Examples for various APIs coming soon.
 ```
-Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]
+Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-o|g|b|m|e|l|z|a] in [out]
 	-p vertex positions type
 	-u vertex texture UVs type
 	-n vertex normals type
@@ -27,13 +27,13 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]
 	-s normalises the positions to scale them in the range -1 to 1
 	-su as -s but with uniform scaling for all axes
 	-sz as -s but without a bias, keeping the origin at zero
-	-e octahedral encoded normals (and tangents) in two components
+	-o octahedral encoded normals (and tangents) in two components
 	(encoded normals having the same type as tangents may be packed)
 	-g tangents are generated for an inverted G-channel (e.g. match 3ds Max)
 	-b store only the sign for bitangents
 	(packing the sign if possible where any padding would normally go)
 	-m writes metadata describing the buffer offsets, sizes and types
-	-o writes multi-byte values in big endian order
+	-e writes multi-byte values in big endian order (e.g. PPC, MIPS)
 	-l use the legacy OpenGL rule for normalised signed values
 	-z compresses the output buffer using Zstandard
 	-a writes the output as ASCII hex instead of binary
@@ -56,7 +56,7 @@ A more complex example could be:
 
 2. `-su` option to scale the mesh uniformly in the range `-1` to `1` (allowing any object to be drawn without considering the camera position or mesh size).
 
-3. `-e` option to octahedral encode normals and tangents.
+3. `-o` option to octahedral encode normals and tangents.
 
 4. `-g` options to generate tangents for a 3ds Max-style normal map with an inverted G-channel.
 
@@ -66,7 +66,7 @@ A more complex example could be:
 
 7. `-m` option to add metadata.
 ```
-obj2buf -p short -u short -n byte -t byte -su -e -g -b -m -a cube.obj cube.inc
+obj2buf -p short -u short -n byte -t byte -su -o -g -b -m -a cube.obj cube.inc
 ```
 Or using the `-c` shortcode option, where the options are serialised:
 ```
