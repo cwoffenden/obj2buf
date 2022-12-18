@@ -266,7 +266,7 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
 			}
 			break;
-		case 'e': // encoded normals and tangents
+		case 'o': // oct encoded normals (and tangents)
 			O2B_SET_OPT(opts, OPTS_NORMALS_ENCODED);
 			break;
 		case 'g':
@@ -278,7 +278,7 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		case 'm': // metadata
 			O2B_SET_OPT(opts, OPTS_WRITE_METADATA);
 			break;
-		case 'o': // big endian order
+		case 'e': // big endian order
 			O2B_SET_OPT(opts, OPTS_BIG_ENDIAN);
 			break;
 		case 'l': // legacy GL signing rule
@@ -387,7 +387,7 @@ void ToolOptions::help(const char* const path) {
 	if (!name) {
 		 name = "obj2buf";
 	}
-	printf("Usage: %s [-p|u|n|t|i type] [-s|su|sz] [-e|g|b|m|o|l|z|a] in [out]\n", name);
+	printf("Usage: %s [-p|u|n|t|i type] [-s|su|sz] [-o|g|b|m|e|l|z|a] in [out]\n", name);
 	printf("Usage: %s [-c shortcode] in [out]\n", name);
 	printf("\t-p vertex positions type\n");
 	printf("\t-u vertex texture UVs type\n");
@@ -399,13 +399,13 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
 	printf("\t-su as -s but with uniform scaling for all axes\n");
 	printf("\t-sz as -s but without a bias, keeping the origin at zero\n");
-	printf("\t-e octahedral encoded normals (and tangents) in two components\n");
+	printf("\t-o octahedral encoded normals (and tangents) in two components\n");
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
 	printf("\t-g tangents are generated for an inverted G-channel (e.g. match 3ds Max)\n");
 	printf("\t-b store only the sign for bitangents\n");
 	printf("\t(packing the sign if possible where any padding would normally go)\n");
 	printf("\t-m writes metadata describing the buffer offsets, sizes and types\n");
-	printf("\t-o writes multi-byte values in big endian order\n");
+	printf("\t-e writes multi-byte values in big endian order (e.g. PPC, MIPS)\n");
 	printf("\t-l use the legacy OpenGL rule for normalised signed values\n");
 	printf("\t-z compresses the output buffer using Zstandard\n");
 	printf("\t-a writes the output as ASCII hex instead of binary\n");
