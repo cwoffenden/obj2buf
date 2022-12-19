@@ -208,8 +208,8 @@ private:
 	 */
 	static void tryPacking(Packing& what, AttrParams& attr, int const numComps, Packing const where, bool const force = false);
 
-	Packing packSign; /**< Where the single tangent sign was packed. */
 	Packing packTans; /**< Where the encoded tangents pair were packed. */
+	Packing packSign; /**< Where the single tangent sign was packed. */
 	AttrParams posn;  /**< Position attributes. */
 	AttrParams tex0;  /**< UV channel 0 attributes. */
 	AttrParams norm;  /**< Normal attributes. */

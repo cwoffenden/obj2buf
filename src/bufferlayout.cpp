@@ -30,8 +30,8 @@ static VertexPacker::Failed store(const Vec3<T>& vec, VertexPacker& dest, Vertex
 //*****************************************************************************/
 
 BufferLayout::BufferLayout(const ToolOptions& opts)
-	: packSign(PACK_NONE)
-	, packTans(PACK_NONE)
+	: packTans(PACK_NONE)
+	, packSign(PACK_NONE)
 {
 	bool const hasEncNormals = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED);
 	bool const hasBitansSign = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN) && opts.tans;
@@ -117,50 +117,46 @@ void BufferLayout::dump() const {
 	posn.dump(stride, "VERT_POSN_ID");
 	tex0.dump(stride, "VERT_TEX0_ID");
 	norm.dump(stride, "VERT_NORM_ID");
-	if (tans) {
-		/*
-		 * Tangents are (currently) only ever packed in the normals. The
-		 * bitangent sign, though, varies.
-		 *
-		 * TODO: this won't be hit because tans shouldn't be set if packed
-		 */
-		if (packTans == PACK_NONE) {
-			tans.dump(stride, "VERT_TANS_ID");
-		} else {
-			printf("// Encoded tangents packed in norm.zw (note the four components)\n");
+	/*
+	 * Tangents are (currently) only ever packed in the normals. The
+	 * bitangent sign, though, varies.
+	 */
+	if (packTans == PACK_NONE) {
+		tans.dump(stride, "VERT_TANS_ID");
+	} else {
+		printf("// Encoded tangents packed in norm.zw (note the four components)\n");
+	}
+	if (packSign == PACK_NONE) {
+		btan.dump(stride, "VERT_BTAN_ID");
+	} else {
+		const char* element;
+		const char* numComp = "four";
+		switch (packSign) {
+		case PACK_POSN_W:
+			element = "posn.w";
+			break;
+		case PACK_TEX0_Z:
+			element = "tex0.z";
+			numComp = "three";
+			break;
+		case PACK_NORM_Z:
+			element = "norm.z";
+			numComp = "three";
+			break;
+		case PACK_NORM_W:
+			element = "norm.w";
+			break;
+		case PACK_TANS_Z:
+			element = "tans.z";
+			numComp = "three";
+			break;
+		case PACK_TANS_W:
+			element = "tans.w";
+			break;
+		default:
+			element = "unknown";
 		}
-		if (packSign == PACK_NONE) {
-			btan.dump(stride, "VERT_BTAN_ID");
-		} else {
-			const char* element;
-			const char* numComp = "four";
-			switch (packSign) {
-			case PACK_POSN_W:
-				element = "posn.w";
-				break;
-			case PACK_TEX0_Z:
-				element = "tex0.z";
-				numComp = "three";
-				break;
-			case PACK_NORM_Z:
-				element = "norm.z";
-				numComp = "three";
-				break;
-			case PACK_NORM_W:
-				element = "norm.w";
-				break;
-			case PACK_TANS_Z:
-				element = "tans.z";
-				numComp = "three";
-				break;
-			case PACK_TANS_W:
-				element = "tans.w";
-				break;
-			default:
-				element = "unknown";
-			}
-			printf("// Bitangents sign packed in %s (note the %s components)\n", element, numComp);
-		}
+		printf("// Bitangents sign packed in %s (note the %s components)\n", element, numComp);
 	}
 }
 
@@ -174,8 +170,10 @@ VertexPacker::Failed BufferLayout::writeHeader(VertexPacker& packer) const {
 	attrs += (tans) ? 1 : 0;
 	attrs += (btan) ? 1 : 0;
 	// Write the header's header
-	failed |= packer.add(stride, VertexPacker::Storage::UINT08C);
-	failed |= packer.add(attrs,  VertexPacker::Storage::UINT08C);
+	failed |= packer.add(packTans, VertexPacker::Storage::UINT08C);
+	failed |= packer.add(packSign, VertexPacker::Storage::UINT08C);
+	failed |= packer.add(stride,   VertexPacker::Storage::UINT08C);
+	failed |= packer.add(attrs,    VertexPacker::Storage::UINT08C);
 	// Then each attribute's (if it has no storage it writes nothing)
 	failed |= posn.write(packer, VERT_POSN_ID);
 	failed |= tex0.write(packer, VERT_TEX0_ID);

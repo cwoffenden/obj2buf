@@ -184,17 +184,27 @@ public:
 	int parseArgs(const char* const argv[], int const argc, bool const cli = true);
 
 	/**
+	 * Take all the \e settable options and combine them into a single shortcut.
+	 * This allows for repeatable favourite options from a single numeric value.
+	 *
+	 * \note \e Settable options, since some are internal.
+	 *
+	 * \return packing and options as a single integer
+	 */
+	uint32_t getAllOptions() const;
+
+	/**
+	 * Prints the options to \c stdout in a human readable form.
+	 */
+	void dump() const;
+
+	/**
 	 * Helper to extract the filename from a path.
 	 *
 	 * \param[in] path full path
 	 * \return the file at the end of the path (or an empty string if there is no file)
 	 */
 	static const char* filename(const char* const path);
-
-	/**
-	 * Prints the options to \c stdout in a human readable form.
-	 */
-	void dump() const;
 
 private:
 	/**
@@ -212,16 +222,6 @@ private:
 	 * example, index buffer types should be unsigned clamped.
 	 */
 	void fixUp();
-
-	/**
-	 * Take all the \e settable options and combine them into a single shortcut.
-	 * This allows for repeatable favourite options from a single numeric value.
-	 *
-	 * \note \e Settable options, since some are internal.
-	 *
-	 * \return packing and options as a single integer
-	 */
-	uint32_t getAllOptions() const;
 
 	/**
 	 * Sets all of the options from a single shortcut, performing the opposite
