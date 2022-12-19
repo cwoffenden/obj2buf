@@ -83,4 +83,4 @@ The resulting layout would be:
 
 With each vertex packed into 16 bytes (instead of the 56 bytes storing everything a floats).
 
-The `-m` option adds an extra 58-74 bytes as a header at the start, depending on the attributes written. See the [OpenGL loading example](/wiki/Buffer-Loading-OpenGL) in the wiki for the the data stored.
+The `-m` option adds an extra 58-74 bytes as a header at the start, depending on the attributes written. See the [OpenGL loading example](/../../wiki/Buffer-Loading-OpenGL) in the wiki for the the data stored.
