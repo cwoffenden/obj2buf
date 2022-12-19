@@ -83,28 +83,4 @@ The resulting layout would be:
 
 With each vertex packed into 16 bytes (instead of the 56 bytes storing everything a floats).
 
-The `-m` option adds an extra 50-66 bytes as a header at the start, depending on the attributes written:
-
-|       Data      |    Size    |
-|:---------------:|:----------:|
-| vertices offset | uint32     |
-| vertices bytes  | uint32     |
-| indices offset  | uint32     |
-| indices bytes   | uint32     |
-| indices count   | uint32     |
-| mesh scale      | 3x float32 |
-| mesh bias       | 3x float32 |
-| vertex stride   | uint8      |
-| attribute count | uint8      |
-| attributes      | 4-20 bytes |
-
-The offsets are from the start of the file. Each attribute entry is stored as:
-
-|       Data      |  Size |
-|:---------------:|:-----:|
-| shader index    | uint8 |
-| component count | uint8 |
-| data type       | uint8 |
-| offset          | uint8 |
-
-See the examples as for how this maps to various APIs.
+The `-m` option adds an extra 58-74 bytes as a header at the start, depending on the attributes written. See the [OpenGL loading example](/wiki/Buffer-Loading-OpenGL) in the wiki for the the data stored.
