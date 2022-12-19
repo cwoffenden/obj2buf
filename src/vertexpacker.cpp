@@ -154,6 +154,10 @@ static int32_t storeModern(float const val, VertexPacker::Storage const type) {
  * as-is. All other types are converted to floats and processed through \c
  * #storeLegacy(float,VertexPacker::Storage).
  *
+ * \note This hasn't had any testing on systems with large integer types (from
+ * memory, MipsPro n64 comes to mind, but it's doubtful this even compiles on
+ * there).
+ *
  * \param[in] val integer value to convert
  * \param[in] type storage type (and rules to follow)
  */
@@ -168,11 +172,9 @@ static int32_t storeLegacy(int const val, VertexPacker::Storage const type) {
 	case VertexPacker::Storage::UINT16C:
 		return clamp<int32_t>(val, 0, UINT16_MAX);
 	case VertexPacker::Storage::SINT32C:
-		// None of the target systems has anything other than 32-bit int
 		return clamp<int32_t>(val, INT32_MIN, INT32_MAX);
 	case VertexPacker::Storage::UINT32C:
-		// Here for completeness, clamped to a *signed* upper bound
-		return clamp<int32_t>(val, 0, INT32_MAX);
+		return static_cast<int32_t>(clamp<uint32_t>(val, 0U, UINT32_MAX));
 	default:
 		return storeLegacy(static_cast<float>(val), type);
 	}
@@ -182,6 +184,10 @@ static int32_t storeLegacy(int const val, VertexPacker::Storage const type) {
  * Helper to bypass encoding for clamped 8- and 16-bit integers and clamp them
  * as-is. All other types are converted to floats and processed through \c
  * #storeModern(float,VertexPacker::Storage).
+ *
+ * \note This hasn't had any testing on systems with large integer types (from
+ * memory, MipsPro n64 comes to mind, but it's doubtful this even compiles on
+ * there).
  *
  * \param[in] val integer value to convert
  * \param[in] type storage type (and rules to follow)
@@ -197,11 +203,9 @@ static int32_t storeModern(int const val, VertexPacker::Storage const type) {
 	case VertexPacker::Storage::UINT16C:
 		return clamp<int32_t>(val, 0, UINT16_MAX);
 	case VertexPacker::Storage::SINT32C:
-		// None of the target systems has anything other than 32-bit int
 		return clamp<int32_t>(val, INT32_MIN, INT32_MAX);
 	case VertexPacker::Storage::UINT32C:
-		// Here for completeness, clamped to a *signed* upper bound
-		return clamp<int32_t>(val, 0, INT32_MAX);
+		return static_cast<int32_t>(clamp<uint32_t>(val, 0U, UINT32_MAX));
 	default:
 		return storeModern(static_cast<float>(val), type);
 	}

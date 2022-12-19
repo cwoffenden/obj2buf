@@ -83,7 +83,7 @@ struct ObjMesh
  *
  * \return elapsed time in milliseconds (only valid for calculating time differences)
  */
-/*static*/ unsigned millis() {
+static unsigned millis() {
 	return static_cast<unsigned>(std::chrono::duration_cast<std::chrono::milliseconds>(
 						  std::chrono::steady_clock::now().time_since_epoch()).count());
 }
@@ -243,6 +243,7 @@ int main(int argc, const char* argv[]) {
 	// Decide how the options create the buffer layout
 	BufferLayout const layout(opts);
 	// Now we start
+	unsigned const startMs = millis();
 	bool tans = opts.tans != VertexPacker::Storage::EXCLUDE;
 	bool flip = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_FLIP_G);
 	if (!open(srcPath, tans, flip, mesh)) {
@@ -267,7 +268,7 @@ int main(int argc, const char* argv[]) {
 	printf("Indices:   %d\n", static_cast<int>(mesh.index.size()));
 	printf("Triangles: %d\n", static_cast<int>(mesh.index.size() / 3));
 	// Maximum buffer size: metadata + vert posn, norm, UVs, tans, bitans + indices
-	size_t const maxBufBytes = 68 //<-- max metadata size
+	size_t const maxBufBytes = 54 + 20 //<-- max metadata size
 			+ std::max(mesh.verts.size(), mesh.index.size())
 				* sizeof(float) * (3 + 3 + 2 + 3 + 3)
 			+ mesh.index.size() * sizeof(uint32_t);
@@ -281,15 +282,21 @@ int main(int argc, const char* argv[]) {
 		packOpts |= VertexPacker::OPTS_SIGNED_LEGACY;
 	}
 	// Pack the vertex data
-	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
 	VertexPacker::Failed failed = false;
+	VertexPacker packer(backing.data(), maxBufBytes, packOpts);
+	unsigned preOffBytes = 0;
+	unsigned offsetBytes = 0;
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_WRITE_METADATA)) {
 		// Endianness test/file magic
 		packer.add(0xBDA7, VertexPacker::Storage::UINT16C);
+		// Serialised tool 'shortcode' for exporting
+		packer.add(opts.getAllOptions(), VertexPacker::Storage::UINT32C);
 		// Metadata offsets placeholder (retroactively written after the content)
+		preOffBytes = static_cast<unsigned>(packer.size());
 		for (int n = 0; n < 5; n++) {
 			failed |= packer.add(0, VertexPacker::Storage::UINT32C);
 		}
+		offsetBytes = static_cast<unsigned>(packer.size()) - preOffBytes;
 		// Mesh scale/bias (more than likely not used but it's only 24 bytes)
 		failed |= mesh.scale.store(packer, VertexPacker::Storage::FLOAT32);
 		failed |= mesh.bias.store (packer, VertexPacker::Storage::FLOAT32);
@@ -321,8 +328,8 @@ int main(int argc, const char* argv[]) {
 		vertexBytes = static_cast<unsigned>(packer.size()) - headerBytes;
 	}
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_WRITE_METADATA)) {
-		// Overwrite in the space for 5x ints we reserved earlier (+2 for the magic)
-		VertexPacker header(backing.data() + 2, 20, packOpts);
+		// Overwrite in the space for the offsets we reserved earlier
+		VertexPacker header(backing.data() + preOffBytes, offsetBytes, packOpts);
 		failed |= header.add(headerBytes,  VertexPacker::Storage::UINT32C);
 		failed |= header.add(vertexBytes,  VertexPacker::Storage::UINT32C);
 		failed |= header.add(headerBytes + vertexBytes, VertexPacker::Storage::UINT32C);
@@ -348,5 +355,7 @@ int main(int argc, const char* argv[]) {
 		fprintf(stderr, "Unable to write: %s\n", (dstPath) ? dstPath : "null");
 		return EXIT_FAILURE;
 	}
+	printf("\n");
+	printf("Total time: %dms\n", millis() - startMs);
 	return EXIT_SUCCESS;
 }

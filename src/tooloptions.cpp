@@ -126,6 +126,97 @@ int ToolOptions::parseArgs(const char* const argv[], int const argc, bool const 
 	return next;
 }
 
+int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
+	if (next < 0 || next >= argc) {
+		/*
+		 * Not a valid index so shortcut to the end.
+		 */
+		return argc;
+	}
+	const char* arg = argv[next];
+	if (arg && strlen(arg) > 1 && arg[0] == '-') {
+		switch (arg[1]) {
+		case 'h': // help
+		case '?': // Window's style help
+		case '-': // --flags
+			help();
+			break;
+		case 'p': // positions
+			posn = parseType(argv, argc, next);
+			break;
+		case 'n': // normals
+			norm = parseType(argv, argc, next);
+			break;
+		case 'u': // UVs
+			text = parseType(argv, argc, next);
+			break;
+		case 't': // tangents
+			tans = parseType(argv, argc, next);
+			break;
+		case 'i': // indices
+			idxs = parseType(argv, argc, next);
+			break;
+		case 's': // scaled positions
+			O2B_SET_OPT(opts, OPTS_POSITIONS_SCALE);
+			if (strcmp(arg + 1, "su") == 0) {
+				O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
+			}
+			if (strcmp(arg + 1, "sz") == 0) {
+				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
+			}
+			if (strcmp(arg + 1, "suz") == 0 ||
+				strcmp(arg + 1, "szu") == 0) {
+				O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
+				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
+			}
+			break;
+		case 'o': // oct encoded normals (and tangents)
+			O2B_SET_OPT(opts, OPTS_NORMALS_ENCODED);
+			break;
+		case 'g':
+			O2B_SET_OPT(opts, OPTS_TANGENTS_FLIP_G);
+			break;
+		case 'b': // bitangents as sign-only
+			O2B_SET_OPT(opts, OPTS_BITANGENTS_SIGN);
+			break;
+		case 'm': // metadata
+			O2B_SET_OPT(opts, OPTS_WRITE_METADATA);
+			break;
+		case 'e': // big endian order
+			O2B_SET_OPT(opts, OPTS_BIG_ENDIAN);
+			break;
+		case 'l': // legacy GL signing rule
+			O2B_SET_OPT(opts, OPTS_SIGNED_LEGACY);
+			break;
+		case 'z': // Zstd
+			O2B_SET_OPT(opts, OPTS_COMPRESS_ZSTD);
+			break;
+		case 'a': // ASCII
+			O2B_SET_OPT(opts, OPTS_ASCII_FILE);
+			break;
+		case 'c': // shortcode
+			if (next + 2 < argc) {
+				setAllOptions(static_cast<uint32_t>(strtoul(argv[++next], nullptr, 16)));
+				fixUp();
+			} else {
+				fprintf(stderr, "Missing shortcode\n");
+				help();
+			}
+			break;
+		default:
+			fprintf(stderr, "Unknown argument: %s\n", arg);
+			help();
+		}
+		next++;
+	} else {
+		/*
+		 * We choose "-1 - next" to return "parsing stopped at 'next'".
+		 */
+		next = -1 - next;
+	}
+	return next;
+}
+
 void ToolOptions::fixUp() {
 	if (posn) {
 		if (!O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
@@ -222,111 +313,6 @@ void ToolOptions::setAllOptions(uint32_t const val) {
 	idxs = O2B_VALIDATE_TYPE((val >> (OPTS_LAST_USER + 1 + 16)) & 0xF);
 }
 
-int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
-	if (next < 0 || next >= argc) {
-		/*
-		 * Not a valid index so shortcut to the end.
-		 */
-		return argc;
-	}
-	const char* arg = argv[next];
-	if (arg && strlen(arg) > 1 && arg[0] == '-') {
-		switch (arg[1]) {
-		case 'h': // help
-		case '?': // Window's style help
-		case '-': // --flags
-			help();
-			break;
-		case 'p': // positions
-			posn = parseType(argv, argc, next);
-			break;
-		case 'n': // normals
-			norm = parseType(argv, argc, next);
-			break;
-		case 'u': // UVs
-			text = parseType(argv, argc, next);
-			break;
-		case 't': // tangents
-			tans = parseType(argv, argc, next);
-			break;
-		case 'i': // indices
-			idxs = parseType(argv, argc, next);
-			break;
-		case 's': // scaled positions
-			O2B_SET_OPT(opts, OPTS_POSITIONS_SCALE);
-			if (strcmp(arg + 1, "su") == 0) {
-				O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
-			}
-			if (strcmp(arg + 1, "sz") == 0) {
-				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
-			}
-			if (strcmp(arg + 1, "suz") == 0 ||
-				strcmp(arg + 1, "szu") == 0) {
-				O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
-				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
-			}
-			break;
-		case 'o': // oct encoded normals (and tangents)
-			O2B_SET_OPT(opts, OPTS_NORMALS_ENCODED);
-			break;
-		case 'g':
-			O2B_SET_OPT(opts, OPTS_TANGENTS_FLIP_G);
-			break;
-		case 'b': // bitangents as sign-only
-			O2B_SET_OPT(opts, OPTS_BITANGENTS_SIGN);
-			break;
-		case 'm': // metadata
-			O2B_SET_OPT(opts, OPTS_WRITE_METADATA);
-			break;
-		case 'e': // big endian order
-			O2B_SET_OPT(opts, OPTS_BIG_ENDIAN);
-			break;
-		case 'l': // legacy GL signing rule
-			O2B_SET_OPT(opts, OPTS_SIGNED_LEGACY);
-			break;
-		case 'z': // Zstd
-			O2B_SET_OPT(opts, OPTS_COMPRESS_ZSTD);
-			break;
-		case 'a': // ASCII
-			O2B_SET_OPT(opts, OPTS_ASCII_FILE);
-			break;
-		case 'c': // shortcode
-			if (next + 2 < argc) {
-				setAllOptions(static_cast<uint32_t>(strtoul(argv[++next], nullptr, 16)));
-				fixUp();
-			} else {
-				fprintf(stderr, "Missing shortcode\n");
-				help();
-			}
-			break;
-		default:
-			fprintf(stderr, "Unknown argument: %s\n", arg);
-			help();
-		}
-		next++;
-	} else {
-		/*
-		 * We choose "-1 - next" to return "parsing stopped at 'next'".
-		 */
-		next = -1 - next;
-	}
-	return next;
-}
-
-const char* ToolOptions::filename(const char* const path) {
-	const char* found = nullptr;
-	if (path) {
-		found = strrchr(path, '/');
-		if (!found) {
-			 found = strrchr(path, '\\');
-		}
-		if (found && strlen(found) > 0) {
-			return found + 1;
-		}
-	}
-	return path;
-}
-
 void ToolOptions::dump() const {
 	printf("Positions:   %s",   posn.toString());
 	if (O2B_HAS_OPT(opts, OPTS_POSITIONS_SCALE)) {
@@ -380,6 +366,20 @@ void ToolOptions::dump() const {
 	printf("Compression: %s\n", O2B_HAS_OPT(opts, OPTS_COMPRESS_ZSTD)  ? "Zstd"   : "none");
 	printf("File format: %s\n", O2B_HAS_OPT(opts, OPTS_ASCII_FILE)     ? "ASCII"  : "binary");
 	printf("(As -c code: %08X)\n", getAllOptions());
+}
+
+const char* ToolOptions::filename(const char* const path) {
+	const char* found = nullptr;
+	if (path) {
+		found = strrchr(path, '/');
+		if (!found) {
+			 found = strrchr(path, '\\');
+		}
+		if (found && strlen(found) > 0) {
+			return found + 1;
+		}
+	}
+	return path;
 }
 
 void ToolOptions::help(const char* const path) {
