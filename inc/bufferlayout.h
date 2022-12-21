@@ -88,7 +88,7 @@ private:
 	enum VertexID {
 		VERT_POSN_ID = 0, /**< Vertex positions. */
 		VERT_TEX0_ID = 1, /**< Vertex texture coordinates channel 0. */
-		VERT_NORM_ID = 2, /**< Vertex nomals. */
+		VERT_NORM_ID = 2, /**< Vertex normals. */
 		VERT_TANS_ID = 3, /**< Vertex tangents. */
 		VERT_BTAN_ID = 4, /**< Vertex bitangents. */
 	};
