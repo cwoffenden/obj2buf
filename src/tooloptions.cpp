@@ -319,13 +319,13 @@ void ToolOptions::dump() const {
 		const char* scaleOpts;
 		if (O2B_HAS_OPT(opts, OPTS_SCALE_UNIFORM)) {
 			if (O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)) {
-				scaleOpts = "uniform scale";
+				scaleOpts = "uniform scale, no bias";
 			} else {
 				scaleOpts = "uniform scale with bias";
 			}
 		} else {
 			if (O2B_HAS_OPT(opts, OPTS_SCALE_NO_BIAS)) {
-				scaleOpts = "scale";
+				scaleOpts = "scale, no bias";
 			} else {
 				scaleOpts = "scale with bias";
 			}
