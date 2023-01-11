@@ -10,6 +10,7 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <cstdint>
 
 /* Version macro; major * 1000 + minor * 10 + patch */
 #define MESHOPTIMIZER_VERSION 180 /* 0.18 */
