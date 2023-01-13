@@ -1,0 +1,38 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "web",
+      "displayName": "Emscripten",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/${presetName}",
+      "toolchainFile": "$env{EMSCRIPTEN_ROOT}/cmake/Modules/Platform/Emscripten.cmake",
+      "vendor": {
+        "jetbrains.com/clion": {
+          "toolchain": "Default"
+        }
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "Verbose Debug",
+      "configurePreset": "web",
+      "configuration": "Debug",
+      "verbose": true,
+      "environment": {
+      	"EMCC_DEBUG": "1"
+      }
+    },
+    {
+      "name": "Release",
+      "configurePreset": "web",
+      "configuration": "Release"
+    }
+  ]
+}
