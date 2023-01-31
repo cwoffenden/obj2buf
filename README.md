@@ -6,7 +6,7 @@ When writing quick tests or graphics experiements there's often a need for mesh 
 
 This is mostly a wrapper around [meshoptimizer](//github.com/zeux/meshoptimizer), [fast_obj](//github.com/thisistherk/fast_obj) and [MikkTSpace](//github.com/mmikk/MikkTSpace). It reads in an `.obj` file and outputs an interleaved buffer (with optional [Zstandard](//github.com/facebook/zstd) compression).
 
-Notes to self, to pick up later in the month: the `CMakePresets.json` is WIP and is currently just for testing Emscripten builds in general (it will eventually replace the `CMakeSettings.json`). `CMakePresets.json` uses the `$env{EMSCRIPTEN_ROOT}` for grabbing env vars, CLion uses `$ENV{EMSCRIPTEN_ROOT}` in its other configs to get the same thing (and Xcode uses `$(EMSCRIPTEN_ROOT)` to keep us on out toes).
+Notes to self, to pick up later: the `CMakePresets.json` is WIP and is currently just for testing Emscripten builds in general (it will eventually replace the `CMakeSettings.json`). `CMakePresets.json` uses the `$env{EMSCRIPTEN_ROOT}` for grabbing env vars, CLion uses `$ENV{EMSCRIPTEN_ROOT}` in its other configs to get the same thing (and Xcode uses `$(EMSCRIPTEN_ROOT)` to keep us on our toes). Visual Studio is a little tricker for Emscripten: it needs the `EMSCRIPTEN_ROOT` var setting, but it _also_ needs ensuring a correct, working Python is higher on the path (an example being Depot Tools' Python, which looks for a `python_bin_reldir.txt` file, doesn't find it, then CMake/Emscripten fails).
 
 Build with:
 ```

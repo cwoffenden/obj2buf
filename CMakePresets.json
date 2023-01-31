@@ -17,21 +17,57 @@
           "toolchain": "Default"
         }
       }
+    },
+    {
+      "name": "x64",
+      "displayName": "x64",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/${presetName}",
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "inheritEnvironments": [ "msvc_x64_x64" ]
+        }
+      }
+    },
+    {
+      "name": "arm",
+      "displayName": "ARM64",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/${presetName}",
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "inheritEnvironments": [ "msvc_arm64" ]
+        }
+      }
     }
   ],
   "buildPresets": [
     {
-      "name": "Verbose Debug",
+      "name": "web-dbg-vbs",
       "configurePreset": "web",
+      "displayName": "Debug (Verbose)",
       "configuration": "Debug",
       "verbose": true,
       "environment": {
-      	"EMCC_DEBUG": "1"
+        "EMCC_DEBUG": "1"
       }
     },
     {
-      "name": "Release",
+      "name": "web-rel",
       "configurePreset": "web",
+      "displayName": "Release",
+      "configuration": "Release"
+    },
+    {
+      "name": "x64-dbg",
+      "configurePreset": "x64",
+      "displayName": "Debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "x64-rel",
+      "configurePreset": "x64",
+      "displayName": "Release",
       "configuration": "Release"
     }
   ]
