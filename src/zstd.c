@@ -492,12 +492,20 @@ extern "C" {
 /*
  * For x86 ELF targets, add .note.gnu.property section for Intel CET in
  * assembly sources when CET is enabled.
+ *
+ * Additionally, any function that may be called indirectly must begin
+ * with ZSTD_CET_ENDBRANCH.
  */
 #if defined(__ELF__) && (defined(__x86_64__) || defined(__i386__)) \
     && defined(__has_include)
 # if __has_include(<cet.h>)
 #  include <cet.h>
+#  define ZSTD_CET_ENDBRANCH _CET_ENDBR
 # endif
+#endif
+
+#ifndef ZSTD_CET_ENDBRANCH
+# define ZSTD_CET_ENDBRANCH
 #endif
 
 #endif /* ZSTD_PORTABILITY_MACROS_H */
@@ -771,7 +779,18 @@ extern "C" {
 *  Sanitizer
 *****************************************************************/
 
-#if ZSTD_MEMORY_SANITIZER
+/* Issue #3240 reports an ASAN failure on an llvm-mingw build. Out of an
+ * abundance of caution, disable our custom poisoning on mingw. */
+#ifdef __MINGW32__
+#ifndef ZSTD_ASAN_DONT_POISON_WORKSPACE
+#define ZSTD_ASAN_DONT_POISON_WORKSPACE 1
+#endif
+#ifndef ZSTD_MSAN_DONT_POISON_WORKSPACE
+#define ZSTD_MSAN_DONT_POISON_WORKSPACE 1
+#endif
+#endif
+
+#if ZSTD_MEMORY_SANITIZER && !defined(ZSTD_MSAN_DONT_POISON_WORKSPACE)
 /* Not all platforms that support msan provide sanitizers/msan_interface.h.
  * We therefore declare the functions we need ourselves, rather than trying to
  * include the header file... */
@@ -792,7 +811,7 @@ void __msan_poison(const volatile void *a, size_t size);
 intptr_t __msan_test_shadow(const volatile void *x, size_t size);
 #endif
 
-#if ZSTD_ADDRESS_SANITIZER
+#if ZSTD_ADDRESS_SANITIZER && !defined(ZSTD_ASAN_DONT_POISON_WORKSPACE)
 /* Not all platforms that support asan provide sanitizers/asan_interface.h.
  * We therefore declare the functions we need ourselves, rather than trying to
  * include the header file... */
@@ -1361,12 +1380,15 @@ typedef enum {
   ZSTD_error_dstSize_tooSmall = 70,
   ZSTD_error_srcSize_wrong    = 72,
   ZSTD_error_dstBuffer_null   = 74,
+  ZSTD_error_noForwardProgress_destFull = 80,
+  ZSTD_error_noForwardProgress_inputEmpty = 82,
   /* following error codes are __NOT STABLE__, they can be removed or changed in future versions */
   ZSTD_error_frameIndex_tooLarge = 100,
   ZSTD_error_seekableIO          = 102,
   ZSTD_error_dstBuffer_wrong     = 104,
   ZSTD_error_srcBuffer_wrong     = 105,
   ZSTD_error_externalMatchFinder_failed = 106,
+  ZSTD_error_externalSequences_invalid = 107,
   ZSTD_error_maxCode = 120  /* never EVER use this value directly, it can change in future versions! Use ZSTD_isError() instead */
 } ZSTD_ErrorCode;
 
@@ -1576,34 +1598,6 @@ extern "C" {
 FSE_PUBLIC_API unsigned FSE_versionNumber(void);   /**< library version number; to be used when checking dll version */
 
 
-/*-****************************************
-*  FSE simple functions
-******************************************/
-/*! FSE_compress() :
-    Compress content of buffer 'src', of size 'srcSize', into destination buffer 'dst'.
-    'dst' buffer must be already allocated. Compression runs faster is dstCapacity >= FSE_compressBound(srcSize).
-    @return : size of compressed data (<= dstCapacity).
-    Special values : if return == 0, srcData is not compressible => Nothing is stored within dst !!!
-                     if return == 1, srcData is a single byte symbol * srcSize times. Use RLE compression instead.
-                     if FSE_isError(return), compression failed (more details using FSE_getErrorName())
-*/
-FSE_PUBLIC_API size_t FSE_compress(void* dst, size_t dstCapacity,
-                             const void* src, size_t srcSize);
-
-/*! FSE_decompress():
-    Decompress FSE data from buffer 'cSrc', of size 'cSrcSize',
-    into already allocated destination buffer 'dst', of size 'dstCapacity'.
-    @return : size of regenerated data (<= maxDstSize),
-              or an error code, which can be tested using FSE_isError() .
-
-    ** Important ** : FSE_decompress() does not decompress non-compressible nor RLE data !!!
-    Why ? : making this distinction requires a header.
-    Header management is intentionally delegated to the user layer, which can better manage special cases.
-*/
-FSE_PUBLIC_API size_t FSE_decompress(void* dst,  size_t dstCapacity,
-                               const void* cSrc, size_t cSrcSize);
-
-
 /*-*****************************************
 *  Tool functions
 ******************************************/
@@ -1612,20 +1606,6 @@ FSE_PUBLIC_API size_t FSE_compressBound(size_t size);       /* maximum compresse
 /* Error Management */
 FSE_PUBLIC_API unsigned    FSE_isError(size_t code);        /* tells if a return value is an error code */
 FSE_PUBLIC_API const char* FSE_getErrorName(size_t code);   /* provides error code string (useful for debugging) */
-
-
-/*-*****************************************
-*  FSE advanced functions
-******************************************/
-/*! FSE_compress2() :
-    Same as FSE_compress(), but allows the selection of 'maxSymbolValue' and 'tableLog'
-    Both parameters can be defined as '0' to mean : use default value
-    @return : size of compressed data
-    Special values : if return == 0, srcData is not compressible => Nothing is stored within cSrc !!!
-                     if return == 1, srcData is a single byte symbol * srcSize times. Use RLE compression.
-                     if FSE_isError(return), it's an error code.
-*/
-FSE_PUBLIC_API size_t FSE_compress2 (void* dst, size_t dstSize, const void* src, size_t srcSize, unsigned maxSymbolValue, unsigned tableLog);
 
 
 /*-*****************************************
@@ -1687,8 +1667,6 @@ FSE_PUBLIC_API size_t FSE_writeNCount (void* buffer, size_t bufferSize,
 /*! Constructor and Destructor of FSE_CTable.
     Note that FSE_CTable size depends on 'tableLog' and 'maxSymbolValue' */
 typedef unsigned FSE_CTable;   /* don't allocate that. It's only meant to be more restrictive than void* */
-FSE_PUBLIC_API FSE_CTable* FSE_createCTable (unsigned maxSymbolValue, unsigned tableLog);
-FSE_PUBLIC_API void        FSE_freeCTable (FSE_CTable* ct);
 
 /*! FSE_buildCTable():
     Builds `ct`, which must be already allocated, using FSE_createCTable().
@@ -1764,23 +1742,7 @@ FSE_PUBLIC_API size_t FSE_readNCount_bmi2(short* normalizedCounter,
                            unsigned* maxSymbolValuePtr, unsigned* tableLogPtr,
                            const void* rBuffer, size_t rBuffSize, int bmi2);
 
-/*! Constructor and Destructor of FSE_DTable.
-    Note that its size depends on 'tableLog' */
 typedef unsigned FSE_DTable;   /* don't allocate that. It's just a way to be more restrictive than void* */
-FSE_PUBLIC_API FSE_DTable* FSE_createDTable(unsigned tableLog);
-FSE_PUBLIC_API void        FSE_freeDTable(FSE_DTable* dt);
-
-/*! FSE_buildDTable():
-    Builds 'dt', which must be already allocated, using FSE_createDTable().
-    return : 0, or an errorCode, which can be tested using FSE_isError() */
-FSE_PUBLIC_API size_t FSE_buildDTable (FSE_DTable* dt, const short* normalizedCounter, unsigned maxSymbolValue, unsigned tableLog);
-
-/*! FSE_decompress_usingDTable():
-    Decompress compressed source `cSrc` of size `cSrcSize` using `dt`
-    into `dst` which must be already allocated.
-    @return : size of regenerated data (necessarily <= `dstCapacity`),
-              or an errorCode, which can be tested using FSE_isError() */
-FSE_PUBLIC_API size_t FSE_decompress_usingDTable(void* dst, size_t dstCapacity, const void* cSrc, size_t cSrcSize, const FSE_DTable* dt);
 
 /*!
 Tutorial :
@@ -2457,16 +2419,6 @@ MEM_STATIC unsigned BIT_endOfDStream(const BIT_DStream_t* DStream)
 unsigned FSE_optimalTableLog_internal(unsigned maxTableLog, size_t srcSize, unsigned maxSymbolValue, unsigned minus);
 /**< same as FSE_optimalTableLog(), which used `minus==2` */
 
-/* FSE_compress_wksp() :
- * Same as FSE_compress2(), but using an externally allocated scratch buffer (`workSpace`).
- * FSE_COMPRESS_WKSP_SIZE_U32() provides the minimum size required for `workSpace` as a table of FSE_CTable.
- */
-#define FSE_COMPRESS_WKSP_SIZE_U32(maxTableLog, maxSymbolValue)   ( FSE_CTABLE_SIZE_U32(maxTableLog, maxSymbolValue) + ((maxTableLog > 12) ? (1 << (maxTableLog - 2)) : 1024) )
-size_t FSE_compress_wksp (void* dst, size_t dstSize, const void* src, size_t srcSize, unsigned maxSymbolValue, unsigned tableLog, void* workSpace, size_t wkspSize);
-
-size_t FSE_buildCTable_raw (FSE_CTable* ct, unsigned nbBits);
-/**< build a fake FSE_CTable, designed for a flat distribution, where each symbol uses nbBits */
-
 size_t FSE_buildCTable_rle (FSE_CTable* ct, unsigned char symbolValue);
 /**< build a fake FSE_CTable, designed to compress always the same symbolValue */
 
@@ -2484,19 +2436,11 @@ size_t FSE_buildCTable_wksp(FSE_CTable* ct, const short* normalizedCounter, unsi
 FSE_PUBLIC_API size_t FSE_buildDTable_wksp(FSE_DTable* dt, const short* normalizedCounter, unsigned maxSymbolValue, unsigned tableLog, void* workSpace, size_t wkspSize);
 /**< Same as FSE_buildDTable(), using an externally allocated `workspace` produced with `FSE_BUILD_DTABLE_WKSP_SIZE_U32(maxSymbolValue)` */
 
-size_t FSE_buildDTable_raw (FSE_DTable* dt, unsigned nbBits);
-/**< build a fake FSE_DTable, designed to read a flat distribution where each symbol uses nbBits */
-
-size_t FSE_buildDTable_rle (FSE_DTable* dt, unsigned char symbolValue);
-/**< build a fake FSE_DTable, designed to always generate the same symbolValue */
-
 #define FSE_DECOMPRESS_WKSP_SIZE_U32(maxTableLog, maxSymbolValue) (FSE_DTABLE_SIZE_U32(maxTableLog) + 1 + FSE_BUILD_DTABLE_WKSP_SIZE_U32(maxTableLog, maxSymbolValue) + (FSE_MAX_SYMBOL_VALUE + 1) / 2 + 1)
 #define FSE_DECOMPRESS_WKSP_SIZE(maxTableLog, maxSymbolValue) (FSE_DECOMPRESS_WKSP_SIZE_U32(maxTableLog, maxSymbolValue) * sizeof(unsigned))
-size_t FSE_decompress_wksp(void* dst, size_t dstCapacity, const void* cSrc, size_t cSrcSize, unsigned maxLog, void* workSpace, size_t wkspSize);
-/**< same as FSE_decompress(), using an externally allocated `workSpace` produced with `FSE_DECOMPRESS_WKSP_SIZE_U32(maxLog, maxSymbolValue)` */
-
 size_t FSE_decompress_wksp_bmi2(void* dst, size_t dstCapacity, const void* cSrc, size_t cSrcSize, unsigned maxLog, void* workSpace, size_t wkspSize, int bmi2);
-/**< Same as FSE_decompress_wksp() but with dynamic BMI2 support. Pass 1 if your CPU supports BMI2 or 0 if it doesn't. */
+/**< same as FSE_decompress(), using an externally allocated `workSpace` produced with `FSE_DECOMPRESS_WKSP_SIZE_U32(maxLog, maxSymbolValue)`.
+ * Set bmi2 to 1 if your CPU supports BMI2 or 0 if it doesn't */
 
 typedef enum {
    FSE_repeat_none,  /**< Cannot use the previous table */
@@ -2853,7 +2797,6 @@ MEM_STATIC unsigned FSE_endOfDState(const FSE_DState_t* DStatePtr)
 }
 #endif
 /**** ended inlining fse.h ****/
-#define HUF_STATIC_LINKING_ONLY  /* HUF_TABLELOG_ABSOLUTEMAX */
 /**** start inlining huf.h ****/
 /* ******************************************************************
  * huff0 huffman codec,
@@ -2878,101 +2821,22 @@ extern "C" {
 
 /* *** Dependencies *** */
 /**** skipping file: zstd_deps.h ****/
-
-
-/* *** library symbols visibility *** */
-/* Note : when linking with -fvisibility=hidden on gcc, or by default on Visual,
- *        HUF symbols remain "private" (internal symbols for library only).
- *        Set macro FSE_DLL_EXPORT to 1 if you want HUF symbols visible on DLL interface */
-#if defined(FSE_DLL_EXPORT) && (FSE_DLL_EXPORT==1) && defined(__GNUC__) && (__GNUC__ >= 4)
-#  define HUF_PUBLIC_API __attribute__ ((visibility ("default")))
-#elif defined(FSE_DLL_EXPORT) && (FSE_DLL_EXPORT==1)   /* Visual expected */
-#  define HUF_PUBLIC_API __declspec(dllexport)
-#elif defined(FSE_DLL_IMPORT) && (FSE_DLL_IMPORT==1)
-#  define HUF_PUBLIC_API __declspec(dllimport)  /* not required, just to generate faster code (saves a function pointer load from IAT and an indirect jump) */
-#else
-#  define HUF_PUBLIC_API
-#endif
-
-
-/* ========================== */
-/* ***  simple functions  *** */
-/* ========================== */
-
-/** HUF_compress() :
- *  Compress content from buffer 'src', of size 'srcSize', into buffer 'dst'.
- * 'dst' buffer must be already allocated.
- *  Compression runs faster if `dstCapacity` >= HUF_compressBound(srcSize).
- * `srcSize` must be <= `HUF_BLOCKSIZE_MAX` == 128 KB.
- * @return : size of compressed data (<= `dstCapacity`).
- *  Special values : if return == 0, srcData is not compressible => Nothing is stored within dst !!!
- *                   if HUF_isError(return), compression failed (more details using HUF_getErrorName())
- */
-HUF_PUBLIC_API size_t HUF_compress(void* dst, size_t dstCapacity,
-                             const void* src, size_t srcSize);
-
-/** HUF_decompress() :
- *  Decompress HUF data from buffer 'cSrc', of size 'cSrcSize',
- *  into already allocated buffer 'dst', of minimum size 'dstSize'.
- * `originalSize` : **must** be the ***exact*** size of original (uncompressed) data.
- *  Note : in contrast with FSE, HUF_decompress can regenerate
- *         RLE (cSrcSize==1) and uncompressed (cSrcSize==dstSize) data,
- *         because it knows size to regenerate (originalSize).
- * @return : size of regenerated data (== originalSize),
- *           or an error code, which can be tested using HUF_isError()
- */
-HUF_PUBLIC_API size_t HUF_decompress(void* dst,  size_t originalSize,
-                               const void* cSrc, size_t cSrcSize);
-
-
-/* ***   Tool functions *** */
-#define HUF_BLOCKSIZE_MAX (128 * 1024)                  /**< maximum input size for a single block compressed with HUF_compress */
-HUF_PUBLIC_API size_t HUF_compressBound(size_t size);   /**< maximum compressed size (worst case) */
-
-/* Error Management */
-HUF_PUBLIC_API unsigned    HUF_isError(size_t code);       /**< tells if a return value is an error code */
-HUF_PUBLIC_API const char* HUF_getErrorName(size_t code);  /**< provides error code string (useful for debugging) */
-
-
-/* ***   Advanced function   *** */
-
-/** HUF_compress2() :
- *  Same as HUF_compress(), but offers control over `maxSymbolValue` and `tableLog`.
- * `maxSymbolValue` must be <= HUF_SYMBOLVALUE_MAX .
- * `tableLog` must be `<= HUF_TABLELOG_MAX` . */
-HUF_PUBLIC_API size_t HUF_compress2 (void* dst, size_t dstCapacity,
-                               const void* src, size_t srcSize,
-                               unsigned maxSymbolValue, unsigned tableLog);
-
-/** HUF_compress4X_wksp() :
- *  Same as HUF_compress2(), but uses externally allocated @workSpace.
- * @workSpace's size, aka @wkspSize, must be >= HUF_WORKSPACE_SIZE
- * @srcSize must be >= 6
- */
-#define HUF_WORKSPACE_SIZE ((8 << 10) + 512 /* sorting scratch space */)
-#define HUF_WORKSPACE_SIZE_U64 (HUF_WORKSPACE_SIZE / sizeof(U64))
-HUF_PUBLIC_API size_t HUF_compress4X_wksp (void* dst, size_t dstCapacity,
-                                     const void* src, size_t srcSize,
-                                     unsigned maxSymbolValue, unsigned tableLog,
-                                     void* workSpace, size_t wkspSize);
-
-#endif   /* HUF_H_298734234 */
-
-/* ******************************************************************
- *  WARNING !!
- *  The following section contains advanced and experimental definitions
- *  which shall never be used in the context of a dynamic library,
- *  because they are not guaranteed to remain stable in the future.
- *  Only consider them in association with static linking.
- * *****************************************************************/
-#if defined(HUF_STATIC_LINKING_ONLY) && !defined(HUF_H_HUF_STATIC_LINKING_ONLY)
-#define HUF_H_HUF_STATIC_LINKING_ONLY
-
-/* *** Dependencies *** */
 /**** skipping file: mem.h ****/
 #define FSE_STATIC_LINKING_ONLY
 /**** skipping file: fse.h ****/
 
+
+/* ***   Tool functions *** */
+#define HUF_BLOCKSIZE_MAX (128 * 1024)   /**< maximum input size for a single block compressed with HUF_compress */
+size_t HUF_compressBound(size_t size);   /**< maximum compressed size (worst case) */
+
+/* Error Management */
+unsigned    HUF_isError(size_t code);       /**< tells if a return value is an error code */
+const char* HUF_getErrorName(size_t code);  /**< provides error code string (useful for debugging) */
+
+
+#define HUF_WORKSPACE_SIZE ((8 << 10) + 512 /* sorting scratch space */)
+#define HUF_WORKSPACE_SIZE_U64 (HUF_WORKSPACE_SIZE / sizeof(U64))
 
 /* *** Constants *** */
 #define HUF_TABLELOG_MAX      12      /* max runtime value of tableLog (due to static allocation); can be modified up to HUF_TABLELOG_ABSOLUTEMAX */
@@ -3013,30 +2877,49 @@ typedef U32 HUF_DTable;
 /* ****************************************
 *  Advanced decompression functions
 ******************************************/
-size_t HUF_decompress4X1 (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /**< single-symbol decoder */
-#ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_decompress4X2 (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /**< double-symbols decoder */
-#endif
 
-size_t HUF_decompress4X_DCtx (HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /**< decodes RLE and uncompressed */
-size_t HUF_decompress4X_hufOnly(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize); /**< considers RLE and uncompressed as errors */
-size_t HUF_decompress4X_hufOnly_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize); /**< considers RLE and uncompressed as errors */
-size_t HUF_decompress4X1_DCtx(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /**< single-symbol decoder */
-size_t HUF_decompress4X1_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize);   /**< single-symbol decoder */
-#ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_decompress4X2_DCtx(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /**< double-symbols decoder */
-size_t HUF_decompress4X2_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize);   /**< double-symbols decoder */
-#endif
+/**
+ * Huffman flags bitset.
+ * For all flags, 0 is the default value.
+ */
+typedef enum {
+    /**
+     * If compiled with DYNAMIC_BMI2: Set flag only if the CPU supports BMI2 at runtime.
+     * Otherwise: Ignored.
+     */
+    HUF_flags_bmi2 = (1 << 0),
+    /**
+     * If set: Test possible table depths to find the one that produces the smallest header + encoded size.
+     * If unset: Use heuristic to find the table depth.
+     */
+    HUF_flags_optimalDepth = (1 << 1),
+    /**
+     * If set: If the previous table can encode the input, always reuse the previous table.
+     * If unset: If the previous table can encode the input, reuse the previous table if it results in a smaller output.
+     */
+    HUF_flags_preferRepeat = (1 << 2),
+    /**
+     * If set: Sample the input and check if the sample is uncompressible, if it is then don't attempt to compress.
+     * If unset: Always histogram the entire input.
+     */
+    HUF_flags_suspectUncompressible = (1 << 3),
+    /**
+     * If set: Don't use assembly implementations
+     * If unset: Allow using assembly implementations
+     */
+    HUF_flags_disableAsm = (1 << 4),
+    /**
+     * If set: Don't use the fast decoding loop, always use the fallback decoding loop.
+     * If unset: Use the fast decoding loop when possible.
+     */
+    HUF_flags_disableFast = (1 << 5)
+} HUF_flags_e;
 
 
 /* ****************************************
  *  HUF detailed API
  * ****************************************/
 #define HUF_OPTIMAL_DEPTH_THRESHOLD ZSTD_btultra
-typedef enum {
-   HUF_depth_fast, /** Use heuristic to find the table depth**/
-   HUF_depth_optimal /** Test possible table depths to find the one that produces the smallest header + encoded size**/
- } HUF_depth_mode;
 
 /*! HUF_compress() does the following:
  *  1. count symbol occurrence from source[] into table count[] using FSE_count() (exposed within "fse.h")
@@ -3052,12 +2935,9 @@ typedef enum {
 unsigned HUF_minTableLog(unsigned symbolCardinality);
 unsigned HUF_cardinality(const unsigned* count, unsigned maxSymbolValue);
 unsigned HUF_optimalTableLog(unsigned maxTableLog, size_t srcSize, unsigned maxSymbolValue, void* workSpace,
- size_t wkspSize, HUF_CElt* table, const unsigned* count, HUF_depth_mode depthMode); /* table is used as scratch space for building and testing tables, not a return value */
-size_t HUF_buildCTable (HUF_CElt* CTable, const unsigned* count, unsigned maxSymbolValue, unsigned maxNbBits);   /* @return : maxNbBits; CTable and count can overlap. In which case, CTable will overwrite count content */
-size_t HUF_writeCTable (void* dst, size_t maxDstSize, const HUF_CElt* CTable, unsigned maxSymbolValue, unsigned huffLog);
+ size_t wkspSize, HUF_CElt* table, const unsigned* count, int flags); /* table is used as scratch space for building and testing tables, not a return value */
 size_t HUF_writeCTable_wksp(void* dst, size_t maxDstSize, const HUF_CElt* CTable, unsigned maxSymbolValue, unsigned huffLog, void* workspace, size_t workspaceSize);
-size_t HUF_compress4X_usingCTable(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable);
-size_t HUF_compress4X_usingCTable_bmi2(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable, int bmi2);
+size_t HUF_compress4X_usingCTable(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable, int flags);
 size_t HUF_estimateCompressedSize(const HUF_CElt* CTable, const unsigned* count, unsigned maxSymbolValue);
 int HUF_validateCTable(const HUF_CElt* CTable, const unsigned* count, unsigned maxSymbolValue);
 
@@ -3077,14 +2957,13 @@ size_t HUF_compress4X_repeat(void* dst, size_t dstSize,
                        const void* src, size_t srcSize,
                        unsigned maxSymbolValue, unsigned tableLog,
                        void* workSpace, size_t wkspSize,    /**< `workSpace` must be aligned on 4-bytes boundaries, `wkspSize` must be >= HUF_WORKSPACE_SIZE */
-                       HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat, int bmi2,
-                       unsigned suspectUncompressible, HUF_depth_mode depthMode);
+                       HUF_CElt* hufTable, HUF_repeat* repeat, int flags);
 
 /** HUF_buildCTable_wksp() :
  *  Same as HUF_buildCTable(), but using externally allocated scratch buffer.
  * `workSpace` must be aligned on 4-bytes boundaries, and its size must be >= HUF_CTABLE_WORKSPACE_SIZE.
  */
-#define HUF_CTABLE_WORKSPACE_SIZE_U32 (2*HUF_SYMBOLVALUE_MAX +1 +1)
+#define HUF_CTABLE_WORKSPACE_SIZE_U32 ((4 * (HUF_SYMBOLVALUE_MAX + 1)) + 192)
 #define HUF_CTABLE_WORKSPACE_SIZE (HUF_CTABLE_WORKSPACE_SIZE_U32 * sizeof(unsigned))
 size_t HUF_buildCTable_wksp (HUF_CElt* tree,
                        const unsigned* count, U32 maxSymbolValue, U32 maxNbBits,
@@ -3110,7 +2989,7 @@ size_t HUF_readStats_wksp(BYTE* huffWeight, size_t hwSize,
                           U32* rankStats, U32* nbSymbolsPtr, U32* tableLogPtr,
                           const void* src, size_t srcSize,
                           void* workspace, size_t wkspSize,
-                          int bmi2);
+                          int flags);
 
 /** HUF_readCTable() :
  *  Loading a CTable saved with HUF_writeCTable() */
@@ -3148,32 +3027,12 @@ U32 HUF_selectDecoder (size_t dstSize, size_t cSrcSize);
 #define HUF_DECOMPRESS_WORKSPACE_SIZE ((2 << 10) + (1 << 9))
 #define HUF_DECOMPRESS_WORKSPACE_SIZE_U32 (HUF_DECOMPRESS_WORKSPACE_SIZE / sizeof(U32))
 
-#ifndef HUF_FORCE_DECOMPRESS_X2
-size_t HUF_readDTableX1 (HUF_DTable* DTable, const void* src, size_t srcSize);
-size_t HUF_readDTableX1_wksp (HUF_DTable* DTable, const void* src, size_t srcSize, void* workSpace, size_t wkspSize);
-#endif
-#ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_readDTableX2 (HUF_DTable* DTable, const void* src, size_t srcSize);
-size_t HUF_readDTableX2_wksp (HUF_DTable* DTable, const void* src, size_t srcSize, void* workSpace, size_t wkspSize);
-#endif
-
-size_t HUF_decompress4X_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable);
-#ifndef HUF_FORCE_DECOMPRESS_X2
-size_t HUF_decompress4X1_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable);
-#endif
-#ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_decompress4X2_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable);
-#endif
-
 
 /* ====================== */
 /* single stream variants */
 /* ====================== */
 
-size_t HUF_compress1X (void* dst, size_t dstSize, const void* src, size_t srcSize, unsigned maxSymbolValue, unsigned tableLog);
-size_t HUF_compress1X_wksp (void* dst, size_t dstSize, const void* src, size_t srcSize, unsigned maxSymbolValue, unsigned tableLog, void* workSpace, size_t wkspSize);  /**< `workSpace` must be a table of at least HUF_WORKSPACE_SIZE_U64 U64 */
-size_t HUF_compress1X_usingCTable(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable);
-size_t HUF_compress1X_usingCTable_bmi2(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable, int bmi2);
+size_t HUF_compress1X_usingCTable(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable, int flags);
 /** HUF_compress1X_repeat() :
  *  Same as HUF_compress1X_wksp(), but considers using hufTable if *repeat != HUF_repeat_none.
  *  If it uses hufTable it does not modify hufTable or repeat.
@@ -3184,50 +3043,30 @@ size_t HUF_compress1X_repeat(void* dst, size_t dstSize,
                        const void* src, size_t srcSize,
                        unsigned maxSymbolValue, unsigned tableLog,
                        void* workSpace, size_t wkspSize,   /**< `workSpace` must be aligned on 4-bytes boundaries, `wkspSize` must be >= HUF_WORKSPACE_SIZE */
-                       HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat, int bmi2,
-                       unsigned suspectUncompressible, HUF_depth_mode depthMode);
+                       HUF_CElt* hufTable, HUF_repeat* repeat, int flags);
 
-size_t HUF_decompress1X1 (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /* single-symbol decoder */
+size_t HUF_decompress1X_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int flags);
 #ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_decompress1X2 (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /* double-symbol decoder */
-#endif
-
-size_t HUF_decompress1X_DCtx (HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);
-size_t HUF_decompress1X_DCtx_wksp (HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize);
-#ifndef HUF_FORCE_DECOMPRESS_X2
-size_t HUF_decompress1X1_DCtx(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /**< single-symbol decoder */
-size_t HUF_decompress1X1_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize);   /**< single-symbol decoder */
-#endif
-#ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_decompress1X2_DCtx(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);   /**< double-symbols decoder */
-size_t HUF_decompress1X2_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize);   /**< double-symbols decoder */
-#endif
-
-size_t HUF_decompress1X_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable);   /**< automatic selection of sing or double symbol decoder, based on DTable */
-#ifndef HUF_FORCE_DECOMPRESS_X2
-size_t HUF_decompress1X1_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable);
-#endif
-#ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_decompress1X2_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable);
+size_t HUF_decompress1X2_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int flags);   /**< double-symbols decoder */
 #endif
 
 /* BMI2 variants.
  * If the CPU has BMI2 support, pass bmi2=1, otherwise pass bmi2=0.
  */
-size_t HUF_decompress1X_usingDTable_bmi2(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable, int bmi2);
+size_t HUF_decompress1X_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable, int flags);
 #ifndef HUF_FORCE_DECOMPRESS_X2
-size_t HUF_decompress1X1_DCtx_wksp_bmi2(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int bmi2);
+size_t HUF_decompress1X1_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int flags);
 #endif
-size_t HUF_decompress4X_usingDTable_bmi2(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable, int bmi2);
-size_t HUF_decompress4X_hufOnly_wksp_bmi2(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int bmi2);
+size_t HUF_decompress4X_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable, int flags);
+size_t HUF_decompress4X_hufOnly_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int flags);
 #ifndef HUF_FORCE_DECOMPRESS_X2
-size_t HUF_readDTableX1_wksp_bmi2(HUF_DTable* DTable, const void* src, size_t srcSize, void* workSpace, size_t wkspSize, int bmi2);
+size_t HUF_readDTableX1_wksp(HUF_DTable* DTable, const void* src, size_t srcSize, void* workSpace, size_t wkspSize, int flags);
 #endif
 #ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_readDTableX2_wksp_bmi2(HUF_DTable* DTable, const void* src, size_t srcSize, void* workSpace, size_t wkspSize, int bmi2);
+size_t HUF_readDTableX2_wksp(HUF_DTable* DTable, const void* src, size_t srcSize, void* workSpace, size_t wkspSize, int flags);
 #endif
 
-#endif /* HUF_STATIC_LINKING_ONLY */
+#endif   /* HUF_H_298734234 */
 
 #if defined (__cplusplus)
 }
@@ -3449,7 +3288,7 @@ size_t HUF_readStats(BYTE* huffWeight, size_t hwSize, U32* rankStats,
                      const void* src, size_t srcSize)
 {
     U32 wksp[HUF_READ_STATS_WORKSPACE_SIZE_U32];
-    return HUF_readStats_wksp(huffWeight, hwSize, rankStats, nbSymbolsPtr, tableLogPtr, src, srcSize, wksp, sizeof(wksp), /* bmi2 */ 0);
+    return HUF_readStats_wksp(huffWeight, hwSize, rankStats, nbSymbolsPtr, tableLogPtr, src, srcSize, wksp, sizeof(wksp), /* flags */ 0);
 }
 
 FORCE_INLINE_TEMPLATE size_t
@@ -3541,14 +3380,14 @@ size_t HUF_readStats_wksp(BYTE* huffWeight, size_t hwSize, U32* rankStats,
                      U32* nbSymbolsPtr, U32* tableLogPtr,
                      const void* src, size_t srcSize,
                      void* workSpace, size_t wkspSize,
-                     int bmi2)
+                     int flags)
 {
 #if DYNAMIC_BMI2
-    if (bmi2) {
+    if (flags & HUF_flags_bmi2) {
         return HUF_readStats_body_bmi2(huffWeight, hwSize, rankStats, nbSymbolsPtr, tableLogPtr, src, srcSize, workSpace, wkspSize);
     }
 #endif
-    (void)bmi2;
+    (void)flags;
     return HUF_readStats_body_default(huffWeight, hwSize, rankStats, nbSymbolsPtr, tableLogPtr, src, srcSize, workSpace, wkspSize);
 }
 /**** ended inlining common/entropy_common.c ****/
@@ -3602,12 +3441,15 @@ const char* ERR_getErrorString(ERR_enum code)
     case PREFIX(dstSize_tooSmall): return "Destination buffer is too small";
     case PREFIX(srcSize_wrong): return "Src size is incorrect";
     case PREFIX(dstBuffer_null): return "Operation on NULL destination buffer";
+    case PREFIX(noForwardProgress_destFull): return "Operation made no progress over multiple calls, due to output buffer being full";
+    case PREFIX(noForwardProgress_inputEmpty): return "Operation made no progress over multiple calls, due to input being empty";
         /* following error codes are not stable and may be removed or changed in a future version */
     case PREFIX(frameIndex_tooLarge): return "Frame index is too large";
     case PREFIX(seekableIO): return "An I/O error occurred when reading/seeking";
     case PREFIX(dstBuffer_wrong): return "Destination buffer is wrong";
     case PREFIX(srcBuffer_wrong): return "Source buffer is wrong";
     case PREFIX(externalMatchFinder_failed): return "External matchfinder returned an error code";
+    case PREFIX(externalSequences_invalid): return "External sequences are not valid";
     case PREFIX(maxCode):
     default: return notErrorCode;
     }
@@ -3672,19 +3514,6 @@ const char* ERR_getErrorString(ERR_enum code)
 #define FSE_CAT(X,Y) X##Y
 #define FSE_FUNCTION_NAME(X,Y) FSE_CAT(X,Y)
 #define FSE_TYPE_NAME(X,Y) FSE_CAT(X,Y)
-
-
-/* Function templates */
-FSE_DTable* FSE_createDTable (unsigned tableLog)
-{
-    if (tableLog > FSE_TABLELOG_ABSOLUTE_MAX) tableLog = FSE_TABLELOG_ABSOLUTE_MAX;
-    return (FSE_DTable*)ZSTD_malloc( FSE_DTABLE_SIZE_U32(tableLog) * sizeof (U32) );
-}
-
-void FSE_freeDTable (FSE_DTable* dt)
-{
-    ZSTD_free(dt);
-}
 
 static size_t FSE_buildDTable_internal(FSE_DTable* dt, const short* normalizedCounter, unsigned maxSymbolValue, unsigned tableLog, void* workSpace, size_t wkspSize)
 {
@@ -3802,49 +3631,6 @@ size_t FSE_buildDTable_wksp(FSE_DTable* dt, const short* normalizedCounter, unsi
 /*-*******************************************************
 *  Decompression (Byte symbols)
 *********************************************************/
-size_t FSE_buildDTable_rle (FSE_DTable* dt, BYTE symbolValue)
-{
-    void* ptr = dt;
-    FSE_DTableHeader* const DTableH = (FSE_DTableHeader*)ptr;
-    void* dPtr = dt + 1;
-    FSE_decode_t* const cell = (FSE_decode_t*)dPtr;
-
-    DTableH->tableLog = 0;
-    DTableH->fastMode = 0;
-
-    cell->newState = 0;
-    cell->symbol = symbolValue;
-    cell->nbBits = 0;
-
-    return 0;
-}
-
-
-size_t FSE_buildDTable_raw (FSE_DTable* dt, unsigned nbBits)
-{
-    void* ptr = dt;
-    FSE_DTableHeader* const DTableH = (FSE_DTableHeader*)ptr;
-    void* dPtr = dt + 1;
-    FSE_decode_t* const dinfo = (FSE_decode_t*)dPtr;
-    const unsigned tableSize = 1 << nbBits;
-    const unsigned tableMask = tableSize - 1;
-    const unsigned maxSV1 = tableMask+1;
-    unsigned s;
-
-    /* Sanity checks */
-    if (nbBits < 1) return ERROR(GENERIC);         /* min size */
-
-    /* Build Decoding Table */
-    DTableH->tableLog = (U16)nbBits;
-    DTableH->fastMode = 1;
-    for (s=0; s<maxSV1; s++) {
-        dinfo[s].newState = 0;
-        dinfo[s].symbol = (BYTE)s;
-        dinfo[s].nbBits = (BYTE)nbBits;
-    }
-
-    return 0;
-}
 
 FORCE_INLINE_TEMPLATE size_t FSE_decompress_usingDTable_generic(
           void* dst, size_t maxDstSize,
@@ -3906,26 +3692,6 @@ FORCE_INLINE_TEMPLATE size_t FSE_decompress_usingDTable_generic(
     }   }
 
     return op-ostart;
-}
-
-
-size_t FSE_decompress_usingDTable(void* dst, size_t originalSize,
-                            const void* cSrc, size_t cSrcSize,
-                            const FSE_DTable* dt)
-{
-    const void* ptr = dt;
-    const FSE_DTableHeader* DTableH = (const FSE_DTableHeader*)ptr;
-    const U32 fastMode = DTableH->fastMode;
-
-    /* select fast mode (static) */
-    if (fastMode) return FSE_decompress_usingDTable_generic(dst, originalSize, cSrc, cSrcSize, dt, 1);
-    return FSE_decompress_usingDTable_generic(dst, originalSize, cSrc, cSrcSize, dt, 0);
-}
-
-
-size_t FSE_decompress_wksp(void* dst, size_t dstCapacity, const void* cSrc, size_t cSrcSize, unsigned maxLog, void* workSpace, size_t wkspSize)
-{
-    return FSE_decompress_wksp_bmi2(dst, dstCapacity, cSrc, cSrcSize, maxLog, workSpace, wkspSize, /* bmi2 */ 0);
 }
 
 typedef struct {
@@ -4000,24 +3766,6 @@ size_t FSE_decompress_wksp_bmi2(void* dst, size_t dstCapacity, const void* cSrc,
     (void)bmi2;
     return FSE_decompress_wksp_body_default(dst, dstCapacity, cSrc, cSrcSize, maxLog, workSpace, wkspSize);
 }
-
-
-typedef FSE_DTable DTable_max_t[FSE_DTABLE_SIZE_U32(FSE_MAX_TABLELOG)];
-
-#ifndef ZSTD_NO_UNUSED_FUNCTIONS
-size_t FSE_buildDTable(FSE_DTable* dt, const short* normalizedCounter, unsigned maxSymbolValue, unsigned tableLog) {
-    U32 wksp[FSE_BUILD_DTABLE_WKSP_SIZE_U32(FSE_TABLELOG_ABSOLUTE_MAX, FSE_MAX_SYMBOL_VALUE)];
-    return FSE_buildDTable_wksp(dt, normalizedCounter, maxSymbolValue, tableLog, wksp, sizeof(wksp));
-}
-
-size_t FSE_decompress(void* dst, size_t dstCapacity, const void* cSrc, size_t cSrcSize)
-{
-    /* Static analyzer seems unable to understand this table will be properly initialized later */
-    U32 wksp[FSE_DECOMPRESS_WKSP_SIZE_U32(FSE_MAX_TABLELOG, FSE_MAX_SYMBOL_VALUE)];
-    return FSE_decompress_wksp(dst, dstCapacity, cSrc, cSrcSize, FSE_MAX_TABLELOG, wksp, sizeof(wksp));
-}
-#endif
-
 
 #endif   /* FSE_COMMONDEFS_ONLY */
 /**** ended inlining common/fse_decompress.c ****/
@@ -4624,7 +4372,7 @@ extern "C" {
 #ifndef ZSTD_H_235446
 #define ZSTD_H_235446
 
-/* ======   Dependency   ======*/
+/* ======   Dependencies   ======*/
 #include <limits.h>   /* INT_MAX */
 #include <stddef.h>   /* size_t */
 
@@ -4716,7 +4464,7 @@ extern "C" {
 /*------   Version   ------*/
 #define ZSTD_VERSION_MAJOR    1
 #define ZSTD_VERSION_MINOR    5
-#define ZSTD_VERSION_RELEASE  3
+#define ZSTD_VERSION_RELEASE  4
 #define ZSTD_VERSION_NUMBER  (ZSTD_VERSION_MAJOR *100*100 + ZSTD_VERSION_MINOR *100 + ZSTD_VERSION_RELEASE)
 
 /*! ZSTD_versionNumber() :
@@ -5089,6 +4837,7 @@ typedef enum {
      * ZSTD_c_useRowMatchFinder
      * ZSTD_c_prefetchCDictTables
      * ZSTD_c_enableMatchFinderFallback
+     * ZSTD_c_maxBlockSize
      * Because they are not stable, it's necessary to define ZSTD_STATIC_LINKING_ONLY to access them.
      * note : never ever use experimentalParam? names directly;
      *        also, the enums values themselves are unstable and can still change.
@@ -5109,7 +4858,9 @@ typedef enum {
      ZSTD_c_experimentalParam14=1011,
      ZSTD_c_experimentalParam15=1012,
      ZSTD_c_experimentalParam16=1013,
-     ZSTD_c_experimentalParam17=1014
+     ZSTD_c_experimentalParam17=1014,
+     ZSTD_c_experimentalParam18=1015,
+     ZSTD_c_experimentalParam19=1016
 } ZSTD_cParameter;
 
 typedef struct {
@@ -5222,13 +4973,15 @@ typedef enum {
      * ZSTD_d_stableOutBuffer
      * ZSTD_d_forceIgnoreChecksum
      * ZSTD_d_refMultipleDDicts
+     * ZSTD_d_disableHuffmanAssembly
      * Because they are not stable, it's necessary to define ZSTD_STATIC_LINKING_ONLY to access them.
      * note : never ever use experimentalParam? names directly
      */
      ZSTD_d_experimentalParam1=1000,
      ZSTD_d_experimentalParam2=1001,
      ZSTD_d_experimentalParam3=1002,
-     ZSTD_d_experimentalParam4=1003
+     ZSTD_d_experimentalParam4=1003,
+     ZSTD_d_experimentalParam5=1004
 
 } ZSTD_dParameter;
 
@@ -5407,8 +5160,6 @@ ZSTDLIB_API size_t ZSTD_CStreamOutSize(void);   /**< recommended size for output
  * This following is a legacy streaming API, available since v1.0+ .
  * It can be replaced by ZSTD_CCtx_reset() and ZSTD_compressStream2().
  * It is redundant, but remains fully supported.
- * Streaming in combination with advanced parameters and dictionary compression
- * can only be used through the new API.
  ******************************************************************************/
 
 /*!
@@ -5417,6 +5168,9 @@ ZSTDLIB_API size_t ZSTD_CStreamOutSize(void);   /**< recommended size for output
  *     ZSTD_CCtx_reset(zcs, ZSTD_reset_session_only);
  *     ZSTD_CCtx_refCDict(zcs, NULL); // clear the dictionary (if any)
  *     ZSTD_CCtx_setParameter(zcs, ZSTD_c_compressionLevel, compressionLevel);
+ *
+ * Note that ZSTD_initCStream() clears any previously set dictionary. Use the new API
+ * to compress with a dictionary.
  */
 ZSTDLIB_API size_t ZSTD_initCStream(ZSTD_CStream* zcs, int compressionLevel);
 /*!
@@ -5810,6 +5564,7 @@ ZSTDLIB_API size_t ZSTD_sizeof_DDict(const ZSTD_DDict* ddict);
 #define ZSTD_TARGETLENGTH_MIN     0   /* note : comparing this constant to an unsigned results in a tautological test */
 #define ZSTD_STRATEGY_MIN        ZSTD_fast
 #define ZSTD_STRATEGY_MAX        ZSTD_btultra2
+#define ZSTD_BLOCKSIZE_MAX_MIN (1 << 10) /* The minimum valid max blocksize. Maximum blocksizes smaller than this make compressBound() inaccurate. */
 
 
 #define ZSTD_OVERLAPLOG_MIN       0
@@ -6037,6 +5792,51 @@ ZSTDLIB_STATIC_API unsigned long long ZSTD_decompressBound(const void* src, size
  *           or an error code (if srcSize is too small) */
 ZSTDLIB_STATIC_API size_t ZSTD_frameHeaderSize(const void* src, size_t srcSize);
 
+/*! ZSTD_decompressionMargin() :
+ * Zstd supports in-place decompression, where the input and output buffers overlap.
+ * In this case, the output buffer must be at least (Margin + Output_Size) bytes large,
+ * and the input buffer must be at the end of the output buffer.
+ *
+ *  _______________________ Output Buffer ________________________
+ * |                                                              |
+ * |                                        ____ Input Buffer ____|
+ * |                                       |                      |
+ * v                                       v                      v
+ * |---------------------------------------|-----------|----------|
+ * ^                                                   ^          ^
+ * |___________________ Output_Size ___________________|_ Margin _|
+ *
+ * NOTE: See also ZSTD_DECOMPRESSION_MARGIN().
+ * NOTE: This applies only to single-pass decompression through ZSTD_decompress() or
+ * ZSTD_decompressDCtx().
+ * NOTE: This function supports multi-frame input.
+ *
+ * @param src The compressed frame(s)
+ * @param srcSize The size of the compressed frame(s)
+ * @returns The decompression margin or an error that can be checked with ZSTD_isError().
+ */
+ZSTDLIB_STATIC_API size_t ZSTD_decompressionMargin(const void* src, size_t srcSize);
+
+/*! ZSTD_DECOMPRESS_MARGIN() :
+ * Similar to ZSTD_decompressionMargin(), but instead of computing the margin from
+ * the compressed frame, compute it from the original size and the blockSizeLog.
+ * See ZSTD_decompressionMargin() for details.
+ *
+ * WARNING: This macro does not support multi-frame input, the input must be a single
+ * zstd frame. If you need that support use the function, or implement it yourself.
+ *
+ * @param originalSize The original uncompressed size of the data.
+ * @param blockSize    The block size == MIN(windowSize, ZSTD_BLOCKSIZE_MAX).
+ *                     Unless you explicitly set the windowLog smaller than
+ *                     ZSTD_BLOCKSIZELOG_MAX you can just use ZSTD_BLOCKSIZE_MAX.
+ */
+#define ZSTD_DECOMPRESSION_MARGIN(originalSize, blockSize) ((size_t)(                                              \
+        ZSTD_FRAMEHEADERSIZE_MAX                                                              /* Frame header */ + \
+        4                                                                                         /* checksum */ + \
+        ((originalSize) == 0 ? 0 : 3 * (((originalSize) + (blockSize) - 1) / blockSize)) /* 3 bytes per block */ + \
+        (blockSize)                                                                    /* One block of margin */   \
+    ))
+
 typedef enum {
   ZSTD_sf_noBlockDelimiters = 0,         /* Representation of ZSTD_Sequence has no block delimiters, sequences only */
   ZSTD_sf_explicitBlockDelimiters = 1    /* Representation of ZSTD_Sequence contains explicit block delimiters */
@@ -6182,8 +5982,11 @@ ZSTDLIB_API unsigned ZSTD_isSkippableFrame(const void* buffer, size_t size);
  *  and ZSTD_estimateCCtxSize_usingCCtxParams(), which can be used in tandem with ZSTD_CCtxParams_setParameter().
  *  Both can be used to estimate memory using custom compression parameters and arbitrary srcSize limits.
  *
- *  Note 2 : only single-threaded compression is supported.
+ *  Note : only single-threaded compression is supported.
  *  ZSTD_estimateCCtxSize_usingCCtxParams() will return an error code if ZSTD_c_nbWorkers is >= 1.
+ *
+ *  Note 2 : ZSTD_estimateCCtxSize* functions are not compatible with the external matchfinder API at this time.
+ *  Size estimates assume that no external matchfinder is registered.
  */
 ZSTDLIB_STATIC_API size_t ZSTD_estimateCCtxSize(int compressionLevel);
 ZSTDLIB_STATIC_API size_t ZSTD_estimateCCtxSize_usingCParams(ZSTD_compressionParameters cParams);
@@ -6202,7 +6005,12 @@ ZSTDLIB_STATIC_API size_t ZSTD_estimateDCtxSize(void);
  *  or deducted from a valid frame Header, using ZSTD_estimateDStreamSize_fromFrame();
  *  Note : if streaming is init with function ZSTD_init?Stream_usingDict(),
  *         an internal ?Dict will be created, which additional size is not estimated here.
- *         In this case, get total size by adding ZSTD_estimate?DictSize */
+ *         In this case, get total size by adding ZSTD_estimate?DictSize
+ *  Note 2 : only single-threaded compression is supported.
+ *  ZSTD_estimateCStreamSize_usingCCtxParams() will return an error code if ZSTD_c_nbWorkers is >= 1.
+ *  Note 3 : ZSTD_estimateCStreamSize* functions are not compatible with the external matchfinder API at this time.
+ *  Size estimates assume that no external matchfinder is registered.
+ */
 ZSTDLIB_STATIC_API size_t ZSTD_estimateCStreamSize(int compressionLevel);
 ZSTDLIB_STATIC_API size_t ZSTD_estimateCStreamSize_usingCParams(ZSTD_compressionParameters cParams);
 ZSTDLIB_STATIC_API size_t ZSTD_estimateCStreamSize_usingCCtxParams(const ZSTD_CCtx_params* params);
@@ -6677,6 +6485,41 @@ ZSTDLIB_STATIC_API size_t ZSTD_CCtx_refPrefix_advanced(ZSTD_CCtx* cctx, const vo
  * documentation (below) before setting this parameter. */
 #define ZSTD_c_enableMatchFinderFallback ZSTD_c_experimentalParam17
 
+/* ZSTD_c_maxBlockSize
+ * Allowed values are between 1KB and ZSTD_BLOCKSIZE_MAX (128KB).
+ * The default is ZSTD_BLOCKSIZE_MAX, and setting to 0 will set to the default.
+ *
+ * This parameter can be used to set an upper bound on the blocksize
+ * that overrides the default ZSTD_BLOCKSIZE_MAX. It cannot be used to set upper
+ * bounds greater than ZSTD_BLOCKSIZE_MAX or bounds lower than 1KB (will make
+ * compressBound() innacurate). Only currently meant to be used for testing.
+ *
+ */
+#define ZSTD_c_maxBlockSize ZSTD_c_experimentalParam18
+
+/* ZSTD_c_searchForExternalRepcodes
+ * This parameter affects how zstd parses external sequences, such as sequences
+ * provided through the compressSequences() API or from an external matchfinder.
+ *
+ * If set to ZSTD_ps_enable, the library will check for repeated offsets in
+ * external sequences, even if those repcodes are not explicitly indicated in
+ * the "rep" field. Note that this is the only way to exploit repcode matches
+ * while using compressSequences() or an external matchfinder, since zstd
+ * currently ignores the "rep" field of external sequences.
+ *
+ * If set to ZSTD_ps_disable, the library will not exploit repeated offsets in
+ * external sequences, regardless of whether the "rep" field has been set. This
+ * reduces sequence compression overhead by about 25% while sacrificing some
+ * compression ratio.
+ *
+ * The default value is ZSTD_ps_auto, for which the library will enable/disable
+ * based on compression level.
+ *
+ * Note: for now, this param only has an effect if ZSTD_c_blockDelimiters is
+ * set to ZSTD_sf_explicitBlockDelimiters. That may change in the future.
+ */
+#define ZSTD_c_searchForExternalRepcodes ZSTD_c_experimentalParam19
+
 /*! ZSTD_CCtx_getParameter() :
  *  Get the requested compression parameter value, selected by enum ZSTD_cParameter,
  *  and store it into int* value.
@@ -6886,6 +6729,17 @@ ZSTDLIB_STATIC_API size_t ZSTD_DCtx_getParameter(ZSTD_DCtx* dctx, ZSTD_dParamete
  */
 #define ZSTD_d_refMultipleDDicts ZSTD_d_experimentalParam4
 
+/* ZSTD_d_disableHuffmanAssembly
+ * Set to 1 to disable the Huffman assembly implementation.
+ * The default value is 0, which allows zstd to use the Huffman assembly
+ * implementation if available.
+ *
+ * This parameter can be used to disable Huffman assembly at runtime.
+ * If you want to disable it at compile time you can define the macro
+ * ZSTD_DISABLE_ASM.
+ */
+#define ZSTD_d_disableHuffmanAssembly ZSTD_d_experimentalParam5
+
 
 /*! ZSTD_DCtx_setFormat() :
  *  This function is REDUNDANT. Prefer ZSTD_DCtx_setParameter().
@@ -7075,8 +6929,8 @@ ZSTDLIB_STATIC_API size_t ZSTD_toFlushNow(ZSTD_CCtx* cctx);
  *     ZSTD_DCtx_loadDictionary(zds, dict, dictSize);
  *
  * note: no dictionary will be used if dict == NULL or dictSize < 8
- * Note : this prototype will be marked as deprecated and generate compilation warnings on reaching v1.5.x
  */
+ZSTD_DEPRECATED("use ZSTD_DCtx_reset + ZSTD_DCtx_loadDictionary, see zstd.h for detailed instructions")
 ZSTDLIB_STATIC_API size_t ZSTD_initDStream_usingDict(ZSTD_DStream* zds, const void* dict, size_t dictSize);
 
 /*!
@@ -7086,8 +6940,8 @@ ZSTDLIB_STATIC_API size_t ZSTD_initDStream_usingDict(ZSTD_DStream* zds, const vo
  *     ZSTD_DCtx_refDDict(zds, ddict);
  *
  * note : ddict is referenced, it must outlive decompression session
- * Note : this prototype will be marked as deprecated and generate compilation warnings on reaching v1.5.x
  */
+ZSTD_DEPRECATED("use ZSTD_DCtx_reset + ZSTD_DCtx_refDDict, see zstd.h for detailed instructions")
 ZSTDLIB_STATIC_API size_t ZSTD_initDStream_usingDDict(ZSTD_DStream* zds, const ZSTD_DDict* ddict);
 
 /*!
@@ -7096,8 +6950,8 @@ ZSTDLIB_STATIC_API size_t ZSTD_initDStream_usingDDict(ZSTD_DStream* zds, const Z
  *     ZSTD_DCtx_reset(zds, ZSTD_reset_session_only);
  *
  * re-use decompression parameters from previous init; saves dictionary loading
- * Note : this prototype will be marked as deprecated and generate compilation warnings on reaching v1.5.x
  */
+ZSTD_DEPRECATED("use ZSTD_DCtx_reset, see zstd.h for detailed instructions")
 ZSTDLIB_STATIC_API size_t ZSTD_resetDStream(ZSTD_DStream* zds);
 
 
@@ -7390,8 +7244,8 @@ ZSTDLIB_STATIC_API size_t ZSTD_insertBlock    (ZSTD_DCtx* dctx, const void* bloc
  * externalMatchState.
  *
  * *** LIMITATIONS ***
- * External matchfinders are compatible with all zstd compression APIs. There are
- * only two limitations.
+ * External matchfinders are compatible with all zstd compression APIs which respect
+ * advanced parameters. However, there are three limitations:
  *
  * First, the ZSTD_c_enableLongDistanceMatching cParam is not supported.
  * COMPRESSION WILL FAIL if it is enabled and the user tries to compress with an
@@ -7413,7 +7267,11 @@ ZSTDLIB_STATIC_API size_t ZSTD_insertBlock    (ZSTD_DCtx* dctx, const void* bloc
  *     APIs, work with the external matchfinder, but the external matchfinder won't
  *     receive any history from the previous block. Each block is an independent chunk.
  *
- * Long-term, we plan to overcome both limitations. There is no technical blocker to
+ * Third, multi-threading within a single compression is not supported. In other words,
+ * COMPRESSION WILL FAIL if ZSTD_c_nbWorkers > 0 and an external matchfinder is registered.
+ * Multi-threading across compressions is fine: simply create one CCtx per thread.
+ *
+ * Long-term, we plan to overcome all three limitations. There is no technical blocker to
  * overcoming them. It is purely a question of engineering effort.
  */
 
@@ -7436,6 +7294,17 @@ typedef size_t ZSTD_externalMatchFinder_F (
  * compressions. It will remain set until the user explicitly resets compression
  * parameters.
  *
+ * External matchfinder registration is considered to be an "advanced parameter",
+ * part of the "advanced API". This means it will only have an effect on
+ * compression APIs which respect advanced parameters, such as compress2() and
+ * compressStream(). Older compression APIs such as compressCCtx(), which predate
+ * the introduction of "advanced parameters", will ignore any external matchfinder
+ * setting.
+ *
+ * The external matchfinder can be "cleared" by registering a NULL external
+ * matchfinder function pointer. This removes all limitations described above in
+ * the "LIMITATIONS" section of the API docs.
+ *
  * The user is strongly encouraged to read the full API documentation (above)
  * before calling this function. */
 ZSTDLIB_STATIC_API void
@@ -7453,7 +7322,6 @@ ZSTD_registerExternalMatchFinder(
 /**** ended inlining ../zstd.h ****/
 #define FSE_STATIC_LINKING_ONLY
 /**** skipping file: fse.h ****/
-#define HUF_STATIC_LINKING_ONLY
 /**** skipping file: huf.h ****/
 #ifndef XXH_STATIC_LINKING_ONLY
 #  define XXH_STATIC_LINKING_ONLY  /* XXH64_state_t */
@@ -13390,6 +13258,8 @@ typedef enum { set_basic, set_rle, set_compressed, set_repeat } symbolEncodingTy
 #define LLFSELog    9
 #define OffFSELog   8
 #define MaxFSELog  MAX(MAX(MLFSELog, LLFSELog), OffFSELog)
+#define MaxMLBits 16
+#define MaxLLBits 16
 
 #define ZSTD_MAX_HUF_HEADER_SIZE 128 /* header + <= 127 byte tree description */
 /* Each table cannot take more than #symbols * FSELog bits */
@@ -13617,12 +13487,13 @@ MEM_STATIC ZSTD_sequenceLength ZSTD_getSequenceLength(seqStore_t const* seqStore
  *          `decompressedBound != ZSTD_CONTENTSIZE_ERROR`
  */
 typedef struct {
+    size_t nbBlocks;
     size_t compressedSize;
     unsigned long long decompressedBound;
 } ZSTD_frameSizeInfo;   /* decompress & legacy */
 
 const seqStore_t* ZSTD_getSeqStore(const ZSTD_CCtx* ctx);   /* compress & dictBuilder */
-void ZSTD_seqToCodes(const seqStore_t* seqStorePtr);   /* compress, dictBuilder, decodeCorpus (shouldn't get its definition from here) */
+int ZSTD_seqToCodes(const seqStore_t* seqStorePtr);   /* compress, dictBuilder, decodeCorpus (shouldn't get its definition from here) */
 
 /* custom memory allocation functions */
 void* ZSTD_customMalloc(size_t size, ZSTD_customMem customMem);
@@ -14019,7 +13890,9 @@ static int isQueueFull(POOL_ctx const* ctx) {
 static void
 POOL_add_internal(POOL_ctx* ctx, POOL_function function, void *opaque)
 {
-    POOL_job const job = {function, opaque};
+    POOL_job job;
+    job.function = function;
+    job.opaque = opaque;
     assert(ctx != NULL);
     if (ctx->shutdown) return;
 
@@ -14624,16 +14497,6 @@ size_t FSE_writeNCount (void* buffer, size_t bufferSize,
 *  FSE Compression Code
 ****************************************************************/
 
-FSE_CTable* FSE_createCTable (unsigned maxSymbolValue, unsigned tableLog)
-{
-    size_t size;
-    if (tableLog > FSE_TABLELOG_ABSOLUTE_MAX) tableLog = FSE_TABLELOG_ABSOLUTE_MAX;
-    size = FSE_CTABLE_SIZE_U32 (tableLog, maxSymbolValue) * sizeof(U32);
-    return (FSE_CTable*)ZSTD_malloc(size);
-}
-
-void FSE_freeCTable (FSE_CTable* ct) { ZSTD_free(ct); }
-
 /* provides the minimum logSize to safely represent a distribution */
 static unsigned FSE_minTableLog(size_t srcSize, unsigned maxSymbolValue)
 {
@@ -14814,40 +14677,6 @@ size_t FSE_normalizeCount (short* normalizedCounter, unsigned tableLog,
     return tableLog;
 }
 
-
-/* fake FSE_CTable, for raw (uncompressed) input */
-size_t FSE_buildCTable_raw (FSE_CTable* ct, unsigned nbBits)
-{
-    const unsigned tableSize = 1 << nbBits;
-    const unsigned tableMask = tableSize - 1;
-    const unsigned maxSymbolValue = tableMask;
-    void* const ptr = ct;
-    U16* const tableU16 = ( (U16*) ptr) + 2;
-    void* const FSCT = ((U32*)ptr) + 1 /* header */ + (tableSize>>1);   /* assumption : tableLog >= 1 */
-    FSE_symbolCompressionTransform* const symbolTT = (FSE_symbolCompressionTransform*) (FSCT);
-    unsigned s;
-
-    /* Sanity checks */
-    if (nbBits < 1) return ERROR(GENERIC);             /* min size */
-
-    /* header */
-    tableU16[-2] = (U16) nbBits;
-    tableU16[-1] = (U16) maxSymbolValue;
-
-    /* Build table */
-    for (s=0; s<tableSize; s++)
-        tableU16[s] = (U16)(tableSize + s);
-
-    /* Build Symbol Transformation Table */
-    {   const U32 deltaNbBits = (nbBits << 16) - (1 << nbBits);
-        for (s=0; s<=maxSymbolValue; s++) {
-            symbolTT[s].deltaNbBits = deltaNbBits;
-            symbolTT[s].deltaFindState = s-1;
-    }   }
-
-    return 0;
-}
-
 /* fake FSE_CTable, for rle input (always same symbol) */
 size_t FSE_buildCTable_rle (FSE_CTable* ct, BYTE symbolValue)
 {
@@ -14945,80 +14774,6 @@ size_t FSE_compress_usingCTable (void* dst, size_t dstSize,
 
 
 size_t FSE_compressBound(size_t size) { return FSE_COMPRESSBOUND(size); }
-
-#ifndef ZSTD_NO_UNUSED_FUNCTIONS
-/* FSE_compress_wksp() :
- * Same as FSE_compress2(), but using an externally allocated scratch buffer (`workSpace`).
- * `wkspSize` size must be `(1<<tableLog)`.
- */
-size_t FSE_compress_wksp (void* dst, size_t dstSize, const void* src, size_t srcSize, unsigned maxSymbolValue, unsigned tableLog, void* workSpace, size_t wkspSize)
-{
-    BYTE* const ostart = (BYTE*) dst;
-    BYTE* op = ostart;
-    BYTE* const oend = ostart + dstSize;
-
-    unsigned count[FSE_MAX_SYMBOL_VALUE+1];
-    S16   norm[FSE_MAX_SYMBOL_VALUE+1];
-    FSE_CTable* CTable = (FSE_CTable*)workSpace;
-    size_t const CTableSize = FSE_CTABLE_SIZE_U32(tableLog, maxSymbolValue);
-    void* scratchBuffer = (void*)(CTable + CTableSize);
-    size_t const scratchBufferSize = wkspSize - (CTableSize * sizeof(FSE_CTable));
-
-    /* init conditions */
-    if (wkspSize < FSE_COMPRESS_WKSP_SIZE_U32(tableLog, maxSymbolValue)) return ERROR(tableLog_tooLarge);
-    if (srcSize <= 1) return 0;  /* Not compressible */
-    if (!maxSymbolValue) maxSymbolValue = FSE_MAX_SYMBOL_VALUE;
-    if (!tableLog) tableLog = FSE_DEFAULT_TABLELOG;
-
-    /* Scan input and build symbol stats */
-    {   CHECK_V_F(maxCount, HIST_count_wksp(count, &maxSymbolValue, src, srcSize, scratchBuffer, scratchBufferSize) );
-        if (maxCount == srcSize) return 1;   /* only a single symbol in src : rle */
-        if (maxCount == 1) return 0;         /* each symbol present maximum once => not compressible */
-        if (maxCount < (srcSize >> 7)) return 0;   /* Heuristic : not compressible enough */
-    }
-
-    tableLog = FSE_optimalTableLog(tableLog, srcSize, maxSymbolValue);
-    CHECK_F( FSE_normalizeCount(norm, tableLog, count, srcSize, maxSymbolValue, /* useLowProbCount */ srcSize >= 2048) );
-
-    /* Write table description header */
-    {   CHECK_V_F(nc_err, FSE_writeNCount(op, oend-op, norm, maxSymbolValue, tableLog) );
-        op += nc_err;
-    }
-
-    /* Compress */
-    CHECK_F( FSE_buildCTable_wksp(CTable, norm, maxSymbolValue, tableLog, scratchBuffer, scratchBufferSize) );
-    {   CHECK_V_F(cSize, FSE_compress_usingCTable(op, oend - op, src, srcSize, CTable) );
-        if (cSize == 0) return 0;   /* not enough space for compressed data */
-        op += cSize;
-    }
-
-    /* check compressibility */
-    if ( (size_t)(op-ostart) >= srcSize-1 ) return 0;
-
-    return op-ostart;
-}
-
-typedef struct {
-    FSE_CTable CTable_max[FSE_CTABLE_SIZE_U32(FSE_MAX_TABLELOG, FSE_MAX_SYMBOL_VALUE)];
-    union {
-      U32 hist_wksp[HIST_WKSP_SIZE_U32];
-      BYTE scratchBuffer[1 << FSE_MAX_TABLELOG];
-    } workspace;
-} fseWkspMax_t;
-
-size_t FSE_compress2 (void* dst, size_t dstCapacity, const void* src, size_t srcSize, unsigned maxSymbolValue, unsigned tableLog)
-{
-    fseWkspMax_t scratchBuffer;
-    DEBUG_STATIC_ASSERT(sizeof(scratchBuffer) >= FSE_COMPRESS_WKSP_SIZE_U32(FSE_MAX_TABLELOG, FSE_MAX_SYMBOL_VALUE));   /* compilation failures here means scratchBuffer is not large enough */
-    if (tableLog > FSE_MAX_TABLELOG) return ERROR(tableLog_tooLarge);
-    return FSE_compress_wksp(dst, dstCapacity, src, srcSize, maxSymbolValue, tableLog, &scratchBuffer, sizeof(scratchBuffer));
-}
-
-size_t FSE_compress (void* dst, size_t dstCapacity, const void* src, size_t srcSize)
-{
-    return FSE_compress2(dst, dstCapacity, src, srcSize, FSE_MAX_SYMBOL_VALUE, FSE_DEFAULT_TABLELOG);
-}
-#endif
 
 #endif   /* FSE_COMMONDEFS_ONLY */
 /**** ended inlining compress/fse_compress.c ****/
@@ -15237,7 +14992,6 @@ size_t HIST_count(unsigned* count, unsigned* maxSymbolValuePtr,
 /**** skipping file: hist.h ****/
 #define FSE_STATIC_LINKING_ONLY   /* FSE_optimalTableLog_internal */
 /**** skipping file: ../common/fse.h ****/
-#define HUF_STATIC_LINKING_ONLY
 /**** skipping file: ../common/huf.h ****/
 /**** skipping file: ../common/error_private.h ****/
 /**** skipping file: ../common/bits.h ****/
@@ -15444,6 +15198,8 @@ size_t HUF_writeCTable_wksp(void* dst, size_t maxDstSize,
     U32 n;
     HUF_WriteCTableWksp* wksp = (HUF_WriteCTableWksp*)HUF_alignUpWorkspace(workspace, &workspaceSize, ZSTD_ALIGNOF(U32));
 
+    HUF_STATIC_ASSERT(HUF_CTABLE_WORKSPACE_SIZE >= sizeof(HUF_WriteCTableWksp));
+
     /* check conditions */
     if (workspaceSize < sizeof(HUF_WriteCTableWksp)) return ERROR(GENERIC);
     if (maxSymbolValue > HUF_SYMBOLVALUE_MAX) return ERROR(maxSymbolValue_tooLarge);
@@ -15471,16 +15227,6 @@ size_t HUF_writeCTable_wksp(void* dst, size_t maxDstSize,
     for (n=0; n<maxSymbolValue; n+=2)
         op[(n/2)+1] = (BYTE)((wksp->huffWeight[n] << 4) + wksp->huffWeight[n+1]);
     return ((maxSymbolValue+1)/2) + 1;
-}
-
-/*! HUF_writeCTable() :
-    `CTable` : Huffman tree to save, using huf representation.
-    @return : size of saved CTable */
-size_t HUF_writeCTable (void* dst, size_t maxDstSize,
-                        const HUF_CElt* CTable, unsigned maxSymbolValue, unsigned huffLog)
-{
-    HUF_WriteCTableWksp wksp;
-    return HUF_writeCTable_wksp(dst, maxDstSize, CTable, maxSymbolValue, huffLog, &wksp, sizeof(wksp));
 }
 
 
@@ -15694,7 +15440,7 @@ typedef struct {
     U16 curr;
 } rankPos;
 
-typedef nodeElt huffNodeTable[HUF_CTABLE_WORKSPACE_SIZE_U32];
+typedef nodeElt huffNodeTable[2 * (HUF_SYMBOLVALUE_MAX + 1)];
 
 /* Number of buckets available for HUF_sort() */
 #define RANK_POSITION_TABLE_SIZE 192
@@ -15952,6 +15698,8 @@ HUF_buildCTable_wksp(HUF_CElt* CTable, const unsigned* count, U32 maxSymbolValue
     nodeElt* const huffNode0 = wksp_tables->huffNodeTbl;
     nodeElt* const huffNode = huffNode0+1;
     int nonNullRank;
+
+    HUF_STATIC_ASSERT(HUF_CTABLE_WORKSPACE_SIZE == sizeof(HUF_buildCTable_wksp_tables));
 
     DEBUGLOG(5, "HUF_buildCTable_wksp (alphabet size = %u)", maxSymbolValue+1);
 
@@ -16320,9 +16068,9 @@ HUF_compress1X_usingCTable_internal_default(void* dst, size_t dstSize,
 static size_t
 HUF_compress1X_usingCTable_internal(void* dst, size_t dstSize,
                               const void* src, size_t srcSize,
-                              const HUF_CElt* CTable, const int bmi2)
+                              const HUF_CElt* CTable, const int flags)
 {
-    if (bmi2) {
+    if (flags & HUF_flags_bmi2) {
         return HUF_compress1X_usingCTable_internal_bmi2(dst, dstSize, src, srcSize, CTable);
     }
     return HUF_compress1X_usingCTable_internal_default(dst, dstSize, src, srcSize, CTable);
@@ -16333,28 +16081,23 @@ HUF_compress1X_usingCTable_internal(void* dst, size_t dstSize,
 static size_t
 HUF_compress1X_usingCTable_internal(void* dst, size_t dstSize,
                               const void* src, size_t srcSize,
-                              const HUF_CElt* CTable, const int bmi2)
+                              const HUF_CElt* CTable, const int flags)
 {
-    (void)bmi2;
+    (void)flags;
     return HUF_compress1X_usingCTable_internal_body(dst, dstSize, src, srcSize, CTable);
 }
 
 #endif
 
-size_t HUF_compress1X_usingCTable(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable)
+size_t HUF_compress1X_usingCTable(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable, int flags)
 {
-    return HUF_compress1X_usingCTable_bmi2(dst, dstSize, src, srcSize, CTable, /* bmi2 */ 0);
-}
-
-size_t HUF_compress1X_usingCTable_bmi2(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable, int bmi2)
-{
-    return HUF_compress1X_usingCTable_internal(dst, dstSize, src, srcSize, CTable, bmi2);
+    return HUF_compress1X_usingCTable_internal(dst, dstSize, src, srcSize, CTable, flags);
 }
 
 static size_t
 HUF_compress4X_usingCTable_internal(void* dst, size_t dstSize,
                               const void* src, size_t srcSize,
-                              const HUF_CElt* CTable, int bmi2)
+                              const HUF_CElt* CTable, int flags)
 {
     size_t const segmentSize = (srcSize+3)/4;   /* first 3 segments */
     const BYTE* ip = (const BYTE*) src;
@@ -16368,7 +16111,7 @@ HUF_compress4X_usingCTable_internal(void* dst, size_t dstSize,
     op += 6;   /* jumpTable */
 
     assert(op <= oend);
-    {   CHECK_V_F(cSize, HUF_compress1X_usingCTable_internal(op, (size_t)(oend-op), ip, segmentSize, CTable, bmi2) );
+    {   CHECK_V_F(cSize, HUF_compress1X_usingCTable_internal(op, (size_t)(oend-op), ip, segmentSize, CTable, flags) );
         if (cSize == 0 || cSize > 65535) return 0;
         MEM_writeLE16(ostart, (U16)cSize);
         op += cSize;
@@ -16376,7 +16119,7 @@ HUF_compress4X_usingCTable_internal(void* dst, size_t dstSize,
 
     ip += segmentSize;
     assert(op <= oend);
-    {   CHECK_V_F(cSize, HUF_compress1X_usingCTable_internal(op, (size_t)(oend-op), ip, segmentSize, CTable, bmi2) );
+    {   CHECK_V_F(cSize, HUF_compress1X_usingCTable_internal(op, (size_t)(oend-op), ip, segmentSize, CTable, flags) );
         if (cSize == 0 || cSize > 65535) return 0;
         MEM_writeLE16(ostart+2, (U16)cSize);
         op += cSize;
@@ -16384,7 +16127,7 @@ HUF_compress4X_usingCTable_internal(void* dst, size_t dstSize,
 
     ip += segmentSize;
     assert(op <= oend);
-    {   CHECK_V_F(cSize, HUF_compress1X_usingCTable_internal(op, (size_t)(oend-op), ip, segmentSize, CTable, bmi2) );
+    {   CHECK_V_F(cSize, HUF_compress1X_usingCTable_internal(op, (size_t)(oend-op), ip, segmentSize, CTable, flags) );
         if (cSize == 0 || cSize > 65535) return 0;
         MEM_writeLE16(ostart+4, (U16)cSize);
         op += cSize;
@@ -16393,7 +16136,7 @@ HUF_compress4X_usingCTable_internal(void* dst, size_t dstSize,
     ip += segmentSize;
     assert(op <= oend);
     assert(ip <= iend);
-    {   CHECK_V_F(cSize, HUF_compress1X_usingCTable_internal(op, (size_t)(oend-op), ip, (size_t)(iend-ip), CTable, bmi2) );
+    {   CHECK_V_F(cSize, HUF_compress1X_usingCTable_internal(op, (size_t)(oend-op), ip, (size_t)(iend-ip), CTable, flags) );
         if (cSize == 0 || cSize > 65535) return 0;
         op += cSize;
     }
@@ -16401,14 +16144,9 @@ HUF_compress4X_usingCTable_internal(void* dst, size_t dstSize,
     return (size_t)(op-ostart);
 }
 
-size_t HUF_compress4X_usingCTable(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable)
+size_t HUF_compress4X_usingCTable(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable, int flags)
 {
-    return HUF_compress4X_usingCTable_bmi2(dst, dstSize, src, srcSize, CTable, /* bmi2 */ 0);
-}
-
-size_t HUF_compress4X_usingCTable_bmi2(void* dst, size_t dstSize, const void* src, size_t srcSize, const HUF_CElt* CTable, int bmi2)
-{
-    return HUF_compress4X_usingCTable_internal(dst, dstSize, src, srcSize, CTable, bmi2);
+    return HUF_compress4X_usingCTable_internal(dst, dstSize, src, srcSize, CTable, flags);
 }
 
 typedef enum { HUF_singleStream, HUF_fourStreams } HUF_nbStreams_e;
@@ -16416,11 +16154,11 @@ typedef enum { HUF_singleStream, HUF_fourStreams } HUF_nbStreams_e;
 static size_t HUF_compressCTable_internal(
                 BYTE* const ostart, BYTE* op, BYTE* const oend,
                 const void* src, size_t srcSize,
-                HUF_nbStreams_e nbStreams, const HUF_CElt* CTable, const int bmi2)
+                HUF_nbStreams_e nbStreams, const HUF_CElt* CTable, const int flags)
 {
     size_t const cSize = (nbStreams==HUF_singleStream) ?
-                         HUF_compress1X_usingCTable_internal(op, (size_t)(oend - op), src, srcSize, CTable, bmi2) :
-                         HUF_compress4X_usingCTable_internal(op, (size_t)(oend - op), src, srcSize, CTable, bmi2);
+                         HUF_compress1X_usingCTable_internal(op, (size_t)(oend - op), src, srcSize, CTable, flags) :
+                         HUF_compress4X_usingCTable_internal(op, (size_t)(oend - op), src, srcSize, CTable, flags);
     if (HUF_isError(cSize)) { return cSize; }
     if (cSize==0) { return 0; }   /* uncompressible */
     op += cSize;
@@ -16468,12 +16206,12 @@ unsigned HUF_optimalTableLog(
             void* workSpace, size_t wkspSize,
             HUF_CElt* table,
       const unsigned* count,
-            HUF_depth_mode depthMode)
+            int flags)
 {
     assert(srcSize > 1); /* Not supported, RLE should be used instead */
     assert(wkspSize >= sizeof(HUF_buildCTable_wksp_tables));
 
-    if (depthMode != HUF_depth_optimal) {
+    if (!(flags & HUF_flags_optimalDepth)) {
         /* cheap evaluation, based on FSE */
         return FSE_optimalTableLog_internal(maxTableLog, srcSize, maxSymbolValue, 1);
     }
@@ -16525,8 +16263,7 @@ HUF_compress_internal (void* dst, size_t dstSize,
                        unsigned maxSymbolValue, unsigned huffLog,
                        HUF_nbStreams_e nbStreams,
                        void* workSpace, size_t wkspSize,
-                       HUF_CElt* oldHufTable, HUF_repeat* repeat, int preferRepeat,
-                 const int bmi2, unsigned suspectUncompressible, HUF_depth_mode depthMode)
+                       HUF_CElt* oldHufTable, HUF_repeat* repeat, int flags)
 {
     HUF_compress_tables_t* const table = (HUF_compress_tables_t*)HUF_alignUpWorkspace(workSpace, &wkspSize, ZSTD_ALIGNOF(size_t));
     BYTE* const ostart = (BYTE*)dst;
@@ -16547,15 +16284,15 @@ HUF_compress_internal (void* dst, size_t dstSize,
     if (!huffLog) huffLog = HUF_TABLELOG_DEFAULT;
 
     /* Heuristic : If old table is valid, use it for small inputs */
-    if (preferRepeat && repeat && *repeat == HUF_repeat_valid) {
+    if ((flags & HUF_flags_preferRepeat) && repeat && *repeat == HUF_repeat_valid) {
         return HUF_compressCTable_internal(ostart, op, oend,
                                            src, srcSize,
-                                           nbStreams, oldHufTable, bmi2);
+                                           nbStreams, oldHufTable, flags);
     }
 
     /* If uncompressible data is suspected, do a smaller sampling first */
     DEBUG_STATIC_ASSERT(SUSPECT_INCOMPRESSIBLE_SAMPLE_RATIO >= 2);
-    if (suspectUncompressible && srcSize >= (SUSPECT_INCOMPRESSIBLE_SAMPLE_SIZE * SUSPECT_INCOMPRESSIBLE_SAMPLE_RATIO)) {
+    if ((flags & HUF_flags_suspectUncompressible) && srcSize >= (SUSPECT_INCOMPRESSIBLE_SAMPLE_SIZE * SUSPECT_INCOMPRESSIBLE_SAMPLE_RATIO)) {
         size_t largestTotal = 0;
         DEBUGLOG(5, "input suspected incompressible : sampling to check");
         {   unsigned maxSymbolValueBegin = maxSymbolValue;
@@ -16583,14 +16320,14 @@ HUF_compress_internal (void* dst, size_t dstSize,
         *repeat = HUF_repeat_none;
     }
     /* Heuristic : use existing table for small inputs */
-    if (preferRepeat && repeat && *repeat != HUF_repeat_none) {
+    if ((flags & HUF_flags_preferRepeat) && repeat && *repeat != HUF_repeat_none) {
         return HUF_compressCTable_internal(ostart, op, oend,
                                            src, srcSize,
-                                           nbStreams, oldHufTable, bmi2);
+                                           nbStreams, oldHufTable, flags);
     }
 
     /* Build Huffman Tree */
-    huffLog = HUF_optimalTableLog(huffLog, srcSize, maxSymbolValue, &table->wksps, sizeof(table->wksps), table->CTable, table->count, depthMode);
+    huffLog = HUF_optimalTableLog(huffLog, srcSize, maxSymbolValue, &table->wksps, sizeof(table->wksps), table->CTable, table->count, flags);
     {   size_t const maxBits = HUF_buildCTable_wksp(table->CTable, table->count,
                                             maxSymbolValue, huffLog,
                                             &table->wksps.buildCTable_wksp, sizeof(table->wksps.buildCTable_wksp));
@@ -16615,7 +16352,7 @@ HUF_compress_internal (void* dst, size_t dstSize,
             if (oldSize <= hSize + newSize || hSize + 12 >= srcSize) {
                 return HUF_compressCTable_internal(ostart, op, oend,
                                                    src, srcSize,
-                                                   nbStreams, oldHufTable, bmi2);
+                                                   nbStreams, oldHufTable, flags);
         }   }
 
         /* Use the new huffman table */
@@ -16627,48 +16364,20 @@ HUF_compress_internal (void* dst, size_t dstSize,
     }
     return HUF_compressCTable_internal(ostart, op, oend,
                                        src, srcSize,
-                                       nbStreams, table->CTable, bmi2);
-}
-
-
-size_t HUF_compress1X_wksp (void* dst, size_t dstSize,
-                      const void* src, size_t srcSize,
-                      unsigned maxSymbolValue, unsigned huffLog,
-                      void* workSpace, size_t wkspSize)
-{
-    return HUF_compress_internal(dst, dstSize, src, srcSize,
-                                 maxSymbolValue, huffLog, HUF_singleStream,
-                                 workSpace, wkspSize,
-                                 NULL, NULL, 0, 0 /*bmi2*/, 0, HUF_depth_fast);
+                                       nbStreams, table->CTable, flags);
 }
 
 size_t HUF_compress1X_repeat (void* dst, size_t dstSize,
                       const void* src, size_t srcSize,
                       unsigned maxSymbolValue, unsigned huffLog,
                       void* workSpace, size_t wkspSize,
-                      HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat,
-                      int bmi2, unsigned suspectUncompressible, HUF_depth_mode depthMode)
+                      HUF_CElt* hufTable, HUF_repeat* repeat, int flags)
 {
     DEBUGLOG(5, "HUF_compress1X_repeat (srcSize = %zu)", srcSize);
     return HUF_compress_internal(dst, dstSize, src, srcSize,
                                  maxSymbolValue, huffLog, HUF_singleStream,
                                  workSpace, wkspSize, hufTable,
-                                 repeat, preferRepeat, bmi2, suspectUncompressible, depthMode);
-}
-
-/* HUF_compress4X_repeat():
- * compress input using 4 streams.
- * provide workspace to generate compression tables */
-size_t HUF_compress4X_wksp (void* dst, size_t dstSize,
-                      const void* src, size_t srcSize,
-                      unsigned maxSymbolValue, unsigned huffLog,
-                      void* workSpace, size_t wkspSize)
-{
-    DEBUGLOG(5, "HUF_compress4X_wksp (srcSize = %zu)", srcSize);
-    return HUF_compress_internal(dst, dstSize, src, srcSize,
-                                 maxSymbolValue, huffLog, HUF_fourStreams,
-                                 workSpace, wkspSize,
-                                 NULL, NULL, 0, 0 /*bmi2*/, 0, HUF_depth_fast);
+                                 repeat, flags);
 }
 
 /* HUF_compress4X_repeat():
@@ -16679,48 +16388,14 @@ size_t HUF_compress4X_repeat (void* dst, size_t dstSize,
                       const void* src, size_t srcSize,
                       unsigned maxSymbolValue, unsigned huffLog,
                       void* workSpace, size_t wkspSize,
-                      HUF_CElt* hufTable, HUF_repeat* repeat, int preferRepeat, int bmi2,
-                      unsigned suspectUncompressible, HUF_depth_mode depthMode)
+                      HUF_CElt* hufTable, HUF_repeat* repeat, int flags)
 {
     DEBUGLOG(5, "HUF_compress4X_repeat (srcSize = %zu)", srcSize);
     return HUF_compress_internal(dst, dstSize, src, srcSize,
                                  maxSymbolValue, huffLog, HUF_fourStreams,
                                  workSpace, wkspSize,
-                                 hufTable, repeat, preferRepeat, bmi2, suspectUncompressible, depthMode);
+                                 hufTable, repeat, flags);
 }
-
-#ifndef ZSTD_NO_UNUSED_FUNCTIONS
-/** HUF_buildCTable() :
- * @return : maxNbBits
- *  Note : count is used before tree is written, so they can safely overlap
- */
-size_t HUF_buildCTable (HUF_CElt* tree, const unsigned* count, unsigned maxSymbolValue, unsigned maxNbBits)
-{
-    HUF_buildCTable_wksp_tables workspace;
-    return HUF_buildCTable_wksp(tree, count, maxSymbolValue, maxNbBits, &workspace, sizeof(workspace));
-}
-
-size_t HUF_compress1X (void* dst, size_t dstSize,
-                 const void* src, size_t srcSize,
-                 unsigned maxSymbolValue, unsigned huffLog)
-{
-    U64 workSpace[HUF_WORKSPACE_SIZE_U64];
-    return HUF_compress1X_wksp(dst, dstSize, src, srcSize, maxSymbolValue, huffLog, workSpace, sizeof(workSpace));
-}
-
-size_t HUF_compress2 (void* dst, size_t dstSize,
-                const void* src, size_t srcSize,
-                unsigned maxSymbolValue, unsigned huffLog)
-{
-    U64 workSpace[HUF_WORKSPACE_SIZE_U64];
-    return HUF_compress4X_wksp(dst, dstSize, src, srcSize, maxSymbolValue, huffLog, workSpace, sizeof(workSpace));
-}
-
-size_t HUF_compress (void* dst, size_t maxDstSize, const void* src, size_t srcSize)
-{
-    return HUF_compress2(dst, maxDstSize, src, srcSize, 255, HUF_TABLELOG_DEFAULT);
-}
-#endif
 /**** ended inlining compress/huf_compress.c ****/
 /**** start inlining compress/zstd_compress_literals.c ****/
 /*
@@ -17123,7 +16798,9 @@ ZSTD_cwksp_reserve_internal(ZSTD_cwksp* ws, size_t bytes, ZSTD_cwksp_alloc_phase
     if (alloc) {
         alloc = (BYTE *)alloc + ZSTD_CWKSP_ASAN_REDZONE_SIZE;
         if (ws->isStatic == ZSTD_cwksp_dynamic_alloc) {
-            __asan_unpoison_memory_region(alloc, bytes);
+            /* We need to keep the redzone poisoned while unpoisoning the bytes that
+             * are actually allocated. */
+            __asan_unpoison_memory_region(alloc, bytes - 2 * ZSTD_CWKSP_ASAN_REDZONE_SIZE);
         }
     }
 #endif
@@ -17899,6 +17576,12 @@ struct ZSTD_CCtx_params_s {
      * Users can't set this externally.
      * It is set internally in ZSTD_registerExternalMatchFinder(). */
     int useExternalMatchFinder;
+
+    /* Adjust the max block size*/
+    size_t maxBlockSize;
+
+    /* Controls repcode search in external sequence parsing */
+    ZSTD_paramSwitch_e searchForExternalRepcodes;
 };  /* typedef'd to ZSTD_CCtx_params within "zstd.h" */
 
 #define COMPRESS_SEQUENCES_WORKSPACE_SIZE (sizeof(unsigned) * (MaxSeq + 2))
@@ -18035,7 +17718,7 @@ typedef enum {
                                  * In this mode we take both the source size and the dictionary size
                                  * into account when selecting and adjusting the parameters.
                                  */
-    ZSTD_cpm_unknown = 3,       /* ZSTD_getCParams, ZSTD_getParams, ZSTD_adjustParams.
+    ZSTD_cpm_unknown = 3        /* ZSTD_getCParams, ZSTD_getParams, ZSTD_adjustParams.
                                  * We don't know what these parameters are for. We default to the legacy
                                  * behavior of taking both the source size and the dict size into account
                                  * when selecting and adjusting parameters.
@@ -18713,10 +18396,15 @@ ZSTD_checkDictValidity(const ZSTD_window_t* window,
                     (unsigned)blockEndIdx, (unsigned)maxDist, (unsigned)loadedDictEnd);
         assert(blockEndIdx >= loadedDictEnd);
 
-        if (blockEndIdx > loadedDictEnd + maxDist) {
+        if (blockEndIdx > loadedDictEnd + maxDist || loadedDictEnd != window->dictLimit) {
             /* On reaching window size, dictionaries are invalidated.
              * For simplification, if window size is reached anywhere within next block,
              * the dictionary is invalidated for the full block.
+             *
+             * We also have to invalidate the dictionary if ZSTD_window_update() has detected
+             * non-contiguous segments, which means that loadedDictEnd != window->dictLimit.
+             * loadedDictEnd may be 0, if forceWindow is true, but in that case we never use
+             * dictMatchState, so setting it to NULL is not a problem.
              */
             DEBUGLOG(6, "invalidating dictionary for current block (distance > windowSize)");
             *loadedDictEndPtr = 0;
@@ -18989,7 +18677,7 @@ size_t
 ZSTD_copySequencesToSeqStoreExplicitBlockDelim(ZSTD_CCtx* cctx,
                                               ZSTD_sequencePosition* seqPos,
                                         const ZSTD_Sequence* const inSeqs, size_t inSeqsSize,
-                                        const void* src, size_t blockSize);
+                                        const void* src, size_t blockSize, ZSTD_paramSwitch_e externalRepSearch);
 
 /* Returns the number of bytes to move the current read position back by.
  * Only non-zero if we ended up splitting a sequence.
@@ -19006,7 +18694,7 @@ ZSTD_copySequencesToSeqStoreExplicitBlockDelim(ZSTD_CCtx* cctx,
 size_t
 ZSTD_copySequencesToSeqStoreNoBlockDelim(ZSTD_CCtx* cctx, ZSTD_sequencePosition* seqPos,
                                    const ZSTD_Sequence* const inSeqs, size_t inSeqsSize,
-                                   const void* src, size_t blockSize);
+                                   const void* src, size_t blockSize, ZSTD_paramSwitch_e externalRepSearch);
 
 #endif /* ZSTD_COMPRESS_H */
 /**** ended inlining zstd_compress_internal.h ****/
@@ -19014,6 +18702,10 @@ ZSTD_copySequencesToSeqStoreNoBlockDelim(ZSTD_CCtx* cctx, ZSTD_sequencePosition*
 
 size_t ZSTD_noCompressLiterals (void* dst, size_t dstCapacity, const void* src, size_t srcSize);
 
+/* ZSTD_compressRleLiteralsBlock() :
+ * Conditions :
+ * - All bytes in @src are identical
+ * - dstCapacity >= 4 */
 size_t ZSTD_compressRleLiteralsBlock (void* dst, size_t dstCapacity, const void* src, size_t srcSize);
 
 /* ZSTD_compressLiterals():
@@ -19044,9 +18736,9 @@ static size_t showHexa(const void* src, size_t srcSize)
     const BYTE* const ip = (const BYTE*)src;
     size_t u;
     for (u=0; u<srcSize; u++) {
-        RAWLOG(6, " %02X", ip[u]); (void)ip;
+        RAWLOG(5, " %02X", ip[u]); (void)ip;
     }
-    RAWLOG(6, " \n");
+    RAWLOG(5, " \n");
     return srcSize;
 }
 
@@ -19085,12 +18777,26 @@ size_t ZSTD_noCompressLiterals (void* dst, size_t dstCapacity, const void* src, 
     return srcSize + flSize;
 }
 
+static int allBytesIdentical(const void* src, size_t srcSize)
+{
+    assert(srcSize >= 1);
+    assert(src != NULL);
+    {   const BYTE b = ((const BYTE*)src)[0];
+        size_t p;
+        for (p=1; p<srcSize; p++) {
+            if (((const BYTE*)src)[p] != b) return 0;
+        }
+        return 1;
+    }
+}
+
 size_t ZSTD_compressRleLiteralsBlock (void* dst, size_t dstCapacity, const void* src, size_t srcSize)
 {
     BYTE* const ostart = (BYTE*)dst;
     U32   const flSize = 1 + (srcSize>31) + (srcSize>4095);
 
-    (void)dstCapacity;  /* dstCapacity already guaranteed to be >=4, hence large enough */
+    assert(dstCapacity >= 4); (void)dstCapacity;
+    assert(allBytesIdentical(src, srcSize));
 
     switch(flSize)
     {
@@ -19108,7 +18814,7 @@ size_t ZSTD_compressRleLiteralsBlock (void* dst, size_t dstCapacity, const void*
     }
 
     ostart[flSize] = *(const BYTE*)src;
-    DEBUGLOG(5, "RLE literals: %u -> %u", (U32)srcSize, (U32)flSize + 1);
+    DEBUGLOG(5, "RLE : Repeated Literal (%02X: %u times) -> %u bytes encoded", ((const BYTE*)src)[0], (U32)srcSize, (U32)flSize + 1);
     return flSize+1;
 }
 
@@ -19125,8 +18831,8 @@ ZSTD_minLiteralsToCompress(ZSTD_strategy strategy, HUF_repeat huf_repeat)
     /* btultra2 : min 8 bytes;
      * then 2x larger for each successive compression strategy
      * max threshold 64 bytes */
-    {   int const shift = MIN(9-strategy, 3);
-        size_t const mintc = (huf_repeat == HUF_repeat_valid) ? 6 : 8 << shift;
+    {   int const shift = MIN(9-(int)strategy, 3);
+        size_t const mintc = (huf_repeat == HUF_repeat_valid) ? 6 : (size_t)8 << shift;
         DEBUGLOG(7, "minLiteralsToCompress = %zu", mintc);
         return mintc;
     }
@@ -19166,9 +18872,13 @@ size_t ZSTD_compressLiterals (
 
     RETURN_ERROR_IF(dstCapacity < lhSize+1, dstSize_tooSmall, "not enough space for compression");
     {   HUF_repeat repeat = prevHuf->repeatMode;
-        int const preferRepeat = (strategy < ZSTD_lazy) ? srcSize <= 1024 : 0;
-        HUF_depth_mode const depthMode = (strategy >= HUF_OPTIMAL_DEPTH_THRESHOLD) ? HUF_depth_optimal : HUF_depth_fast;
-        typedef size_t (*huf_compress_f)(void*, size_t, const void*, size_t, unsigned, unsigned, void*, size_t, HUF_CElt*, HUF_repeat*, int, int, unsigned, HUF_depth_mode);
+        int const flags = 0
+            | (bmi2 ? HUF_flags_bmi2 : 0)
+            | (strategy < ZSTD_lazy && srcSize <= 1024 ? HUF_flags_preferRepeat : 0)
+            | (strategy >= HUF_OPTIMAL_DEPTH_THRESHOLD ? HUF_flags_optimalDepth : 0)
+            | (suspectUncompressible ? HUF_flags_suspectUncompressible : 0);
+
+        typedef size_t (*huf_compress_f)(void*, size_t, const void*, size_t, unsigned, unsigned, void*, size_t, HUF_CElt*, HUF_repeat*, int);
         huf_compress_f huf_compress;
         if (repeat == HUF_repeat_valid && lhSize == 3) singleStream = 1;
         huf_compress = singleStream ? HUF_compress1X_repeat : HUF_compress4X_repeat;
@@ -19177,11 +18887,11 @@ size_t ZSTD_compressLiterals (
                                 HUF_SYMBOLVALUE_MAX, LitHufLog,
                                 entropyWorkspace, entropyWorkspaceSize,
                                 (HUF_CElt*)nextHuf->CTable,
-                                &repeat, preferRepeat,
-                                bmi2, suspectUncompressible, depthMode);
+                                &repeat, flags);
+        DEBUGLOG(5, "%zu literals compressed into %zu bytes (before header)", srcSize, cLitSize);
         if (repeat != HUF_repeat_none) {
             /* reused the existing table */
-            DEBUGLOG(5, "Reusing previous huffman table");
+            DEBUGLOG(5, "reusing statistics from previous huffman block");
             hType = set_repeat;
         }
     }
@@ -19192,9 +18902,15 @@ size_t ZSTD_compressLiterals (
             return ZSTD_noCompressLiterals(dst, dstCapacity, src, srcSize);
     }   }
     if (cLitSize==1) {
-        ZSTD_memcpy(nextHuf, prevHuf, sizeof(*prevHuf));
-        return ZSTD_compressRleLiteralsBlock(dst, dstCapacity, src, srcSize);
-    }
+        /* A return value of 1 signals that the alphabet consists of a single symbol.
+         * However, in some rare circumstances, it could be the compressed size (a single byte).
+         * For that outcome to have a chance to happen, it's necessary that `srcSize < 8`.
+         * (it's also necessary to not generate statistics).
+         * Therefore, in such a case, actively check that all bytes are identical. */
+        if ((srcSize >= 8) || allBytesIdentical(src, srcSize)) {
+            ZSTD_memcpy(nextHuf, prevHuf, sizeof(*prevHuf));
+            return ZSTD_compressRleLiteralsBlock(dst, dstCapacity, src, srcSize);
+    }   }
 
     if (hType == set_compressed) {
         /* using a newly constructed table */
@@ -19819,8 +19535,6 @@ ZSTD_compressSubBlock_literal(const HUF_CElt* hufTable,
     symbolEncodingType_e hType = writeEntropy ? hufMetadata->hType : set_repeat;
     size_t cLitSize = 0;
 
-    (void)bmi2; /* TODO bmi2... */
-
     DEBUGLOG(5, "ZSTD_compressSubBlock_literal (litSize=%zu, lhSize=%zu, writeEntropy=%d)", litSize, lhSize, writeEntropy);
 
     *entropyWritten = 0;
@@ -19842,9 +19556,9 @@ ZSTD_compressSubBlock_literal(const HUF_CElt* hufTable,
         DEBUGLOG(5, "ZSTD_compressSubBlock_literal (hSize=%zu)", hufMetadata->hufDesSize);
     }
 
-    /* TODO bmi2 */
-    {   const size_t cSize = singleStream ? HUF_compress1X_usingCTable(op, oend-op, literals, litSize, hufTable)
-                                          : HUF_compress4X_usingCTable(op, oend-op, literals, litSize, hufTable);
+    {   int const flags = bmi2 ? HUF_flags_bmi2 : 0;
+        const size_t cSize = singleStream ? HUF_compress1X_usingCTable(op, oend-op, literals, litSize, hufTable, flags)
+                                          : HUF_compress4X_usingCTable(op, oend-op, literals, litSize, hufTable, flags);
         op += cSize;
         cLitSize += cSize;
         if (cSize == 0 || ERR_isError(cSize)) {
@@ -20362,7 +20076,6 @@ size_t ZSTD_compressSuperBlock(ZSTD_CCtx* zc,
 /**** skipping file: hist.h ****/
 #define FSE_STATIC_LINKING_ONLY   /* FSE_encodeSymbol */
 /**** skipping file: ../common/fse.h ****/
-#define HUF_STATIC_LINKING_ONLY
 /**** skipping file: ../common/huf.h ****/
 /**** skipping file: zstd_compress_internal.h ****/
 /**** skipping file: zstd_compress_sequences.h ****/
@@ -20476,6 +20189,8 @@ extern "C" {
  */
 #define ZSTD_LAZY_DDSS_BUCKET_LOG 2
 
+#define ZSTD_ROW_HASH_TAG_BITS 8        /* nb bits to use for the tag */
+
 U32 ZSTD_insertAndFindFirstIndex(ZSTD_matchState_t* ms, const BYTE* ip);
 void ZSTD_row_update(ZSTD_matchState_t* const ms, const BYTE* ip);
 
@@ -20567,7 +20282,7 @@ size_t ZSTD_compressBlock_lazy2_extDict_row(
 size_t ZSTD_compressBlock_btlazy2_extDict(
         ZSTD_matchState_t* ms, seqStore_t* seqStore, U32 rep[ZSTD_REP_NUM],
         void const* src, size_t srcSize);
-        
+
 
 #if defined (__cplusplus)
 }
@@ -21004,14 +20719,26 @@ static ZSTD_paramSwitch_e ZSTD_resolveEnableLdm(ZSTD_paramSwitch_e mode,
     return (cParams->strategy >= ZSTD_btopt && cParams->windowLog >= 27) ? ZSTD_ps_enable : ZSTD_ps_disable;
 }
 
-/* Enables validation for external sequences in debug builds. */
 static int ZSTD_resolveExternalSequenceValidation(int mode) {
-#if defined(DEBUGLEVEL) && (DEBUGLEVEL>=2)
-    (void)mode;
-    return 1;
-#else
     return mode;
-#endif
+}
+
+/* Resolves maxBlockSize to the default if no value is present. */
+static size_t ZSTD_resolveMaxBlockSize(size_t maxBlockSize) {
+    if (maxBlockSize == 0) {
+        return ZSTD_BLOCKSIZE_MAX;
+    } else {
+        return maxBlockSize;
+    }
+}
+
+static ZSTD_paramSwitch_e ZSTD_resolveExternalRepcodeSearch(ZSTD_paramSwitch_e value, int cLevel) {
+    if (value != ZSTD_ps_auto) return value;
+    if (cLevel < 10) {
+        return ZSTD_ps_disable;
+    } else {
+        return ZSTD_ps_enable;
+    }
 }
 
 /* Returns 1 if compression parameters are such that CDict hashtable and chaintable indices are tagged.
@@ -21038,6 +20765,9 @@ static ZSTD_CCtx_params ZSTD_makeCCtxParamsFromCParams(
     cctxParams.useBlockSplitter = ZSTD_resolveBlockSplitterMode(cctxParams.useBlockSplitter, &cParams);
     cctxParams.useRowMatchFinder = ZSTD_resolveRowMatchFinderMode(cctxParams.useRowMatchFinder, &cParams);
     cctxParams.validateSequences = ZSTD_resolveExternalSequenceValidation(cctxParams.validateSequences);
+    cctxParams.maxBlockSize = ZSTD_resolveMaxBlockSize(cctxParams.maxBlockSize);
+    cctxParams.searchForExternalRepcodes = ZSTD_resolveExternalRepcodeSearch(cctxParams.searchForExternalRepcodes,
+                                                                             cctxParams.compressionLevel);
     assert(!ZSTD_checkCParams(cParams));
     return cctxParams;
 }
@@ -21103,6 +20833,8 @@ ZSTD_CCtxParams_init_internal(ZSTD_CCtx_params* cctxParams,
     cctxParams->useBlockSplitter = ZSTD_resolveBlockSplitterMode(cctxParams->useBlockSplitter, &params->cParams);
     cctxParams->ldmParams.enableLdm = ZSTD_resolveEnableLdm(cctxParams->ldmParams.enableLdm, &params->cParams);
     cctxParams->validateSequences = ZSTD_resolveExternalSequenceValidation(cctxParams->validateSequences);
+    cctxParams->maxBlockSize = ZSTD_resolveMaxBlockSize(cctxParams->maxBlockSize);
+    cctxParams->searchForExternalRepcodes = ZSTD_resolveExternalRepcodeSearch(cctxParams->searchForExternalRepcodes, compressionLevel);
     DEBUGLOG(4, "ZSTD_CCtxParams_init_internal: useRowMatchFinder=%d, useBlockSplitter=%d ldm=%d",
                 cctxParams->useRowMatchFinder, cctxParams->useBlockSplitter, cctxParams->ldmParams.enableLdm);
 }
@@ -21330,6 +21062,16 @@ ZSTD_bounds ZSTD_cParam_getBounds(ZSTD_cParameter param)
         bounds.upperBound = 1;
         return bounds;
 
+    case ZSTD_c_maxBlockSize:
+        bounds.lowerBound = ZSTD_BLOCKSIZE_MAX_MIN;
+        bounds.upperBound = ZSTD_BLOCKSIZE_MAX;
+        return bounds;
+
+    case ZSTD_c_searchForExternalRepcodes:
+        bounds.lowerBound = (int)ZSTD_ps_auto;
+        bounds.upperBound = (int)ZSTD_ps_disable;
+        return bounds;
+
     default:
         bounds.error = ERROR(parameter_unsupported);
         return bounds;
@@ -21396,6 +21138,8 @@ static int ZSTD_isUpdateAuthorized(ZSTD_cParameter param)
     case ZSTD_c_deterministicRefPrefix:
     case ZSTD_c_prefetchCDictTables:
     case ZSTD_c_enableMatchFinderFallback:
+    case ZSTD_c_maxBlockSize:
+    case ZSTD_c_searchForExternalRepcodes:
     default:
         return 0;
     }
@@ -21453,6 +21197,8 @@ size_t ZSTD_CCtx_setParameter(ZSTD_CCtx* cctx, ZSTD_cParameter param, int value)
     case ZSTD_c_deterministicRefPrefix:
     case ZSTD_c_prefetchCDictTables:
     case ZSTD_c_enableMatchFinderFallback:
+    case ZSTD_c_maxBlockSize:
+    case ZSTD_c_searchForExternalRepcodes:
         break;
 
     default: RETURN_ERROR(parameter_unsupported, "unknown parameter");
@@ -21690,6 +21436,17 @@ size_t ZSTD_CCtxParams_setParameter(ZSTD_CCtx_params* CCtxParams,
         CCtxParams->enableMatchFinderFallback = value;
         return CCtxParams->enableMatchFinderFallback;
 
+    case ZSTD_c_maxBlockSize:
+        if (value!=0)    /* 0 ==> default */
+            BOUNDCHECK(ZSTD_c_maxBlockSize, value);
+        CCtxParams->maxBlockSize = value;
+        return CCtxParams->maxBlockSize;
+
+    case ZSTD_c_searchForExternalRepcodes:
+        BOUNDCHECK(ZSTD_c_searchForExternalRepcodes, value);
+        CCtxParams->searchForExternalRepcodes = (ZSTD_paramSwitch_e)value;
+        return CCtxParams->searchForExternalRepcodes;
+
     default: RETURN_ERROR(parameter_unsupported, "unknown parameter");
     }
 }
@@ -21827,6 +21584,12 @@ size_t ZSTD_CCtxParams_getParameter(
         break;
     case ZSTD_c_enableMatchFinderFallback:
         *value = CCtxParams->enableMatchFinderFallback;
+        break;
+    case ZSTD_c_maxBlockSize:
+        *value = (int)CCtxParams->maxBlockSize;
+        break;
+    case ZSTD_c_searchForExternalRepcodes:
+        *value = (int)CCtxParams->searchForExternalRepcodes;
         break;
     default: RETURN_ERROR(parameter_unsupported, "unknown parameter");
     }
@@ -22111,7 +21874,8 @@ static ZSTD_compressionParameters
 ZSTD_adjustCParams_internal(ZSTD_compressionParameters cPar,
                             unsigned long long srcSize,
                             size_t dictSize,
-                            ZSTD_cParamMode_e mode)
+                            ZSTD_cParamMode_e mode,
+                            ZSTD_paramSwitch_e useRowMatchFinder)
 {
     const U64 minSrcSize = 513; /* (1<<9) + 1 */
     const U64 maxWindowResize = 1ULL << (ZSTD_WINDOWLOG_MAX-1);
@@ -22164,10 +21928,39 @@ ZSTD_adjustCParams_internal(ZSTD_compressionParameters cPar,
     if (cPar.windowLog < ZSTD_WINDOWLOG_ABSOLUTEMIN)
         cPar.windowLog = ZSTD_WINDOWLOG_ABSOLUTEMIN;  /* minimum wlog required for valid frame header */
 
+    /* We can't use more than 32 bits of hash in total, so that means that we require:
+     * (hashLog + 8) <= 32 && (chainLog + 8) <= 32
+     */
     if (mode == ZSTD_cpm_createCDict && ZSTD_CDictIndicesAreTagged(&cPar)) {
         U32 const maxShortCacheHashLog = 32 - ZSTD_SHORT_CACHE_TAG_BITS;
         if (cPar.hashLog > maxShortCacheHashLog) {
             cPar.hashLog = maxShortCacheHashLog;
+        }
+        if (cPar.chainLog > maxShortCacheHashLog) {
+            cPar.chainLog = maxShortCacheHashLog;
+        }
+    }
+
+
+    /* At this point, we aren't 100% sure if we are using the row match finder.
+     * Unless it is explicitly disabled, conservatively assume that it is enabled.
+     * In this case it will only be disabled for small sources, so shrinking the
+     * hash log a little bit shouldn't result in any ratio loss.
+     */
+    if (useRowMatchFinder == ZSTD_ps_auto)
+        useRowMatchFinder = ZSTD_ps_enable;
+
+    /* We can't hash more than 32-bits in total. So that means that we require:
+     * (hashLog - rowLog + 8) <= 32
+     */
+    if (ZSTD_rowMatchFinderUsed(cPar.strategy, useRowMatchFinder)) {
+        /* Switch to 32-entry rows if searchLog is 5 (or more) */
+        U32 const rowLog = BOUNDED(4, cPar.searchLog, 6);
+        U32 const maxRowHashLog = 32 - ZSTD_ROW_HASH_TAG_BITS;
+        U32 const maxHashLog = maxRowHashLog + rowLog;
+        assert(cPar.hashLog >= rowLog);
+        if (cPar.hashLog > maxHashLog) {
+            cPar.hashLog = maxHashLog;
         }
     }
 
@@ -22181,7 +21974,7 @@ ZSTD_adjustCParams(ZSTD_compressionParameters cPar,
 {
     cPar = ZSTD_clampCParams(cPar);   /* resulting cPar is necessarily valid (all parameters within range) */
     if (srcSize == 0) srcSize = ZSTD_CONTENTSIZE_UNKNOWN;
-    return ZSTD_adjustCParams_internal(cPar, srcSize, dictSize, ZSTD_cpm_unknown);
+    return ZSTD_adjustCParams_internal(cPar, srcSize, dictSize, ZSTD_cpm_unknown, ZSTD_ps_auto);
 }
 
 static ZSTD_compressionParameters ZSTD_getCParams_internal(int compressionLevel, unsigned long long srcSizeHint, size_t dictSize, ZSTD_cParamMode_e mode);
@@ -22212,7 +22005,7 @@ ZSTD_compressionParameters ZSTD_getCParamsFromCCtxParams(
     ZSTD_overrideCParams(&cParams, &CCtxParams->cParams);
     assert(!ZSTD_checkCParams(cParams));
     /* srcSizeHint == 0 means 0 */
-    return ZSTD_adjustCParams_internal(cParams, srcSizeHint, dictSize, mode);
+    return ZSTD_adjustCParams_internal(cParams, srcSizeHint, dictSize, mode, CCtxParams->useRowMatchFinder);
 }
 
 static size_t
@@ -22272,10 +22065,11 @@ static size_t ZSTD_estimateCCtxSize_usingCCtxParams_internal(
         const size_t buffInSize,
         const size_t buffOutSize,
         const U64 pledgedSrcSize,
-        int useExternalMatchFinder)
+        int useExternalMatchFinder,
+        size_t maxBlockSize)
 {
     size_t const windowSize = (size_t) BOUNDED(1ULL, 1ULL << cParams->windowLog, pledgedSrcSize);
-    size_t const blockSize = MIN(ZSTD_BLOCKSIZE_MAX, windowSize);
+    size_t const blockSize = MIN(ZSTD_resolveMaxBlockSize(maxBlockSize), windowSize);
     size_t const maxNbSeq = ZSTD_maxNbSeq(blockSize, cParams->minMatch, useExternalMatchFinder);
     size_t const tokenSpace = ZSTD_cwksp_alloc_size(WILDCOPY_OVERLENGTH + blockSize)
                             + ZSTD_cwksp_aligned_alloc_size(maxNbSeq * sizeof(seqDef))
@@ -22297,7 +22091,7 @@ static size_t ZSTD_estimateCCtxSize_usingCCtxParams_internal(
 
     size_t const maxNbExternalSeq = ZSTD_sequenceBound(blockSize);
     size_t const externalSeqSpace = useExternalMatchFinder
-        ? ZSTD_cwksp_alloc_size(maxNbExternalSeq * sizeof(ZSTD_Sequence))
+        ? ZSTD_cwksp_aligned_alloc_size(maxNbExternalSeq * sizeof(ZSTD_Sequence))
         : 0;
 
     size_t const neededSpace =
@@ -22327,7 +22121,7 @@ size_t ZSTD_estimateCCtxSize_usingCCtxParams(const ZSTD_CCtx_params* params)
      * be needed. However, we still allocate two 0-sized buffers, which can
      * take space under ASAN. */
     return ZSTD_estimateCCtxSize_usingCCtxParams_internal(
-        &cParams, &params->ldmParams, 1, useRowMatchFinder, 0, 0, ZSTD_CONTENTSIZE_UNKNOWN, params->useExternalMatchFinder);
+        &cParams, &params->ldmParams, 1, useRowMatchFinder, 0, 0, ZSTD_CONTENTSIZE_UNKNOWN, params->useExternalMatchFinder, params->maxBlockSize);
 }
 
 size_t ZSTD_estimateCCtxSize_usingCParams(ZSTD_compressionParameters cParams)
@@ -22377,7 +22171,7 @@ size_t ZSTD_estimateCStreamSize_usingCCtxParams(const ZSTD_CCtx_params* params)
     RETURN_ERROR_IF(params->nbWorkers > 0, GENERIC, "Estimate CCtx size is supported for single-threaded compression only.");
     {   ZSTD_compressionParameters const cParams =
                 ZSTD_getCParamsFromCCtxParams(params, ZSTD_CONTENTSIZE_UNKNOWN, 0, ZSTD_cpm_noAttachDict);
-        size_t const blockSize = MIN(ZSTD_BLOCKSIZE_MAX, (size_t)1 << cParams.windowLog);
+        size_t const blockSize = MIN(ZSTD_resolveMaxBlockSize(params->maxBlockSize), (size_t)1 << cParams.windowLog);
         size_t const inBuffSize = (params->inBufferMode == ZSTD_bm_buffered)
                 ? ((size_t)1 << cParams.windowLog) + blockSize
                 : 0;
@@ -22388,7 +22182,7 @@ size_t ZSTD_estimateCStreamSize_usingCCtxParams(const ZSTD_CCtx_params* params)
 
         return ZSTD_estimateCCtxSize_usingCCtxParams_internal(
             &cParams, &params->ldmParams, 1, useRowMatchFinder, inBuffSize, outBuffSize,
-            ZSTD_CONTENTSIZE_UNKNOWN, params->useExternalMatchFinder);
+            ZSTD_CONTENTSIZE_UNKNOWN, params->useExternalMatchFinder, params->maxBlockSize);
     }
 }
 
@@ -22662,6 +22456,7 @@ static size_t ZSTD_resetCCtx_internal(ZSTD_CCtx* zc,
     assert(params->useRowMatchFinder != ZSTD_ps_auto);
     assert(params->useBlockSplitter != ZSTD_ps_auto);
     assert(params->ldmParams.enableLdm != ZSTD_ps_auto);
+    assert(params->maxBlockSize != 0);
     if (params->ldmParams.enableLdm == ZSTD_ps_enable) {
         /* Adjust long distance matching parameters */
         ZSTD_ldm_adjustParameters(&zc->appliedParams.ldmParams, &params->cParams);
@@ -22670,7 +22465,7 @@ static size_t ZSTD_resetCCtx_internal(ZSTD_CCtx* zc,
     }
 
     {   size_t const windowSize = MAX(1, (size_t)MIN(((U64)1 << params->cParams.windowLog), pledgedSrcSize));
-        size_t const blockSize = MIN(ZSTD_BLOCKSIZE_MAX, windowSize);
+        size_t const blockSize = MIN(params->maxBlockSize, windowSize);
         size_t const maxNbSeq = ZSTD_maxNbSeq(blockSize, params->cParams.minMatch, params->useExternalMatchFinder);
         size_t const buffOutSize = (zbuff == ZSTDb_buffered && params->outBufferMode == ZSTD_bm_buffered)
                 ? ZSTD_compressBound(blockSize) + 1
@@ -22688,7 +22483,7 @@ static size_t ZSTD_resetCCtx_internal(ZSTD_CCtx* zc,
         size_t const neededSpace =
             ZSTD_estimateCCtxSize_usingCCtxParams_internal(
                 &params->cParams, &params->ldmParams, zc->staticSize != 0, params->useRowMatchFinder,
-                buffInSize, buffOutSize, pledgedSrcSize, params->useExternalMatchFinder);
+                buffInSize, buffOutSize, pledgedSrcSize, params->useExternalMatchFinder, params->maxBlockSize);
         int resizeWorkspace;
 
         FORWARD_IF_ERROR(neededSpace, "cctx size estimate failed!");
@@ -22882,7 +22677,8 @@ ZSTD_resetCCtx_byAttachingCDict(ZSTD_CCtx* cctx,
         }
 
         params.cParams = ZSTD_adjustCParams_internal(adjusted_cdict_cParams, pledgedSrcSize,
-                                                     cdict->dictContentSize, ZSTD_cpm_attachDict);
+                                                     cdict->dictContentSize, ZSTD_cpm_attachDict,
+                                                     params.useRowMatchFinder);
         params.cParams.windowLog = windowLog;
         params.useRowMatchFinder = cdict->useRowMatchFinder;    /* cdict overrides */
         FORWARD_IF_ERROR(ZSTD_resetCCtx_internal(cctx, &params, pledgedSrcSize,
@@ -23066,6 +22862,7 @@ static size_t ZSTD_copyCCtx_internal(ZSTD_CCtx* dstCCtx,
         params.useBlockSplitter = srcCCtx->appliedParams.useBlockSplitter;
         params.ldmParams = srcCCtx->appliedParams.ldmParams;
         params.fParams = fParams;
+        params.maxBlockSize = srcCCtx->appliedParams.maxBlockSize;
         ZSTD_resetCCtx_internal(dstCCtx, &params, pledgedSrcSize,
                                 /* loadedDictSize */ 0,
                                 ZSTDcrp_leaveDirty, zbuff);
@@ -23225,7 +23022,7 @@ static void ZSTD_reduceIndex (ZSTD_matchState_t* ms, ZSTD_CCtx_params const* par
 
 /* See doc/zstd_compression_format.md for detailed format description */
 
-void ZSTD_seqToCodes(const seqStore_t* seqStorePtr)
+int ZSTD_seqToCodes(const seqStore_t* seqStorePtr)
 {
     const seqDef* const sequences = seqStorePtr->sequencesStart;
     BYTE* const llCodeTable = seqStorePtr->llCode;
@@ -23233,18 +23030,24 @@ void ZSTD_seqToCodes(const seqStore_t* seqStorePtr)
     BYTE* const mlCodeTable = seqStorePtr->mlCode;
     U32 const nbSeq = (U32)(seqStorePtr->sequences - seqStorePtr->sequencesStart);
     U32 u;
+    int longOffsets = 0;
     assert(nbSeq <= seqStorePtr->maxNbSeq);
     for (u=0; u<nbSeq; u++) {
         U32 const llv = sequences[u].litLength;
+        U32 const ofCode = ZSTD_highbit32(sequences[u].offBase);
         U32 const mlv = sequences[u].mlBase;
         llCodeTable[u] = (BYTE)ZSTD_LLcode(llv);
-        ofCodeTable[u] = (BYTE)ZSTD_highbit32(sequences[u].offBase);
+        ofCodeTable[u] = (BYTE)ofCode;
         mlCodeTable[u] = (BYTE)ZSTD_MLcode(mlv);
+        assert(!(MEM_64bits() && ofCode >= STREAM_ACCUMULATOR_MIN));
+        if (MEM_32bits() && ofCode >= STREAM_ACCUMULATOR_MIN)
+            longOffsets = 1;
     }
     if (seqStorePtr->longLengthType==ZSTD_llt_literalLength)
         llCodeTable[seqStorePtr->longLengthPos] = MaxLL;
     if (seqStorePtr->longLengthType==ZSTD_llt_matchLength)
         mlCodeTable[seqStorePtr->longLengthPos] = MaxML;
+    return longOffsets;
 }
 
 /* ZSTD_useTargetCBlockSize():
@@ -23278,6 +23081,7 @@ typedef struct {
     U32 MLtype;
     size_t size;
     size_t lastCountSize; /* Accounts for bug in 1.3.4. More detail in ZSTD_entropyCompressSeqStore_internal() */
+    int longOffsets;
 } ZSTD_symbolEncodingTypeStats_t;
 
 /* ZSTD_buildSequencesStatistics():
@@ -23308,7 +23112,7 @@ ZSTD_buildSequencesStatistics(
 
     stats.lastCountSize = 0;
     /* convert length/distances into codes */
-    ZSTD_seqToCodes(seqStorePtr);
+    stats.longOffsets = ZSTD_seqToCodes(seqStorePtr);
     assert(op <= oend);
     assert(nbSeq != 0); /* ZSTD_selectEncodingType() divides by nbSeq */
     /* build CTable for Literal Lengths */
@@ -23422,7 +23226,6 @@ ZSTD_entropyCompressSeqStore_internal(
                               void* entropyWorkspace, size_t entropyWkspSize,
                         const int bmi2)
 {
-    const int longOffsets = cctxParams->cParams.windowLog >= STREAM_ACCUMULATOR_MIN;
     ZSTD_strategy const strategy = cctxParams->cParams.strategy;
     unsigned* count = (unsigned*)entropyWorkspace;
     FSE_CTable* CTable_LitLength = nextEntropy->fse.litlengthCTable;
@@ -23437,6 +23240,7 @@ ZSTD_entropyCompressSeqStore_internal(
     BYTE* const oend = ostart + dstCapacity;
     BYTE* op = ostart;
     size_t lastCountSize;
+    int longOffsets = 0;
 
     entropyWorkspace = count + (MaxSeq + 1);
     entropyWkspSize -= (MaxSeq + 1) * sizeof(*count);
@@ -23498,6 +23302,7 @@ ZSTD_entropyCompressSeqStore_internal(
         *seqHead = (BYTE)((stats.LLtype<<6) + (stats.Offtype<<4) + (stats.MLtype<<2));
         lastCountSize = stats.lastCountSize;
         op += stats.size;
+        longOffsets = stats.longOffsets;
     }
 
     {   size_t const bitstreamSize = ZSTD_encodeSequences(
@@ -23708,6 +23513,23 @@ static size_t ZSTD_postProcessExternalMatchFinderResult(
     }
 }
 
+/* ZSTD_fastSequenceLengthSum() :
+ * Returns sum(litLen) + sum(matchLen) + lastLits for *seqBuf*.
+ * Similar to another function in zstd_compress.c (determine_blockSize),
+ * except it doesn't check for a block delimiter to end summation.
+ * Removing the early exit allows the compiler to auto-vectorize (https://godbolt.org/z/cY1cajz9P).
+ * This function can be deleted and replaced by determine_blockSize after we resolve issue #3456. */
+static size_t ZSTD_fastSequenceLengthSum(ZSTD_Sequence const* seqBuf, size_t seqBufSize) {
+    size_t matchLenSum, litLenSum, i;
+    matchLenSum = 0;
+    litLenSum = 0;
+    for (i = 0; i < seqBufSize; i++) {
+        litLenSum += seqBuf[i].litLength;
+        matchLenSum += seqBuf[i].matchLength;
+    }
+    return litLenSum + matchLenSum;
+}
+
 typedef enum { ZSTDbss_compress, ZSTDbss_noCompress } ZSTD_buildSeqStore_e;
 
 static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
@@ -23825,8 +23647,16 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
                 /* Return early if there is no error, since we don't need to worry about last literals */
                 if (!ZSTD_isError(nbPostProcessedSeqs)) {
                     ZSTD_sequencePosition seqPos = {0,0,0};
-                    ZSTD_copySequencesToSeqStoreExplicitBlockDelim(
-                        zc, &seqPos, zc->externalMatchCtx.seqBuffer, nbPostProcessedSeqs, src, srcSize
+                    size_t const seqLenSum = ZSTD_fastSequenceLengthSum(zc->externalMatchCtx.seqBuffer, nbPostProcessedSeqs);
+                    RETURN_ERROR_IF(seqLenSum > srcSize, externalSequences_invalid, "External sequences imply too large a block!");
+                    FORWARD_IF_ERROR(
+                        ZSTD_copySequencesToSeqStoreExplicitBlockDelim(
+                            zc, &seqPos,
+                            zc->externalMatchCtx.seqBuffer, nbPostProcessedSeqs,
+                            src, srcSize,
+                            zc->appliedParams.searchForExternalRepcodes
+                        ),
+                        "Failed to copy external sequences to seqStore!"
                     );
                     ms->ldmSeqStore = NULL;
                     DEBUGLOG(5, "Copied %lu sequences from external matchfinder to internal seqStore.", (unsigned long)nbExternalSeqs);
@@ -23854,7 +23684,6 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
             ZSTD_blockCompressor const blockCompressor = ZSTD_selectBlockCompressor(zc->appliedParams.cParams.strategy,
                                                                                     zc->appliedParams.useRowMatchFinder,
                                                                                     dictMode);
-            assert(zc->externalMatchCtx.mFinder == NULL);
             ms->ldmSeqStore = NULL;
             lastLLSize = blockCompressor(ms, &zc->seqStore, zc->blockState.nextCBlock->rep, src, srcSize);
         }
@@ -24036,7 +23865,7 @@ ZSTD_buildBlockEntropyStats_literals(void* const src, size_t srcSize,
                                      ZSTD_hufCTablesMetadata_t* hufMetadata,
                                const int literalsCompressionIsDisabled,
                                      void* workspace, size_t wkspSize,
-                                     HUF_depth_mode depthMode)
+                                     int hufFlags)
 {
     BYTE* const wkspStart = (BYTE*)workspace;
     BYTE* const wkspEnd = wkspStart + wkspSize;
@@ -24097,7 +23926,7 @@ ZSTD_buildBlockEntropyStats_literals(void* const src, size_t srcSize,
 
     /* Build Huffman Tree */
     ZSTD_memset(nextHuf->CTable, 0, sizeof(nextHuf->CTable));
-    huffLog = HUF_optimalTableLog(huffLog, srcSize, maxSymbolValue, nodeWksp, nodeWkspSize, nextHuf->CTable, countWksp, depthMode);
+    huffLog = HUF_optimalTableLog(huffLog, srcSize, maxSymbolValue, nodeWksp, nodeWkspSize, nextHuf->CTable, countWksp, hufFlags);
     assert(huffLog <= LitHufLog);
     {   size_t const maxBits = HUF_buildCTable_wksp((HUF_CElt*)nextHuf->CTable, countWksp,
                                                     maxSymbolValue, huffLog,
@@ -24143,7 +23972,7 @@ ZSTD_buildBlockEntropyStats_literals(void* const src, size_t srcSize,
 static ZSTD_symbolEncodingTypeStats_t
 ZSTD_buildDummySequencesStatistics(ZSTD_fseCTables_t* nextEntropy)
 {
-    ZSTD_symbolEncodingTypeStats_t stats = {set_basic, set_basic, set_basic, 0, 0};
+    ZSTD_symbolEncodingTypeStats_t stats = {set_basic, set_basic, set_basic, 0, 0, 0};
     nextEntropy->litlength_repeatMode = FSE_repeat_none;
     nextEntropy->offcode_repeatMode = FSE_repeat_none;
     nextEntropy->matchlength_repeatMode = FSE_repeat_none;
@@ -24205,14 +24034,14 @@ size_t ZSTD_buildBlockEntropyStats(
 {
     size_t const litSize = (size_t)(seqStorePtr->lit - seqStorePtr->litStart);
     int const huf_useOptDepth = (cctxParams->cParams.strategy >= HUF_OPTIMAL_DEPTH_THRESHOLD);
-    HUF_depth_mode const depthMode = huf_useOptDepth ? HUF_depth_optimal : HUF_depth_fast;
+    int const hufFlags = huf_useOptDepth ? HUF_flags_optimalDepth : 0;
 
     entropyMetadata->hufMetadata.hufDesSize =
         ZSTD_buildBlockEntropyStats_literals(seqStorePtr->litStart, litSize,
                                             &prevEntropy->huf, &nextEntropy->huf,
                                             &entropyMetadata->hufMetadata,
                                             ZSTD_literalsCompressionIsDisabled(cctxParams),
-                                            workspace, wkspSize, depthMode);
+                                            workspace, wkspSize, hufFlags);
 
     FORWARD_IF_ERROR(entropyMetadata->hufMetadata.hufDesSize, "ZSTD_buildBlockEntropyStats_literals failed");
     entropyMetadata->fseMetadata.fseTablesSize =
@@ -24636,7 +24465,9 @@ ZSTD_deriveBlockSplitsHelper(seqStoreSplits* splits, size_t startIdx, size_t end
  */
 static size_t ZSTD_deriveBlockSplits(ZSTD_CCtx* zc, U32 partitions[], U32 nbSeq)
 {
-    seqStoreSplits splits = {partitions, 0};
+    seqStoreSplits splits;
+    splits.splitLocations = partitions;
+    splits.idx = 0;
     if (nbSeq <= 4) {
         DEBUGLOG(5, "ZSTD_deriveBlockSplits: Too few sequences to split (%u <= 4)", nbSeq);
         /* Refuse to try and split anything with less than 4 sequences */
@@ -25200,7 +25031,7 @@ size_t ZSTD_getBlockSize(const ZSTD_CCtx* cctx)
 {
     ZSTD_compressionParameters const cParams = cctx->appliedParams.cParams;
     assert(!ZSTD_checkCParams(cParams));
-    return MIN (ZSTD_BLOCKSIZE_MAX, (U32)1 << cParams.windowLog);
+    return MIN(cctx->appliedParams.maxBlockSize, (size_t)1 << cParams.windowLog);
 }
 
 size_t ZSTD_compressBlock(ZSTD_CCtx* cctx, void* dst, size_t dstCapacity, const void* src, size_t srcSize)
@@ -26638,8 +26469,17 @@ static size_t ZSTD_CCtx_init_compressStream2(ZSTD_CCtx* cctx,
     params.ldmParams.enableLdm = ZSTD_resolveEnableLdm(params.ldmParams.enableLdm, &params.cParams);
     params.useRowMatchFinder = ZSTD_resolveRowMatchFinderMode(params.useRowMatchFinder, &params.cParams);
     params.validateSequences = ZSTD_resolveExternalSequenceValidation(params.validateSequences);
+    params.maxBlockSize = ZSTD_resolveMaxBlockSize(params.maxBlockSize);
+    params.searchForExternalRepcodes = ZSTD_resolveExternalRepcodeSearch(params.searchForExternalRepcodes, params.compressionLevel);
 
 #ifdef ZSTD_MULTITHREAD
+    /* If external matchfinder is enabled, make sure to fail before checking job size (for consistency) */
+    RETURN_ERROR_IF(
+        params.useExternalMatchFinder == 1 && params.nbWorkers >= 1,
+        parameter_combination_unsupported,
+        "External matchfinder isn't supported with nbWorkers >= 1"
+    );
+
     if ((cctx->pledgedSrcSizePlusOne-1) <= ZSTDMT_JOBSIZE_MIN) {
         params.nbWorkers = 0; /* do not invoke multi-threading when src size is too small */
     }
@@ -26800,13 +26640,20 @@ size_t ZSTD_compressStream2_simpleArgs (
                       const void* src, size_t srcSize, size_t* srcPos,
                             ZSTD_EndDirective endOp)
 {
-    ZSTD_outBuffer output = { dst, dstCapacity, *dstPos };
-    ZSTD_inBuffer  input  = { src, srcSize, *srcPos };
+    ZSTD_outBuffer output;
+    ZSTD_inBuffer  input;
+    output.dst = dst;
+    output.size = dstCapacity;
+    output.pos = *dstPos;
+    input.src = src;
+    input.size = srcSize;
+    input.pos = *srcPos;
     /* ZSTD_compressStream2() will check validity of dstPos and srcPos */
-    size_t const cErr = ZSTD_compressStream2(cctx, &output, &input, endOp);
-    *dstPos = output.pos;
-    *srcPos = input.pos;
-    return cErr;
+    {   size_t const cErr = ZSTD_compressStream2(cctx, &output, &input, endOp);
+        *dstPos = output.pos;
+        *srcPos = input.pos;
+        return cErr;
+    }
 }
 
 size_t ZSTD_compress2(ZSTD_CCtx* cctx,
@@ -26829,6 +26676,7 @@ size_t ZSTD_compress2(ZSTD_CCtx* cctx,
         /* Reset to the original values. */
         cctx->requestedParams.inBufferMode = originalInBufferMode;
         cctx->requestedParams.outBufferMode = originalOutBufferMode;
+
         FORWARD_IF_ERROR(result, "ZSTD_compressStream2_simpleArgs failed");
         if (result != 0) {  /* compression not completed, due to lack of output space */
             assert(oPos == dstCapacity);
@@ -26844,8 +26692,8 @@ size_t ZSTD_compress2(ZSTD_CCtx* cctx,
  * @returns a ZSTD error code if sequence is not valid
  */
 static size_t
-ZSTD_validateSequence(U32 offCode, U32 matchLength,
-                      size_t posInSrc, U32 windowLog, size_t dictSize)
+ZSTD_validateSequence(U32 offCode, U32 matchLength, U32 minMatch,
+                      size_t posInSrc, U32 windowLog, size_t dictSize, int useExternalMatchFinder)
 {
     U32 const windowSize = 1u << windowLog;
     /* posInSrc represents the amount of data the decoder would decode up to this point.
@@ -26854,8 +26702,10 @@ ZSTD_validateSequence(U32 offCode, U32 matchLength,
      * window size. After output surpasses windowSize, we're limited to windowSize offsets again.
      */
     size_t const offsetBound = posInSrc > windowSize ? (size_t)windowSize : posInSrc + (size_t)dictSize;
-    RETURN_ERROR_IF(offCode > OFFSET_TO_OFFBASE(offsetBound), corruption_detected, "Offset too large!");
-    RETURN_ERROR_IF(matchLength < MINMATCH, corruption_detected, "Matchlength too small");
+    size_t const matchLenLowerBound = (minMatch == 3 || useExternalMatchFinder) ? 3 : 4;
+    RETURN_ERROR_IF(offCode > OFFSET_TO_OFFBASE(offsetBound), externalSequences_invalid, "Offset too large!");
+    /* Validate maxNbSeq is large enough for the given matchLength and minMatch */
+    RETURN_ERROR_IF(matchLength < matchLenLowerBound, externalSequences_invalid, "Matchlength too small for the minMatch");
     return 0;
 }
 
@@ -26880,9 +26730,11 @@ size_t
 ZSTD_copySequencesToSeqStoreExplicitBlockDelim(ZSTD_CCtx* cctx,
                                               ZSTD_sequencePosition* seqPos,
                                         const ZSTD_Sequence* const inSeqs, size_t inSeqsSize,
-                                        const void* src, size_t blockSize)
+                                        const void* src, size_t blockSize,
+                                        ZSTD_paramSwitch_e externalRepSearch)
 {
     U32 idx = seqPos->idx;
+    U32 const startIdx = idx;
     BYTE const* ip = (BYTE const*)(src);
     const BYTE* const iend = ip + blockSize;
     repcodes_t updatedRepcodes;
@@ -26900,23 +26752,53 @@ ZSTD_copySequencesToSeqStoreExplicitBlockDelim(ZSTD_CCtx* cctx,
     ZSTD_memcpy(updatedRepcodes.rep, cctx->blockState.prevCBlock->rep, sizeof(repcodes_t));
     for (; idx < inSeqsSize && (inSeqs[idx].matchLength != 0 || inSeqs[idx].offset != 0); ++idx) {
         U32 const litLength = inSeqs[idx].litLength;
-        U32 const ll0 = (litLength == 0);
         U32 const matchLength = inSeqs[idx].matchLength;
-        U32 const offBase = ZSTD_finalizeOffBase(inSeqs[idx].offset, updatedRepcodes.rep, ll0);
-        ZSTD_updateRep(updatedRepcodes.rep, offBase, ll0);
+        U32 offBase;
+
+        if (externalRepSearch == ZSTD_ps_disable) {
+            offBase = OFFSET_TO_OFFBASE(inSeqs[idx].offset);
+        } else {
+            U32 const ll0 = (litLength == 0);
+            offBase = ZSTD_finalizeOffBase(inSeqs[idx].offset, updatedRepcodes.rep, ll0);
+            ZSTD_updateRep(updatedRepcodes.rep, offBase, ll0);
+        }
 
         DEBUGLOG(6, "Storing sequence: (of: %u, ml: %u, ll: %u)", offBase, matchLength, litLength);
         if (cctx->appliedParams.validateSequences) {
             seqPos->posInSrc += litLength + matchLength;
-            FORWARD_IF_ERROR(ZSTD_validateSequence(offBase, matchLength, seqPos->posInSrc,
-                                                cctx->appliedParams.cParams.windowLog, dictSize),
+            FORWARD_IF_ERROR(ZSTD_validateSequence(offBase, matchLength, cctx->appliedParams.cParams.minMatch, seqPos->posInSrc,
+                                                cctx->appliedParams.cParams.windowLog, dictSize, cctx->appliedParams.useExternalMatchFinder),
                                                 "Sequence validation failed");
         }
-        RETURN_ERROR_IF(idx - seqPos->idx > cctx->seqStore.maxNbSeq, memory_allocation,
+        RETURN_ERROR_IF(idx - seqPos->idx >= cctx->seqStore.maxNbSeq, externalSequences_invalid,
                         "Not enough memory allocated. Try adjusting ZSTD_c_minMatch.");
         ZSTD_storeSeq(&cctx->seqStore, litLength, ip, iend, offBase, matchLength);
         ip += matchLength + litLength;
     }
+
+    /* If we skipped repcode search while parsing, we need to update repcodes now */
+    assert(externalRepSearch != ZSTD_ps_auto);
+    assert(idx >= startIdx);
+    if (externalRepSearch == ZSTD_ps_disable && idx != startIdx) {
+        U32* const rep = updatedRepcodes.rep;
+        U32 lastSeqIdx = idx - 1; /* index of last non-block-delimiter sequence */
+
+        if (lastSeqIdx >= startIdx + 2) {
+            rep[2] = inSeqs[lastSeqIdx - 2].offset;
+            rep[1] = inSeqs[lastSeqIdx - 1].offset;
+            rep[0] = inSeqs[lastSeqIdx].offset;
+        } else if (lastSeqIdx == startIdx + 1) {
+            rep[2] = rep[0];
+            rep[1] = inSeqs[lastSeqIdx - 1].offset;
+            rep[0] = inSeqs[lastSeqIdx].offset;
+        } else {
+            assert(lastSeqIdx == startIdx);
+            rep[2] = rep[1];
+            rep[1] = rep[0];
+            rep[0] = inSeqs[lastSeqIdx].offset;
+        }
+    }
+
     ZSTD_memcpy(cctx->blockState.nextCBlock->rep, updatedRepcodes.rep, sizeof(repcodes_t));
 
     if (inSeqs[idx].litLength) {
@@ -26925,7 +26807,7 @@ ZSTD_copySequencesToSeqStoreExplicitBlockDelim(ZSTD_CCtx* cctx,
         ip += inSeqs[idx].litLength;
         seqPos->posInSrc += inSeqs[idx].litLength;
     }
-    RETURN_ERROR_IF(ip != iend, corruption_detected, "Blocksize doesn't agree with block delimiter!");
+    RETURN_ERROR_IF(ip != iend, externalSequences_invalid, "Blocksize doesn't agree with block delimiter!");
     seqPos->idx = idx+1;
     return 0;
 }
@@ -26933,7 +26815,7 @@ ZSTD_copySequencesToSeqStoreExplicitBlockDelim(ZSTD_CCtx* cctx,
 size_t
 ZSTD_copySequencesToSeqStoreNoBlockDelim(ZSTD_CCtx* cctx, ZSTD_sequencePosition* seqPos,
                                    const ZSTD_Sequence* const inSeqs, size_t inSeqsSize,
-                                   const void* src, size_t blockSize)
+                                   const void* src, size_t blockSize, ZSTD_paramSwitch_e externalRepSearch)
 {
     U32 idx = seqPos->idx;
     U32 startPosInSequence = seqPos->posInSequence;
@@ -26944,6 +26826,9 @@ ZSTD_copySequencesToSeqStoreNoBlockDelim(ZSTD_CCtx* cctx, ZSTD_sequencePosition*
     repcodes_t updatedRepcodes;
     U32 bytesAdjustment = 0;
     U32 finalMatchSplit = 0;
+
+    /* TODO(embg) support fast parsing mode in noBlockDelim mode */
+    (void)externalRepSearch;
 
     if (cctx->cdict) {
         dictSize = cctx->cdict->dictContentSize;
@@ -26974,7 +26859,6 @@ ZSTD_copySequencesToSeqStoreNoBlockDelim(ZSTD_CCtx* cctx, ZSTD_sequencePosition*
             /* Move to the next sequence */
             endPosInSequence -= currSeq.litLength + currSeq.matchLength;
             startPosInSequence = 0;
-            idx++;
         } else {
             /* This is the final (partial) sequence we're adding from inSeqs, and endPosInSequence
                does not reach the end of the match. So, we have to split the sequence */
@@ -27020,15 +26904,17 @@ ZSTD_copySequencesToSeqStoreNoBlockDelim(ZSTD_CCtx* cctx, ZSTD_sequencePosition*
 
         if (cctx->appliedParams.validateSequences) {
             seqPos->posInSrc += litLength + matchLength;
-            FORWARD_IF_ERROR(ZSTD_validateSequence(offBase, matchLength, seqPos->posInSrc,
-                                                   cctx->appliedParams.cParams.windowLog, dictSize),
+            FORWARD_IF_ERROR(ZSTD_validateSequence(offBase, matchLength, cctx->appliedParams.cParams.minMatch, seqPos->posInSrc,
+                                                   cctx->appliedParams.cParams.windowLog, dictSize, cctx->appliedParams.useExternalMatchFinder),
                                                    "Sequence validation failed");
         }
         DEBUGLOG(6, "Storing sequence: (of: %u, ml: %u, ll: %u)", offBase, matchLength, litLength);
-        RETURN_ERROR_IF(idx - seqPos->idx > cctx->seqStore.maxNbSeq, memory_allocation,
+        RETURN_ERROR_IF(idx - seqPos->idx >= cctx->seqStore.maxNbSeq, externalSequences_invalid,
                         "Not enough memory allocated. Try adjusting ZSTD_c_minMatch.");
         ZSTD_storeSeq(&cctx->seqStore, litLength, ip, iend, offBase, matchLength);
         ip += matchLength + litLength;
+        if (!finalMatchSplit)
+            idx++; /* Next Sequence */
     }
     DEBUGLOG(5, "Ending seq: idx: %u (of: %u ml: %u ll: %u)", idx, inSeqs[idx].offset, inSeqs[idx].matchLength, inSeqs[idx].litLength);
     assert(idx == inSeqsSize || endPosInSequence <= inSeqs[idx].litLength + inSeqs[idx].matchLength);
@@ -27051,7 +26937,7 @@ ZSTD_copySequencesToSeqStoreNoBlockDelim(ZSTD_CCtx* cctx, ZSTD_sequencePosition*
 
 typedef size_t (*ZSTD_sequenceCopier) (ZSTD_CCtx* cctx, ZSTD_sequencePosition* seqPos,
                                        const ZSTD_Sequence* const inSeqs, size_t inSeqsSize,
-                                       const void* src, size_t blockSize);
+                                       const void* src, size_t blockSize, ZSTD_paramSwitch_e externalRepSearch);
 static ZSTD_sequenceCopier ZSTD_selectSequenceCopier(ZSTD_sequenceFormat_e mode)
 {
     ZSTD_sequenceCopier sequenceCopier = NULL;
@@ -27082,13 +26968,13 @@ blockSize_explicitDelimiter(const ZSTD_Sequence* inSeqs, size_t inSeqsSize, ZSTD
         blockSize += inSeqs[spos].litLength + inSeqs[spos].matchLength;
         if (end) {
             if (inSeqs[spos].matchLength != 0)
-                RETURN_ERROR(corruption_detected, "delimiter format error : both matchlength and offset must be == 0");
+                RETURN_ERROR(externalSequences_invalid, "delimiter format error : both matchlength and offset must be == 0");
             break;
         }
         spos++;
     }
     if (!end)
-        RETURN_ERROR(corruption_detected, "Reached end of sequences without finding a block delimiter");
+        RETURN_ERROR(externalSequences_invalid, "Reached end of sequences without finding a block delimiter");
     return blockSize;
 }
 
@@ -27109,9 +26995,9 @@ static size_t determine_blockSize(ZSTD_sequenceFormat_e mode,
     {   size_t const explicitBlockSize = blockSize_explicitDelimiter(inSeqs, inSeqsSize, seqPos);
         FORWARD_IF_ERROR(explicitBlockSize, "Error while determining block size with explicit delimiters");
         if (explicitBlockSize > blockSize)
-            RETURN_ERROR(corruption_detected, "sequences incorrectly define a too large block");
+            RETURN_ERROR(externalSequences_invalid, "sequences incorrectly define a too large block");
         if (explicitBlockSize > remaining)
-            RETURN_ERROR(srcSize_wrong, "sequences define a frame longer than source");
+            RETURN_ERROR(externalSequences_invalid, "sequences define a frame longer than source");
         return explicitBlockSize;
     }
 }
@@ -27159,7 +27045,7 @@ ZSTD_compressSequences_internal(ZSTD_CCtx* cctx,
         ZSTD_resetSeqStore(&cctx->seqStore);
         DEBUGLOG(5, "Working on new block. Blocksize: %zu (total:%zu)", blockSize, (ip - (const BYTE*)src) + blockSize);
 
-        additionalByteAdjustment = sequenceCopier(cctx, &seqPos, inSeqs, inSeqsSize, ip, blockSize);
+        additionalByteAdjustment = sequenceCopier(cctx, &seqPos, inSeqs, inSeqsSize, ip, blockSize, cctx->appliedParams.searchForExternalRepcodes);
         FORWARD_IF_ERROR(additionalByteAdjustment, "Bad sequence copy");
         blockSize -= additionalByteAdjustment;
 
@@ -27563,7 +27449,7 @@ static ZSTD_compressionParameters ZSTD_getCParams_internal(int compressionLevel,
             cp.targetLength = (unsigned)(-clampedCompressionLevel);
         }
         /* refine parameters based on srcSize & dictSize */
-        return ZSTD_adjustCParams_internal(cp, srcSizeHint, dictSize, mode);
+        return ZSTD_adjustCParams_internal(cp, srcSizeHint, dictSize, mode, ZSTD_ps_auto);
     }
 }
 
@@ -27603,16 +27489,18 @@ void ZSTD_registerExternalMatchFinder(
     ZSTD_CCtx* zc, void* mState,
     ZSTD_externalMatchFinder_F* mFinder
 ) {
-    ZSTD_externalMatchCtx emctx = {
-        mState,
-        mFinder,
-
-        /* seqBuffer is allocated later (from the cwskp) */
-        NULL, /* seqBuffer */
-        0 /* seqBufferCapacity */
-    };
-    zc->externalMatchCtx = emctx;
-    zc->requestedParams.useExternalMatchFinder = 1;
+    if (mFinder != NULL) {
+        ZSTD_externalMatchCtx emctx;
+        emctx.mState = mState;
+        emctx.mFinder = mFinder;
+        emctx.seqBuffer = NULL;
+        emctx.seqBufferCapacity = 0;
+        zc->externalMatchCtx = emctx;
+        zc->requestedParams.useExternalMatchFinder = 1;
+    } else {
+        ZSTD_memset(&zc->externalMatchCtx, 0, sizeof(zc->externalMatchCtx));
+        zc->requestedParams.useExternalMatchFinder = 0;
+    }
 }
 /**** ended inlining compress/zstd_compress.c ****/
 /**** start inlining compress/zstd_double_fast.c ****/
@@ -30099,7 +29987,6 @@ size_t ZSTD_HcFindBestMatch(
 ***********************************/
 /* Constants for row-based hash */
 #define ZSTD_ROW_HASH_TAG_OFFSET 16     /* byte offset of hashes in the match state's tagTable from the beginning of a row */
-#define ZSTD_ROW_HASH_TAG_BITS 8        /* nb bits to use for the tag */
 #define ZSTD_ROW_HASH_TAG_MASK ((1u << ZSTD_ROW_HASH_TAG_BITS) - 1)
 #define ZSTD_ROW_HASH_MAX_ENTRIES 64    /* absolute maximum number of entries per row, for all configurations */
 
@@ -35665,7 +35552,6 @@ size_t ZSTDMT_compressStream_generic(ZSTDMT_CCtx* mtctx,
 /**** skipping file: ../common/compiler.h ****/
 /**** skipping file: ../common/bitstream.h ****/
 /**** skipping file: ../common/fse.h ****/
-#define HUF_STATIC_LINKING_ONLY
 /**** skipping file: ../common/huf.h ****/
 /**** skipping file: ../common/error_private.h ****/
 /**** skipping file: ../common/zstd_internal.h ****/
@@ -35690,10 +35576,14 @@ size_t ZSTDMT_compressStream_generic(ZSTDMT_CCtx* mtctx,
 #error "Cannot force the use of the X1 and X2 decoders at the same time!"
 #endif
 
-#if ZSTD_ENABLE_ASM_X86_64_BMI2 && DYNAMIC_BMI2
-# define HUF_ASM_X86_64_BMI2_ATTRS BMI2_TARGET_ATTRIBUTE
+/* When DYNAMIC_BMI2 is enabled, fast decoders are only called when bmi2 is
+ * supported at runtime, so we can add the BMI2 target attribute.
+ * When it is disabled, we will still get BMI2 if it is enabled statically.
+ */
+#if DYNAMIC_BMI2
+# define HUF_FAST_BMI2_ATTRS BMI2_TARGET_ATTRIBUTE
 #else
-# define HUF_ASM_X86_64_BMI2_ATTRS
+# define HUF_FAST_BMI2_ATTRS
 #endif
 
 #ifdef __cplusplus
@@ -35703,16 +35593,10 @@ size_t ZSTDMT_compressStream_generic(ZSTDMT_CCtx* mtctx,
 #endif
 #define HUF_ASM_DECL HUF_EXTERN_C
 
-#if DYNAMIC_BMI2 || (ZSTD_ENABLE_ASM_X86_64_BMI2 && defined(__BMI2__))
+#if DYNAMIC_BMI2
 # define HUF_NEED_BMI2_FUNCTION 1
 #else
 # define HUF_NEED_BMI2_FUNCTION 0
-#endif
-
-#if !(ZSTD_ENABLE_ASM_X86_64_BMI2 && defined(__BMI2__))
-# define HUF_NEED_DEFAULT_FUNCTION 1
-#else
-# define HUF_NEED_DEFAULT_FUNCTION 0
 #endif
 
 /* **************************************************************
@@ -35731,6 +35615,11 @@ size_t ZSTDMT_compressStream_generic(ZSTDMT_CCtx* mtctx,
 /* **************************************************************
 *  BMI2 Variant Wrappers
 ****************************************************************/
+typedef size_t (*HUF_DecompressUsingDTableFn)(void *dst, size_t dstSize,
+                                              const void *cSrc,
+                                              size_t cSrcSize,
+                                              const HUF_DTable *DTable);
+
 #if DYNAMIC_BMI2
 
 #define HUF_DGEN(fn)                                                        \
@@ -35752,9 +35641,9 @@ size_t ZSTDMT_compressStream_generic(ZSTDMT_CCtx* mtctx,
     }                                                                       \
                                                                             \
     static size_t fn(void* dst, size_t dstSize, void const* cSrc,           \
-                     size_t cSrcSize, HUF_DTable const* DTable, int bmi2)   \
+                     size_t cSrcSize, HUF_DTable const* DTable, int flags)  \
     {                                                                       \
-        if (bmi2) {                                                         \
+        if (flags & HUF_flags_bmi2) {                                       \
             return fn##_bmi2(dst, dstSize, cSrc, cSrcSize, DTable);         \
         }                                                                   \
         return fn##_default(dst, dstSize, cSrc, cSrcSize, DTable);          \
@@ -35764,9 +35653,9 @@ size_t ZSTDMT_compressStream_generic(ZSTDMT_CCtx* mtctx,
 
 #define HUF_DGEN(fn)                                                        \
     static size_t fn(void* dst, size_t dstSize, void const* cSrc,           \
-                     size_t cSrcSize, HUF_DTable const* DTable, int bmi2)   \
+                     size_t cSrcSize, HUF_DTable const* DTable, int flags)  \
     {                                                                       \
-        (void)bmi2;                                                         \
+        (void)flags;                                                        \
         return fn##_body(dst, dstSize, cSrc, cSrcSize, DTable);             \
     }
 
@@ -35785,15 +35674,28 @@ static DTableDesc HUF_getDTableDesc(const HUF_DTable* table)
     return dtd;
 }
 
-#if ZSTD_ENABLE_ASM_X86_64_BMI2
-
-static size_t HUF_initDStream(BYTE const* ip) {
+static size_t HUF_initFastDStream(BYTE const* ip) {
     BYTE const lastByte = ip[7];
     size_t const bitsConsumed = lastByte ? 8 - ZSTD_highbit32(lastByte) : 0;
     size_t const value = MEM_readLEST(ip) | 1;
     assert(bitsConsumed <= 8);
+    assert(sizeof(size_t) == 8);
     return value << bitsConsumed;
 }
+
+
+/**
+ * The input/output arguments to the Huffman fast decoding loop:
+ *
+ * ip [in/out] - The input pointers, must be updated to reflect what is consumed.
+ * op [in/out] - The output pointers, must be updated to reflect what is written.
+ * bits [in/out] - The bitstream containers, must be updated to reflect the current state.
+ * dt [in] - The decoding table.
+ * ilimit [in] - The input limit, stop when any input pointer is below ilimit.
+ * oend [in] - The end of the output stream. op[3] must not cross oend.
+ * iend [in] - The end of each input stream. ip[i] may cross iend[i],
+ *             as long as it is above ilimit, but that indicates corruption.
+ */
 typedef struct {
     BYTE const* ip[4];
     BYTE* op[4];
@@ -35802,15 +35704,17 @@ typedef struct {
     BYTE const* ilimit;
     BYTE* oend;
     BYTE const* iend[4];
-} HUF_DecompressAsmArgs;
+} HUF_DecompressFastArgs;
+
+typedef void (*HUF_DecompressFastLoopFn)(HUF_DecompressFastArgs*);
 
 /**
- * Initializes args for the asm decoding loop.
- * @returns 0 on success
- *          1 if the fallback implementation should be used.
+ * Initializes args for the fast decoding loop.
+ * @returns 1 on success
+ *          0 if the fallback implementation should be used.
  *          Or an error code on failure.
  */
-static size_t HUF_DecompressAsmArgs_init(HUF_DecompressAsmArgs* args, void* dst, size_t dstSize, void const* src, size_t srcSize, const HUF_DTable* DTable)
+static size_t HUF_DecompressFastArgs_init(HUF_DecompressFastArgs* args, void* dst, size_t dstSize, void const* src, size_t srcSize, const HUF_DTable* DTable)
 {
     void const* dt = DTable + 1;
     U32 const dtLog = HUF_getDTableDesc(DTable).tableLog;
@@ -35819,9 +35723,11 @@ static size_t HUF_DecompressAsmArgs_init(HUF_DecompressAsmArgs* args, void* dst,
 
     BYTE* const oend = (BYTE*)dst + dstSize;
 
-    /* The following condition is false on x32 platform,
-     * but HUF_asm is not compatible with this ABI */
-    if (!(MEM_isLittleEndian() && !MEM_32bits())) return 1;
+    /* The fast decoding loop assumes 64-bit little-endian.
+     * This condition is false on x32.
+     */
+    if (!MEM_isLittleEndian() || MEM_32bits())
+        return 0;
 
     /* strict minimum : jump table + 1 byte per stream */
     if (srcSize < 10)
@@ -35832,7 +35738,7 @@ static size_t HUF_DecompressAsmArgs_init(HUF_DecompressAsmArgs* args, void* dst,
      * On small inputs we don't have enough data to trigger the fast loop, so use the old decoder.
      */
     if (dtLog != HUF_DECODER_FAST_TABLELOG)
-        return 1;
+        return 0;
 
     /* Read the jump table. */
     {
@@ -35846,13 +35752,13 @@ static size_t HUF_DecompressAsmArgs_init(HUF_DecompressAsmArgs* args, void* dst,
         args->iend[2] = args->iend[1] + length2;
         args->iend[3] = args->iend[2] + length3;
 
-        /* HUF_initDStream() requires this, and this small of an input
+        /* HUF_initFastDStream() requires this, and this small of an input
          * won't benefit from the ASM loop anyways.
          * length1 must be >= 16 so that ip[0] >= ilimit before the loop
          * starts.
          */
         if (length1 < 16 || length2 < 8 || length3 < 8 || length4 < 8)
-            return 1;
+            return 0;
         if (length4 > srcSize) return ERROR(corruption_detected);   /* overflow */
     }
     /* ip[] contains the position that is currently loaded into bits[]. */
@@ -35869,7 +35775,7 @@ static size_t HUF_DecompressAsmArgs_init(HUF_DecompressAsmArgs* args, void* dst,
 
     /* No point to call the ASM loop for tiny outputs. */
     if (args->op[3] >= oend)
-        return 1;
+        return 0;
 
     /* bits[] is the bit container.
         * It is read from the MSB down to the LSB.
@@ -35878,10 +35784,10 @@ static size_t HUF_DecompressAsmArgs_init(HUF_DecompressAsmArgs* args, void* dst,
         * set, so that CountTrailingZeros(bits[]) can be used
         * to count how many bits we've consumed.
         */
-    args->bits[0] = HUF_initDStream(args->ip[0]);
-    args->bits[1] = HUF_initDStream(args->ip[1]);
-    args->bits[2] = HUF_initDStream(args->ip[2]);
-    args->bits[3] = HUF_initDStream(args->ip[3]);
+    args->bits[0] = HUF_initFastDStream(args->ip[0]);
+    args->bits[1] = HUF_initFastDStream(args->ip[1]);
+    args->bits[2] = HUF_initFastDStream(args->ip[2]);
+    args->bits[3] = HUF_initFastDStream(args->ip[3]);
 
     /* If ip[] >= ilimit, it is guaranteed to be safe to
         * reload bits[]. It may be beyond its section, but is
@@ -35892,10 +35798,10 @@ static size_t HUF_DecompressAsmArgs_init(HUF_DecompressAsmArgs* args, void* dst,
     args->oend = oend;
     args->dt = dt;
 
-    return 0;
+    return 1;
 }
 
-static size_t HUF_initRemainingDStream(BIT_DStream_t* bit, HUF_DecompressAsmArgs const* args, int stream, BYTE* segmentEnd)
+static size_t HUF_initRemainingDStream(BIT_DStream_t* bit, HUF_DecompressFastArgs const* args, int stream, BYTE* segmentEnd)
 {
     /* Validate that we haven't overwritten. */
     if (args->op[stream] > segmentEnd)
@@ -35910,7 +35816,7 @@ static size_t HUF_initRemainingDStream(BIT_DStream_t* bit, HUF_DecompressAsmArgs
 
     /* Construct the BIT_DStream_t. */
     assert(sizeof(size_t) == 8);
-    bit->bitContainer = MEM_readLE64(args->ip[stream]);
+    bit->bitContainer = MEM_readLEST(args->ip[stream]);
     bit->bitsConsumed = ZSTD_countTrailingZeros64(args->bits[stream]);
     bit->start = (const char*)args->iend[0];
     bit->limitPtr = bit->start + sizeof(size_t);
@@ -35918,7 +35824,6 @@ static size_t HUF_initRemainingDStream(BIT_DStream_t* bit, HUF_DecompressAsmArgs
 
     return 0;
 }
-#endif
 
 
 #ifndef HUF_FORCE_DECOMPRESS_X2
@@ -35982,13 +35887,7 @@ typedef struct {
         BYTE huffWeight[HUF_SYMBOLVALUE_MAX + 1];
 } HUF_ReadDTableX1_Workspace;
 
-
-size_t HUF_readDTableX1_wksp(HUF_DTable* DTable, const void* src, size_t srcSize, void* workSpace, size_t wkspSize)
-{
-    return HUF_readDTableX1_wksp_bmi2(DTable, src, srcSize, workSpace, wkspSize, /* bmi2 */ 0);
-}
-
-size_t HUF_readDTableX1_wksp_bmi2(HUF_DTable* DTable, const void* src, size_t srcSize, void* workSpace, size_t wkspSize, int bmi2)
+size_t HUF_readDTableX1_wksp(HUF_DTable* DTable, const void* src, size_t srcSize, void* workSpace, size_t wkspSize, int flags)
 {
     U32 tableLog = 0;
     U32 nbSymbols = 0;
@@ -36003,7 +35902,7 @@ size_t HUF_readDTableX1_wksp_bmi2(HUF_DTable* DTable, const void* src, size_t sr
     DEBUG_STATIC_ASSERT(sizeof(DTableDesc) == sizeof(HUF_DTable));
     /* ZSTD_memset(huffWeight, 0, sizeof(huffWeight)); */   /* is not necessary, even though some analyzer complain ... */
 
-    iSize = HUF_readStats_wksp(wksp->huffWeight, HUF_SYMBOLVALUE_MAX + 1, wksp->rankVal, &nbSymbols, &tableLog, src, srcSize, wksp->statsWksp, sizeof(wksp->statsWksp), bmi2);
+    iSize = HUF_readStats_wksp(wksp->huffWeight, HUF_SYMBOLVALUE_MAX + 1, wksp->rankVal, &nbSymbols, &tableLog, src, srcSize, wksp->statsWksp, sizeof(wksp->statsWksp), flags);
     if (HUF_isError(iSize)) return iSize;
 
 
@@ -36306,37 +36205,142 @@ size_t HUF_decompress4X1_usingDTable_internal_bmi2(void* dst, size_t dstSize, vo
 }
 #endif
 
-#if HUF_NEED_DEFAULT_FUNCTION
 static
 size_t HUF_decompress4X1_usingDTable_internal_default(void* dst, size_t dstSize, void const* cSrc,
                     size_t cSrcSize, HUF_DTable const* DTable) {
     return HUF_decompress4X1_usingDTable_internal_body(dst, dstSize, cSrc, cSrcSize, DTable);
 }
-#endif
 
 #if ZSTD_ENABLE_ASM_X86_64_BMI2
 
-HUF_ASM_DECL void HUF_decompress4X1_usingDTable_internal_bmi2_asm_loop(HUF_DecompressAsmArgs* args) ZSTDLIB_HIDDEN;
+HUF_ASM_DECL void HUF_decompress4X1_usingDTable_internal_fast_asm_loop(HUF_DecompressFastArgs* args) ZSTDLIB_HIDDEN;
 
-static HUF_ASM_X86_64_BMI2_ATTRS
+#endif
+
+static HUF_FAST_BMI2_ATTRS
+void HUF_decompress4X1_usingDTable_internal_fast_c_loop(HUF_DecompressFastArgs* args)
+{
+    U64 bits[4];
+    BYTE const* ip[4];
+    BYTE* op[4];
+    U16 const* const dtable = (U16 const*)args->dt;
+    BYTE* const oend = args->oend;
+    BYTE const* const ilimit = args->ilimit;
+
+    /* Copy the arguments to local variables */
+    ZSTD_memcpy(&bits, &args->bits, sizeof(bits));
+    ZSTD_memcpy(&ip, &args->ip, sizeof(ip));
+    ZSTD_memcpy(&op, &args->op, sizeof(op));
+
+    assert(MEM_isLittleEndian());
+    assert(!MEM_32bits());
+
+    for (;;) {
+        BYTE* olimit;
+        int stream;
+        int symbol;
+
+        /* Assert loop preconditions */
+#ifndef NDEBUG
+        for (stream = 0; stream < 4; ++stream) {
+            assert(op[stream] <= (stream == 3 ? oend : op[stream + 1]));
+            assert(ip[stream] >= ilimit);
+        }
+#endif
+        /* Compute olimit */
+        {
+            /* Each iteration produces 5 output symbols per stream */
+            size_t const oiters = (size_t)(oend - op[3]) / 5;
+            /* Each iteration consumes up to 11 bits * 5 = 55 bits < 7 bytes
+             * per stream.
+             */
+            size_t const iiters = (size_t)(ip[0] - ilimit) / 7;
+            /* We can safely run iters iterations before running bounds checks */
+            size_t const iters = MIN(oiters, iiters);
+            size_t const symbols = iters * 5;
+
+            /* We can simply check that op[3] < olimit, instead of checking all
+             * of our bounds, since we can't hit the other bounds until we've run
+             * iters iterations, which only happens when op[3] == olimit.
+             */
+            olimit = op[3] + symbols;
+
+            /* Exit fast decoding loop once we get close to the end. */
+            if (op[3] + 20 > olimit)
+                break;
+
+            /* Exit the decoding loop if any input pointer has crossed the
+             * previous one. This indicates corruption, and a precondition
+             * to our loop is that ip[i] >= ip[0].
+             */
+            for (stream = 1; stream < 4; ++stream) {
+                if (ip[stream] < ip[stream - 1])
+                    goto _out;
+            }
+        }
+
+#ifndef NDEBUG
+        for (stream = 1; stream < 4; ++stream) {
+            assert(ip[stream] >= ip[stream - 1]);
+        }
+#endif
+
+        do {
+            /* Decode 5 symbols in each of the 4 streams */
+            for (symbol = 0; symbol < 5; ++symbol) {
+                for (stream = 0; stream < 4; ++stream) {
+                    int const index = (int)(bits[stream] >> 53);
+                    int const entry = (int)dtable[index];
+                    bits[stream] <<= (entry & 63);
+                    op[stream][symbol] = (BYTE)((entry >> 8) & 0xFF);
+                }
+            }
+            /* Reload the bitstreams */
+            for (stream = 0; stream < 4; ++stream) {
+                int const ctz = ZSTD_countTrailingZeros64(bits[stream]);
+                int const nbBits = ctz & 7;
+                int const nbBytes = ctz >> 3;
+                op[stream] += 5;
+                ip[stream] -= nbBytes;
+                bits[stream] = MEM_read64(ip[stream]) | 1;
+                bits[stream] <<= nbBits;
+            }
+        } while (op[3] < olimit);
+    }
+
+_out:
+
+    /* Save the final values of each of the state variables back to args. */
+    ZSTD_memcpy(&args->bits, &bits, sizeof(bits));
+    ZSTD_memcpy(&args->ip, &ip, sizeof(ip));
+    ZSTD_memcpy(&args->op, &op, sizeof(op));
+}
+
+/**
+ * @returns @p dstSize on success (>= 6)
+ *          0 if the fallback implementation should be used
+ *          An error if an error occurred
+ */
+static HUF_FAST_BMI2_ATTRS
 size_t
-HUF_decompress4X1_usingDTable_internal_bmi2_asm(
+HUF_decompress4X1_usingDTable_internal_fast(
           void* dst,  size_t dstSize,
     const void* cSrc, size_t cSrcSize,
-    const HUF_DTable* DTable)
+    const HUF_DTable* DTable,
+    HUF_DecompressFastLoopFn loopFn)
 {
     void const* dt = DTable + 1;
     const BYTE* const iend = (const BYTE*)cSrc + 6;
     BYTE* const oend = (BYTE*)dst + dstSize;
-    HUF_DecompressAsmArgs args;
-    {   size_t const ret = HUF_DecompressAsmArgs_init(&args, dst, dstSize, cSrc, cSrcSize, DTable);
-        FORWARD_IF_ERROR(ret, "Failed to init asm args");
-        if (ret != 0)
-            return HUF_decompress4X1_usingDTable_internal_bmi2(dst, dstSize, cSrc, cSrcSize, DTable);
+    HUF_DecompressFastArgs args;
+    {   size_t const ret = HUF_DecompressFastArgs_init(&args, dst, dstSize, cSrc, cSrcSize, DTable);
+        FORWARD_IF_ERROR(ret, "Failed to init fast loop args");
+        if (ret == 0)
+            return 0;
     }
 
     assert(args.ip[0] >= args.ilimit);
-    HUF_decompress4X1_usingDTable_internal_bmi2_asm_loop(&args);
+    loopFn(&args);
 
     /* Our loop guarantees that ip[] >= ilimit and that we haven't
     * overwritten any op[].
@@ -36366,96 +36370,58 @@ HUF_decompress4X1_usingDTable_internal_bmi2_asm(
     }
 
     /* decoded size */
+    assert(dstSize != 0);
     return dstSize;
 }
-#endif /* ZSTD_ENABLE_ASM_X86_64_BMI2 */
-
-typedef size_t (*HUF_decompress_usingDTable_t)(void *dst, size_t dstSize,
-                                               const void *cSrc,
-                                               size_t cSrcSize,
-                                               const HUF_DTable *DTable);
 
 HUF_DGEN(HUF_decompress1X1_usingDTable_internal)
 
 static size_t HUF_decompress4X1_usingDTable_internal(void* dst, size_t dstSize, void const* cSrc,
-                    size_t cSrcSize, HUF_DTable const* DTable, int bmi2)
+                    size_t cSrcSize, HUF_DTable const* DTable, int flags)
 {
+    HUF_DecompressUsingDTableFn fallbackFn = HUF_decompress4X1_usingDTable_internal_default;
+    HUF_DecompressFastLoopFn loopFn = HUF_decompress4X1_usingDTable_internal_fast_c_loop;
+
 #if DYNAMIC_BMI2
-    if (bmi2) {
+    if (flags & HUF_flags_bmi2) {
+        fallbackFn = HUF_decompress4X1_usingDTable_internal_bmi2;
 # if ZSTD_ENABLE_ASM_X86_64_BMI2
-        return HUF_decompress4X1_usingDTable_internal_bmi2_asm(dst, dstSize, cSrc, cSrcSize, DTable);
-# else
-        return HUF_decompress4X1_usingDTable_internal_bmi2(dst, dstSize, cSrc, cSrcSize, DTable);
+        if (!(flags & HUF_flags_disableAsm)) {
+            loopFn = HUF_decompress4X1_usingDTable_internal_fast_asm_loop;
+        }
 # endif
+    } else {
+        return fallbackFn(dst, dstSize, cSrc, cSrcSize, DTable);
     }
-#else
-    (void)bmi2;
 #endif
 
 #if ZSTD_ENABLE_ASM_X86_64_BMI2 && defined(__BMI2__)
-    return HUF_decompress4X1_usingDTable_internal_bmi2_asm(dst, dstSize, cSrc, cSrcSize, DTable);
-#else
-    return HUF_decompress4X1_usingDTable_internal_default(dst, dstSize, cSrc, cSrcSize, DTable);
+    if (!(flags & HUF_flags_disableAsm)) {
+        loopFn = HUF_decompress4X1_usingDTable_internal_fast_asm_loop;
+    }
 #endif
+
+    if (!(flags & HUF_flags_disableFast)) {
+        size_t const ret = HUF_decompress4X1_usingDTable_internal_fast(dst, dstSize, cSrc, cSrcSize, DTable, loopFn);
+        if (ret != 0)
+            return ret;
+    }
+    return fallbackFn(dst, dstSize, cSrc, cSrcSize, DTable);
 }
 
-
-size_t HUF_decompress1X1_usingDTable(
-          void* dst,  size_t dstSize,
-    const void* cSrc, size_t cSrcSize,
-    const HUF_DTable* DTable)
-{
-    DTableDesc dtd = HUF_getDTableDesc(DTable);
-    if (dtd.tableType != 0) return ERROR(GENERIC);
-    return HUF_decompress1X1_usingDTable_internal(dst, dstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-}
-
-size_t HUF_decompress1X1_DCtx_wksp(HUF_DTable* DCtx, void* dst, size_t dstSize,
+static size_t HUF_decompress4X1_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize,
                                    const void* cSrc, size_t cSrcSize,
-                                   void* workSpace, size_t wkspSize)
+                                   void* workSpace, size_t wkspSize, int flags)
 {
     const BYTE* ip = (const BYTE*) cSrc;
 
-    size_t const hSize = HUF_readDTableX1_wksp(DCtx, cSrc, cSrcSize, workSpace, wkspSize);
+    size_t const hSize = HUF_readDTableX1_wksp(dctx, cSrc, cSrcSize, workSpace, wkspSize, flags);
     if (HUF_isError(hSize)) return hSize;
     if (hSize >= cSrcSize) return ERROR(srcSize_wrong);
     ip += hSize; cSrcSize -= hSize;
 
-    return HUF_decompress1X1_usingDTable_internal(dst, dstSize, ip, cSrcSize, DCtx, /* bmi2 */ 0);
+    return HUF_decompress4X1_usingDTable_internal(dst, dstSize, ip, cSrcSize, dctx, flags);
 }
-
-
-size_t HUF_decompress4X1_usingDTable(
-          void* dst,  size_t dstSize,
-    const void* cSrc, size_t cSrcSize,
-    const HUF_DTable* DTable)
-{
-    DTableDesc dtd = HUF_getDTableDesc(DTable);
-    if (dtd.tableType != 0) return ERROR(GENERIC);
-    return HUF_decompress4X1_usingDTable_internal(dst, dstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-}
-
-static size_t HUF_decompress4X1_DCtx_wksp_bmi2(HUF_DTable* dctx, void* dst, size_t dstSize,
-                                   const void* cSrc, size_t cSrcSize,
-                                   void* workSpace, size_t wkspSize, int bmi2)
-{
-    const BYTE* ip = (const BYTE*) cSrc;
-
-    size_t const hSize = HUF_readDTableX1_wksp_bmi2(dctx, cSrc, cSrcSize, workSpace, wkspSize, bmi2);
-    if (HUF_isError(hSize)) return hSize;
-    if (hSize >= cSrcSize) return ERROR(srcSize_wrong);
-    ip += hSize; cSrcSize -= hSize;
-
-    return HUF_decompress4X1_usingDTable_internal(dst, dstSize, ip, cSrcSize, dctx, bmi2);
-}
-
-size_t HUF_decompress4X1_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize,
-                                   const void* cSrc, size_t cSrcSize,
-                                   void* workSpace, size_t wkspSize)
-{
-    return HUF_decompress4X1_DCtx_wksp_bmi2(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, 0);
-}
-
 
 #endif /* HUF_FORCE_DECOMPRESS_X2 */
 
@@ -36639,7 +36605,7 @@ static void HUF_fillDTableX2Level2(HUF_DEltX2* DTable, U32 targetLog, const U32 
 
 static void HUF_fillDTableX2(HUF_DEltX2* DTable, const U32 targetLog,
                            const sortedSymbol_t* sortedList,
-                           const U32* rankStart, rankVal_t rankValOrigin, const U32 maxWeight,
+                           const U32* rankStart, rankValCol_t* rankValOrigin, const U32 maxWeight,
                            const U32 nbBitsBaseline)
 {
     U32* const rankVal = rankValOrigin[0];
@@ -36694,14 +36660,7 @@ typedef struct {
 
 size_t HUF_readDTableX2_wksp(HUF_DTable* DTable,
                        const void* src, size_t srcSize,
-                             void* workSpace, size_t wkspSize)
-{
-    return HUF_readDTableX2_wksp_bmi2(DTable, src, srcSize, workSpace, wkspSize, /* bmi2 */ 0);
-}
-
-size_t HUF_readDTableX2_wksp_bmi2(HUF_DTable* DTable,
-                       const void* src, size_t srcSize,
-                             void* workSpace, size_t wkspSize, int bmi2)
+                             void* workSpace, size_t wkspSize, int flags)
 {
     U32 tableLog, maxW, nbSymbols;
     DTableDesc dtd = HUF_getDTableDesc(DTable);
@@ -36723,7 +36682,7 @@ size_t HUF_readDTableX2_wksp_bmi2(HUF_DTable* DTable,
     if (maxTableLog > HUF_TABLELOG_MAX) return ERROR(tableLog_tooLarge);
     /* ZSTD_memset(weightList, 0, sizeof(weightList)); */  /* is not necessary, even though some analyzer complain ... */
 
-    iSize = HUF_readStats_wksp(wksp->weightList, HUF_SYMBOLVALUE_MAX + 1, wksp->rankStats, &nbSymbols, &tableLog, src, srcSize, wksp->calleeWksp, sizeof(wksp->calleeWksp), bmi2);
+    iSize = HUF_readStats_wksp(wksp->weightList, HUF_SYMBOLVALUE_MAX + 1, wksp->rankStats, &nbSymbols, &tableLog, src, srcSize, wksp->calleeWksp, sizeof(wksp->calleeWksp), flags);
     if (HUF_isError(iSize)) return iSize;
 
     /* check result */
@@ -37026,36 +36985,177 @@ size_t HUF_decompress4X2_usingDTable_internal_bmi2(void* dst, size_t dstSize, vo
 }
 #endif
 
-#if HUF_NEED_DEFAULT_FUNCTION
 static
 size_t HUF_decompress4X2_usingDTable_internal_default(void* dst, size_t dstSize, void const* cSrc,
                     size_t cSrcSize, HUF_DTable const* DTable) {
     return HUF_decompress4X2_usingDTable_internal_body(dst, dstSize, cSrc, cSrcSize, DTable);
 }
-#endif
 
 #if ZSTD_ENABLE_ASM_X86_64_BMI2
 
-HUF_ASM_DECL void HUF_decompress4X2_usingDTable_internal_bmi2_asm_loop(HUF_DecompressAsmArgs* args) ZSTDLIB_HIDDEN;
+HUF_ASM_DECL void HUF_decompress4X2_usingDTable_internal_fast_asm_loop(HUF_DecompressFastArgs* args) ZSTDLIB_HIDDEN;
 
-static HUF_ASM_X86_64_BMI2_ATTRS size_t
-HUF_decompress4X2_usingDTable_internal_bmi2_asm(
+#endif
+
+static HUF_FAST_BMI2_ATTRS
+void HUF_decompress4X2_usingDTable_internal_fast_c_loop(HUF_DecompressFastArgs* args)
+{
+    U64 bits[4];
+    BYTE const* ip[4];
+    BYTE* op[4];
+    BYTE* oend[4];
+    HUF_DEltX2 const* const dtable = (HUF_DEltX2 const*)args->dt;
+    BYTE const* const ilimit = args->ilimit;
+
+    /* Copy the arguments to local registers. */
+    ZSTD_memcpy(&bits, &args->bits, sizeof(bits));
+    ZSTD_memcpy(&ip, &args->ip, sizeof(ip));
+    ZSTD_memcpy(&op, &args->op, sizeof(op));
+
+    oend[0] = op[1];
+    oend[1] = op[2];
+    oend[2] = op[3];
+    oend[3] = args->oend;
+
+    assert(MEM_isLittleEndian());
+    assert(!MEM_32bits());
+
+    for (;;) {
+        BYTE* olimit;
+        int stream;
+        int symbol;
+
+        /* Assert loop preconditions */
+#ifndef NDEBUG
+        for (stream = 0; stream < 4; ++stream) {
+            assert(op[stream] <= oend[stream]);
+            assert(ip[stream] >= ilimit);
+        }
+#endif
+        /* Compute olimit */
+        {
+            /* Each loop does 5 table lookups for each of the 4 streams.
+             * Each table lookup consumes up to 11 bits of input, and produces
+             * up to 2 bytes of output.
+             */
+            /* We can consume up to 7 bytes of input per iteration per stream.
+             * We also know that each input pointer is >= ip[0]. So we can run
+             * iters loops before running out of input.
+             */
+            size_t iters = (size_t)(ip[0] - ilimit) / 7;
+            /* Each iteration can produce up to 10 bytes of output per stream.
+             * Each output stream my advance at different rates. So take the
+             * minimum number of safe iterations among all the output streams.
+             */
+            for (stream = 0; stream < 4; ++stream) {
+                size_t const oiters = (size_t)(oend[stream] - op[stream]) / 10;
+                iters = MIN(iters, oiters);
+            }
+
+            /* Each iteration produces at least 5 output symbols. So until
+             * op[3] crosses olimit, we know we haven't executed iters
+             * iterations yet. This saves us maintaining an iters counter,
+             * at the expense of computing the remaining # of iterations
+             * more frequently.
+             */
+            olimit = op[3] + (iters * 5);
+
+            /* Exit the fast decoding loop if we are too close to the end. */
+            if (op[3] + 10 > olimit)
+                break;
+
+            /* Exit the decoding loop if any input pointer has crossed the
+             * previous one. This indicates corruption, and a precondition
+             * to our loop is that ip[i] >= ip[0].
+             */
+            for (stream = 1; stream < 4; ++stream) {
+                if (ip[stream] < ip[stream - 1])
+                    goto _out;
+            }
+        }
+
+#ifndef NDEBUG
+        for (stream = 1; stream < 4; ++stream) {
+            assert(ip[stream] >= ip[stream - 1]);
+        }
+#endif
+
+        do {
+            /* Do 5 table lookups for each of the first 3 streams */
+            for (symbol = 0; symbol < 5; ++symbol) {
+                for (stream = 0; stream < 3; ++stream) {
+                    int const index = (int)(bits[stream] >> 53);
+                    HUF_DEltX2 const entry = dtable[index];
+                    MEM_write16(op[stream], entry.sequence);
+                    bits[stream] <<= (entry.nbBits);
+                    op[stream] += (entry.length);
+                }
+            }
+            /* Do 1 table lookup from the final stream */
+            {
+                int const index = (int)(bits[3] >> 53);
+                HUF_DEltX2 const entry = dtable[index];
+                MEM_write16(op[3], entry.sequence);
+                bits[3] <<= (entry.nbBits);
+                op[3] += (entry.length);
+            }
+            /* Do 4 table lookups from the final stream & reload bitstreams */
+            for (stream = 0; stream < 4; ++stream) {
+                /* Do a table lookup from the final stream.
+                 * This is interleaved with the reloading to reduce register
+                 * pressure. This shouldn't be necessary, but compilers can
+                 * struggle with codegen with high register pressure.
+                 */
+                {
+                    int const index = (int)(bits[3] >> 53);
+                    HUF_DEltX2 const entry = dtable[index];
+                    MEM_write16(op[3], entry.sequence);
+                    bits[3] <<= (entry.nbBits);
+                    op[3] += (entry.length);
+                }
+                /* Reload the bistreams. The final bitstream must be reloaded
+                 * after the 5th symbol was decoded.
+                 */
+                {
+                    int const ctz = ZSTD_countTrailingZeros64(bits[stream]);
+                    int const nbBits = ctz & 7;
+                    int const nbBytes = ctz >> 3;
+                    ip[stream] -= nbBytes;
+                    bits[stream] = MEM_read64(ip[stream]) | 1;
+                    bits[stream] <<= nbBits;
+                }
+            }
+        } while (op[3] < olimit);
+    }
+
+_out:
+
+    /* Save the final values of each of the state variables back to args. */
+    ZSTD_memcpy(&args->bits, &bits, sizeof(bits));
+    ZSTD_memcpy(&args->ip, &ip, sizeof(ip));
+    ZSTD_memcpy(&args->op, &op, sizeof(op));
+}
+
+
+static HUF_FAST_BMI2_ATTRS size_t
+HUF_decompress4X2_usingDTable_internal_fast(
           void* dst,  size_t dstSize,
     const void* cSrc, size_t cSrcSize,
-    const HUF_DTable* DTable) {
+    const HUF_DTable* DTable,
+    HUF_DecompressFastLoopFn loopFn) {
     void const* dt = DTable + 1;
     const BYTE* const iend = (const BYTE*)cSrc + 6;
     BYTE* const oend = (BYTE*)dst + dstSize;
-    HUF_DecompressAsmArgs args;
+    HUF_DecompressFastArgs args;
     {
-        size_t const ret = HUF_DecompressAsmArgs_init(&args, dst, dstSize, cSrc, cSrcSize, DTable);
+        size_t const ret = HUF_DecompressFastArgs_init(&args, dst, dstSize, cSrc, cSrcSize, DTable);
         FORWARD_IF_ERROR(ret, "Failed to init asm args");
-        if (ret != 0)
-            return HUF_decompress4X2_usingDTable_internal_bmi2(dst, dstSize, cSrc, cSrcSize, DTable);
+        if (ret == 0)
+            return 0;
     }
 
     assert(args.ip[0] >= args.ilimit);
-    HUF_decompress4X2_usingDTable_internal_bmi2_asm_loop(&args);
+    loopFn(&args);
 
     /* note : op4 already verified within main loop */
     assert(args.ip[0] >= iend);
@@ -37086,90 +37186,71 @@ HUF_decompress4X2_usingDTable_internal_bmi2_asm(
     /* decoded size */
     return dstSize;
 }
-#endif /* ZSTD_ENABLE_ASM_X86_64_BMI2 */
 
 static size_t HUF_decompress4X2_usingDTable_internal(void* dst, size_t dstSize, void const* cSrc,
-                    size_t cSrcSize, HUF_DTable const* DTable, int bmi2)
+                    size_t cSrcSize, HUF_DTable const* DTable, int flags)
 {
+    HUF_DecompressUsingDTableFn fallbackFn = HUF_decompress4X2_usingDTable_internal_default;
+    HUF_DecompressFastLoopFn loopFn = HUF_decompress4X2_usingDTable_internal_fast_c_loop;
+
 #if DYNAMIC_BMI2
-    if (bmi2) {
+    if (flags & HUF_flags_bmi2) {
+        fallbackFn = HUF_decompress4X2_usingDTable_internal_bmi2;
 # if ZSTD_ENABLE_ASM_X86_64_BMI2
-        return HUF_decompress4X2_usingDTable_internal_bmi2_asm(dst, dstSize, cSrc, cSrcSize, DTable);
-# else
-        return HUF_decompress4X2_usingDTable_internal_bmi2(dst, dstSize, cSrc, cSrcSize, DTable);
+        if (!(flags & HUF_flags_disableAsm)) {
+            loopFn = HUF_decompress4X2_usingDTable_internal_fast_asm_loop;
+        }
 # endif
+    } else {
+        return fallbackFn(dst, dstSize, cSrc, cSrcSize, DTable);
     }
-#else
-    (void)bmi2;
 #endif
 
 #if ZSTD_ENABLE_ASM_X86_64_BMI2 && defined(__BMI2__)
-    return HUF_decompress4X2_usingDTable_internal_bmi2_asm(dst, dstSize, cSrc, cSrcSize, DTable);
-#else
-    return HUF_decompress4X2_usingDTable_internal_default(dst, dstSize, cSrc, cSrcSize, DTable);
+    if (!(flags & HUF_flags_disableAsm)) {
+        loopFn = HUF_decompress4X2_usingDTable_internal_fast_asm_loop;
+    }
 #endif
+
+    if (!(flags & HUF_flags_disableFast)) {
+        size_t const ret = HUF_decompress4X2_usingDTable_internal_fast(dst, dstSize, cSrc, cSrcSize, DTable, loopFn);
+        if (ret != 0)
+            return ret;
+    }
+    return fallbackFn(dst, dstSize, cSrc, cSrcSize, DTable);
 }
 
 HUF_DGEN(HUF_decompress1X2_usingDTable_internal)
 
-size_t HUF_decompress1X2_usingDTable(
-          void* dst,  size_t dstSize,
-    const void* cSrc, size_t cSrcSize,
-    const HUF_DTable* DTable)
-{
-    DTableDesc dtd = HUF_getDTableDesc(DTable);
-    if (dtd.tableType != 1) return ERROR(GENERIC);
-    return HUF_decompress1X2_usingDTable_internal(dst, dstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-}
-
 size_t HUF_decompress1X2_DCtx_wksp(HUF_DTable* DCtx, void* dst, size_t dstSize,
                                    const void* cSrc, size_t cSrcSize,
-                                   void* workSpace, size_t wkspSize)
+                                   void* workSpace, size_t wkspSize, int flags)
 {
     const BYTE* ip = (const BYTE*) cSrc;
 
     size_t const hSize = HUF_readDTableX2_wksp(DCtx, cSrc, cSrcSize,
-                                               workSpace, wkspSize);
+                                               workSpace, wkspSize, flags);
     if (HUF_isError(hSize)) return hSize;
     if (hSize >= cSrcSize) return ERROR(srcSize_wrong);
     ip += hSize; cSrcSize -= hSize;
 
-    return HUF_decompress1X2_usingDTable_internal(dst, dstSize, ip, cSrcSize, DCtx, /* bmi2 */ 0);
+    return HUF_decompress1X2_usingDTable_internal(dst, dstSize, ip, cSrcSize, DCtx, flags);
 }
 
-
-size_t HUF_decompress4X2_usingDTable(
-          void* dst,  size_t dstSize,
-    const void* cSrc, size_t cSrcSize,
-    const HUF_DTable* DTable)
-{
-    DTableDesc dtd = HUF_getDTableDesc(DTable);
-    if (dtd.tableType != 1) return ERROR(GENERIC);
-    return HUF_decompress4X2_usingDTable_internal(dst, dstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-}
-
-static size_t HUF_decompress4X2_DCtx_wksp_bmi2(HUF_DTable* dctx, void* dst, size_t dstSize,
+static size_t HUF_decompress4X2_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize,
                                    const void* cSrc, size_t cSrcSize,
-                                   void* workSpace, size_t wkspSize, int bmi2)
+                                   void* workSpace, size_t wkspSize, int flags)
 {
     const BYTE* ip = (const BYTE*) cSrc;
 
     size_t hSize = HUF_readDTableX2_wksp(dctx, cSrc, cSrcSize,
-                                         workSpace, wkspSize);
+                                         workSpace, wkspSize, flags);
     if (HUF_isError(hSize)) return hSize;
     if (hSize >= cSrcSize) return ERROR(srcSize_wrong);
     ip += hSize; cSrcSize -= hSize;
 
-    return HUF_decompress4X2_usingDTable_internal(dst, dstSize, ip, cSrcSize, dctx, bmi2);
+    return HUF_decompress4X2_usingDTable_internal(dst, dstSize, ip, cSrcSize, dctx, flags);
 }
-
-size_t HUF_decompress4X2_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize,
-                                   const void* cSrc, size_t cSrcSize,
-                                   void* workSpace, size_t wkspSize)
-{
-    return HUF_decompress4X2_DCtx_wksp_bmi2(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, /* bmi2 */ 0);
-}
-
 
 #endif /* HUF_FORCE_DECOMPRESS_X1 */
 
@@ -37177,44 +37258,6 @@ size_t HUF_decompress4X2_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize,
 /* ***********************************/
 /* Universal decompression selectors */
 /* ***********************************/
-
-size_t HUF_decompress1X_usingDTable(void* dst, size_t maxDstSize,
-                                    const void* cSrc, size_t cSrcSize,
-                                    const HUF_DTable* DTable)
-{
-    DTableDesc const dtd = HUF_getDTableDesc(DTable);
-#if defined(HUF_FORCE_DECOMPRESS_X1)
-    (void)dtd;
-    assert(dtd.tableType == 0);
-    return HUF_decompress1X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-#elif defined(HUF_FORCE_DECOMPRESS_X2)
-    (void)dtd;
-    assert(dtd.tableType == 1);
-    return HUF_decompress1X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-#else
-    return dtd.tableType ? HUF_decompress1X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0) :
-                           HUF_decompress1X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-#endif
-}
-
-size_t HUF_decompress4X_usingDTable(void* dst, size_t maxDstSize,
-                                    const void* cSrc, size_t cSrcSize,
-                                    const HUF_DTable* DTable)
-{
-    DTableDesc const dtd = HUF_getDTableDesc(DTable);
-#if defined(HUF_FORCE_DECOMPRESS_X1)
-    (void)dtd;
-    assert(dtd.tableType == 0);
-    return HUF_decompress4X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-#elif defined(HUF_FORCE_DECOMPRESS_X2)
-    (void)dtd;
-    assert(dtd.tableType == 1);
-    return HUF_decompress4X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-#else
-    return dtd.tableType ? HUF_decompress4X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0) :
-                           HUF_decompress4X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, /* bmi2 */ 0);
-#endif
-}
 
 
 #if !defined(HUF_FORCE_DECOMPRESS_X1) && !defined(HUF_FORCE_DECOMPRESS_X2)
@@ -37270,36 +37313,9 @@ U32 HUF_selectDecoder (size_t dstSize, size_t cSrcSize)
 #endif
 }
 
-
-size_t HUF_decompress4X_hufOnly_wksp(HUF_DTable* dctx, void* dst,
-                                     size_t dstSize, const void* cSrc,
-                                     size_t cSrcSize, void* workSpace,
-                                     size_t wkspSize)
-{
-    /* validation checks */
-    if (dstSize == 0) return ERROR(dstSize_tooSmall);
-    if (cSrcSize == 0) return ERROR(corruption_detected);
-
-    {   U32 const algoNb = HUF_selectDecoder(dstSize, cSrcSize);
-#if defined(HUF_FORCE_DECOMPRESS_X1)
-        (void)algoNb;
-        assert(algoNb == 0);
-        return HUF_decompress4X1_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize);
-#elif defined(HUF_FORCE_DECOMPRESS_X2)
-        (void)algoNb;
-        assert(algoNb == 1);
-        return HUF_decompress4X2_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize);
-#else
-        return algoNb ? HUF_decompress4X2_DCtx_wksp(dctx, dst, dstSize, cSrc,
-                            cSrcSize, workSpace, wkspSize):
-                        HUF_decompress4X1_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize);
-#endif
-    }
-}
-
 size_t HUF_decompress1X_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize,
                                   const void* cSrc, size_t cSrcSize,
-                                  void* workSpace, size_t wkspSize)
+                                  void* workSpace, size_t wkspSize, int flags)
 {
     /* validation checks */
     if (dstSize == 0) return ERROR(dstSize_tooSmall);
@@ -37312,71 +37328,71 @@ size_t HUF_decompress1X_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize,
         (void)algoNb;
         assert(algoNb == 0);
         return HUF_decompress1X1_DCtx_wksp(dctx, dst, dstSize, cSrc,
-                                cSrcSize, workSpace, wkspSize);
+                                cSrcSize, workSpace, wkspSize, flags);
 #elif defined(HUF_FORCE_DECOMPRESS_X2)
         (void)algoNb;
         assert(algoNb == 1);
         return HUF_decompress1X2_DCtx_wksp(dctx, dst, dstSize, cSrc,
-                                cSrcSize, workSpace, wkspSize);
+                                cSrcSize, workSpace, wkspSize, flags);
 #else
         return algoNb ? HUF_decompress1X2_DCtx_wksp(dctx, dst, dstSize, cSrc,
-                                cSrcSize, workSpace, wkspSize):
+                                cSrcSize, workSpace, wkspSize, flags):
                         HUF_decompress1X1_DCtx_wksp(dctx, dst, dstSize, cSrc,
-                                cSrcSize, workSpace, wkspSize);
+                                cSrcSize, workSpace, wkspSize, flags);
 #endif
     }
 }
 
 
-size_t HUF_decompress1X_usingDTable_bmi2(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable, int bmi2)
+size_t HUF_decompress1X_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable, int flags)
 {
     DTableDesc const dtd = HUF_getDTableDesc(DTable);
 #if defined(HUF_FORCE_DECOMPRESS_X1)
     (void)dtd;
     assert(dtd.tableType == 0);
-    return HUF_decompress1X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, bmi2);
+    return HUF_decompress1X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, flags);
 #elif defined(HUF_FORCE_DECOMPRESS_X2)
     (void)dtd;
     assert(dtd.tableType == 1);
-    return HUF_decompress1X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, bmi2);
+    return HUF_decompress1X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, flags);
 #else
-    return dtd.tableType ? HUF_decompress1X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, bmi2) :
-                           HUF_decompress1X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, bmi2);
+    return dtd.tableType ? HUF_decompress1X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, flags) :
+                           HUF_decompress1X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, flags);
 #endif
 }
 
 #ifndef HUF_FORCE_DECOMPRESS_X2
-size_t HUF_decompress1X1_DCtx_wksp_bmi2(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int bmi2)
+size_t HUF_decompress1X1_DCtx_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int flags)
 {
     const BYTE* ip = (const BYTE*) cSrc;
 
-    size_t const hSize = HUF_readDTableX1_wksp_bmi2(dctx, cSrc, cSrcSize, workSpace, wkspSize, bmi2);
+    size_t const hSize = HUF_readDTableX1_wksp(dctx, cSrc, cSrcSize, workSpace, wkspSize, flags);
     if (HUF_isError(hSize)) return hSize;
     if (hSize >= cSrcSize) return ERROR(srcSize_wrong);
     ip += hSize; cSrcSize -= hSize;
 
-    return HUF_decompress1X1_usingDTable_internal(dst, dstSize, ip, cSrcSize, dctx, bmi2);
+    return HUF_decompress1X1_usingDTable_internal(dst, dstSize, ip, cSrcSize, dctx, flags);
 }
 #endif
 
-size_t HUF_decompress4X_usingDTable_bmi2(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable, int bmi2)
+size_t HUF_decompress4X_usingDTable(void* dst, size_t maxDstSize, const void* cSrc, size_t cSrcSize, const HUF_DTable* DTable, int flags)
 {
     DTableDesc const dtd = HUF_getDTableDesc(DTable);
 #if defined(HUF_FORCE_DECOMPRESS_X1)
     (void)dtd;
     assert(dtd.tableType == 0);
-    return HUF_decompress4X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, bmi2);
+    return HUF_decompress4X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, flags);
 #elif defined(HUF_FORCE_DECOMPRESS_X2)
     (void)dtd;
     assert(dtd.tableType == 1);
-    return HUF_decompress4X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, bmi2);
+    return HUF_decompress4X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, flags);
 #else
-    return dtd.tableType ? HUF_decompress4X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, bmi2) :
-                           HUF_decompress4X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, bmi2);
+    return dtd.tableType ? HUF_decompress4X2_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, flags) :
+                           HUF_decompress4X1_usingDTable_internal(dst, maxDstSize, cSrc, cSrcSize, DTable, flags);
 #endif
 }
 
-size_t HUF_decompress4X_hufOnly_wksp_bmi2(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int bmi2)
+size_t HUF_decompress4X_hufOnly_wksp(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize, void* workSpace, size_t wkspSize, int flags)
 {
     /* validation checks */
     if (dstSize == 0) return ERROR(dstSize_tooSmall);
@@ -37386,163 +37402,17 @@ size_t HUF_decompress4X_hufOnly_wksp_bmi2(HUF_DTable* dctx, void* dst, size_t ds
 #if defined(HUF_FORCE_DECOMPRESS_X1)
         (void)algoNb;
         assert(algoNb == 0);
-        return HUF_decompress4X1_DCtx_wksp_bmi2(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, bmi2);
+        return HUF_decompress4X1_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, flags);
 #elif defined(HUF_FORCE_DECOMPRESS_X2)
         (void)algoNb;
         assert(algoNb == 1);
-        return HUF_decompress4X2_DCtx_wksp_bmi2(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, bmi2);
+        return HUF_decompress4X2_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, flags);
 #else
-        return algoNb ? HUF_decompress4X2_DCtx_wksp_bmi2(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, bmi2) :
-                        HUF_decompress4X1_DCtx_wksp_bmi2(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, bmi2);
+        return algoNb ? HUF_decompress4X2_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, flags) :
+                        HUF_decompress4X1_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize, workSpace, wkspSize, flags);
 #endif
     }
 }
-
-#ifndef ZSTD_NO_UNUSED_FUNCTIONS
-#ifndef HUF_FORCE_DECOMPRESS_X2
-size_t HUF_readDTableX1(HUF_DTable* DTable, const void* src, size_t srcSize)
-{
-    U32 workSpace[HUF_DECOMPRESS_WORKSPACE_SIZE_U32];
-    return HUF_readDTableX1_wksp(DTable, src, srcSize,
-                                 workSpace, sizeof(workSpace));
-}
-
-size_t HUF_decompress1X1_DCtx(HUF_DTable* DCtx, void* dst, size_t dstSize,
-                              const void* cSrc, size_t cSrcSize)
-{
-    U32 workSpace[HUF_DECOMPRESS_WORKSPACE_SIZE_U32];
-    return HUF_decompress1X1_DCtx_wksp(DCtx, dst, dstSize, cSrc, cSrcSize,
-                                       workSpace, sizeof(workSpace));
-}
-
-size_t HUF_decompress1X1 (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize)
-{
-    HUF_CREATE_STATIC_DTABLEX1(DTable, HUF_TABLELOG_MAX);
-    return HUF_decompress1X1_DCtx (DTable, dst, dstSize, cSrc, cSrcSize);
-}
-#endif
-
-#ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_readDTableX2(HUF_DTable* DTable, const void* src, size_t srcSize)
-{
-  U32 workSpace[HUF_DECOMPRESS_WORKSPACE_SIZE_U32];
-  return HUF_readDTableX2_wksp(DTable, src, srcSize,
-                               workSpace, sizeof(workSpace));
-}
-
-size_t HUF_decompress1X2_DCtx(HUF_DTable* DCtx, void* dst, size_t dstSize,
-                              const void* cSrc, size_t cSrcSize)
-{
-    U32 workSpace[HUF_DECOMPRESS_WORKSPACE_SIZE_U32];
-    return HUF_decompress1X2_DCtx_wksp(DCtx, dst, dstSize, cSrc, cSrcSize,
-                                       workSpace, sizeof(workSpace));
-}
-
-size_t HUF_decompress1X2 (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize)
-{
-    HUF_CREATE_STATIC_DTABLEX2(DTable, HUF_TABLELOG_MAX);
-    return HUF_decompress1X2_DCtx(DTable, dst, dstSize, cSrc, cSrcSize);
-}
-#endif
-
-#ifndef HUF_FORCE_DECOMPRESS_X2
-size_t HUF_decompress4X1_DCtx (HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize)
-{
-    U32 workSpace[HUF_DECOMPRESS_WORKSPACE_SIZE_U32];
-    return HUF_decompress4X1_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize,
-                                       workSpace, sizeof(workSpace));
-}
-size_t HUF_decompress4X1 (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize)
-{
-    HUF_CREATE_STATIC_DTABLEX1(DTable, HUF_TABLELOG_MAX);
-    return HUF_decompress4X1_DCtx(DTable, dst, dstSize, cSrc, cSrcSize);
-}
-#endif
-
-#ifndef HUF_FORCE_DECOMPRESS_X1
-size_t HUF_decompress4X2_DCtx(HUF_DTable* dctx, void* dst, size_t dstSize,
-                              const void* cSrc, size_t cSrcSize)
-{
-    U32 workSpace[HUF_DECOMPRESS_WORKSPACE_SIZE_U32];
-    return HUF_decompress4X2_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize,
-                                       workSpace, sizeof(workSpace));
-}
-
-size_t HUF_decompress4X2 (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize)
-{
-    HUF_CREATE_STATIC_DTABLEX2(DTable, HUF_TABLELOG_MAX);
-    return HUF_decompress4X2_DCtx(DTable, dst, dstSize, cSrc, cSrcSize);
-}
-#endif
-
-typedef size_t (*decompressionAlgo)(void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize);
-
-size_t HUF_decompress (void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize)
-{
-#if !defined(HUF_FORCE_DECOMPRESS_X1) && !defined(HUF_FORCE_DECOMPRESS_X2)
-    static const decompressionAlgo decompress[2] = { HUF_decompress4X1, HUF_decompress4X2 };
-#endif
-
-    /* validation checks */
-    if (dstSize == 0) return ERROR(dstSize_tooSmall);
-    if (cSrcSize > dstSize) return ERROR(corruption_detected);   /* invalid */
-    if (cSrcSize == dstSize) { ZSTD_memcpy(dst, cSrc, dstSize); return dstSize; }   /* not compressed */
-    if (cSrcSize == 1) { ZSTD_memset(dst, *(const BYTE*)cSrc, dstSize); return dstSize; }   /* RLE */
-
-    {   U32 const algoNb = HUF_selectDecoder(dstSize, cSrcSize);
-#if defined(HUF_FORCE_DECOMPRESS_X1)
-        (void)algoNb;
-        assert(algoNb == 0);
-        return HUF_decompress4X1(dst, dstSize, cSrc, cSrcSize);
-#elif defined(HUF_FORCE_DECOMPRESS_X2)
-        (void)algoNb;
-        assert(algoNb == 1);
-        return HUF_decompress4X2(dst, dstSize, cSrc, cSrcSize);
-#else
-        return decompress[algoNb](dst, dstSize, cSrc, cSrcSize);
-#endif
-    }
-}
-
-size_t HUF_decompress4X_DCtx (HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize)
-{
-    /* validation checks */
-    if (dstSize == 0) return ERROR(dstSize_tooSmall);
-    if (cSrcSize > dstSize) return ERROR(corruption_detected);   /* invalid */
-    if (cSrcSize == dstSize) { ZSTD_memcpy(dst, cSrc, dstSize); return dstSize; }   /* not compressed */
-    if (cSrcSize == 1) { ZSTD_memset(dst, *(const BYTE*)cSrc, dstSize); return dstSize; }   /* RLE */
-
-    {   U32 const algoNb = HUF_selectDecoder(dstSize, cSrcSize);
-#if defined(HUF_FORCE_DECOMPRESS_X1)
-        (void)algoNb;
-        assert(algoNb == 0);
-        return HUF_decompress4X1_DCtx(dctx, dst, dstSize, cSrc, cSrcSize);
-#elif defined(HUF_FORCE_DECOMPRESS_X2)
-        (void)algoNb;
-        assert(algoNb == 1);
-        return HUF_decompress4X2_DCtx(dctx, dst, dstSize, cSrc, cSrcSize);
-#else
-        return algoNb ? HUF_decompress4X2_DCtx(dctx, dst, dstSize, cSrc, cSrcSize) :
-                        HUF_decompress4X1_DCtx(dctx, dst, dstSize, cSrc, cSrcSize) ;
-#endif
-    }
-}
-
-size_t HUF_decompress4X_hufOnly(HUF_DTable* dctx, void* dst, size_t dstSize, const void* cSrc, size_t cSrcSize)
-{
-    U32 workSpace[HUF_DECOMPRESS_WORKSPACE_SIZE_U32];
-    return HUF_decompress4X_hufOnly_wksp(dctx, dst, dstSize, cSrc, cSrcSize,
-                                         workSpace, sizeof(workSpace));
-}
-
-size_t HUF_decompress1X_DCtx(HUF_DTable* dctx, void* dst, size_t dstSize,
-                             const void* cSrc, size_t cSrcSize)
-{
-    U32 workSpace[HUF_DECOMPRESS_WORKSPACE_SIZE_U32];
-    return HUF_decompress1X_DCtx_wksp(dctx, dst, dstSize, cSrc, cSrcSize,
-                                      workSpace, sizeof(workSpace));
-}
-#endif
 /**** ended inlining decompress/huf_decompress.c ****/
 /**** start inlining decompress/zstd_ddict.c ****/
 /*
@@ -37566,7 +37436,6 @@ size_t HUF_decompress1X_DCtx(HUF_DTable* dctx, void* dst, size_t dstSize,
 /**** skipping file: ../common/mem.h ****/
 #define FSE_STATIC_LINKING_ONLY
 /**** skipping file: ../common/fse.h ****/
-#define HUF_STATIC_LINKING_ONLY
 /**** skipping file: ../common/huf.h ****/
 /**** start inlining zstd_decompress_internal.h ****/
 /*
@@ -37736,6 +37605,7 @@ struct ZSTD_DCtx_s
     ZSTD_dictUses_e dictUses;
     ZSTD_DDictHashSet* ddictSet;                    /* Hash set for multiple ddicts */
     ZSTD_refMultipleDDicts_e refMultipleDDicts;     /* User specified: if == 1, will allow references to multiple DDicts. Default == 0 (disabled) */
+    int disableHufAsm;
 
     /* streaming */
     ZSTD_dStreamStage streamStage;
@@ -38135,7 +38005,6 @@ unsigned ZSTD_getDictID_fromDDict(const ZSTD_DDict* ddict)
 /**** skipping file: ../common/mem.h ****/
 #define FSE_STATIC_LINKING_ONLY
 /**** skipping file: ../common/fse.h ****/
-#define HUF_STATIC_LINKING_ONLY
 /**** skipping file: ../common/huf.h ****/
 /**** skipping file: ../common/xxhash.h ****/
 /**** skipping file: ../common/zstd_internal.h ****/
@@ -38389,6 +38258,7 @@ static void ZSTD_DCtx_resetParameters(ZSTD_DCtx* dctx)
     dctx->outBufferMode = ZSTD_bm_buffered;
     dctx->forceIgnoreChecksum = ZSTD_d_validateChecksum;
     dctx->refMultipleDDicts = ZSTD_rmd_refSingleDDict;
+    dctx->disableHufAsm = 0;
 }
 
 static void ZSTD_initDCtx_internal(ZSTD_DCtx* dctx)
@@ -38927,6 +38797,7 @@ static ZSTD_frameSizeInfo ZSTD_findFrameSizeInfo(const void* src, size_t srcSize
             ip += 4;
         }
 
+        frameSizeInfo.nbBlocks = nbBlocks;
         frameSizeInfo.compressedSize = (size_t)(ip - ipstart);
         frameSizeInfo.decompressedBound = (zfh.frameContentSize != ZSTD_CONTENTSIZE_UNKNOWN)
                                         ? zfh.frameContentSize
@@ -38970,6 +38841,48 @@ unsigned long long ZSTD_decompressBound(const void* src, size_t srcSize)
     return bound;
 }
 
+size_t ZSTD_decompressionMargin(void const* src, size_t srcSize)
+{
+    size_t margin = 0;
+    unsigned maxBlockSize = 0;
+
+    /* Iterate over each frame */
+    while (srcSize > 0) {
+        ZSTD_frameSizeInfo const frameSizeInfo = ZSTD_findFrameSizeInfo(src, srcSize);
+        size_t const compressedSize = frameSizeInfo.compressedSize;
+        unsigned long long const decompressedBound = frameSizeInfo.decompressedBound;
+        ZSTD_frameHeader zfh;
+
+        FORWARD_IF_ERROR(ZSTD_getFrameHeader(&zfh, src, srcSize), "");
+        if (ZSTD_isError(compressedSize) || decompressedBound == ZSTD_CONTENTSIZE_ERROR)
+            return ERROR(corruption_detected);
+
+        if (zfh.frameType == ZSTD_frame) {
+            /* Add the frame header to our margin */
+            margin += zfh.headerSize;
+            /* Add the checksum to our margin */
+            margin += zfh.checksumFlag ? 4 : 0;
+            /* Add 3 bytes per block */
+            margin += 3 * frameSizeInfo.nbBlocks;
+
+            /* Compute the max block size */
+            maxBlockSize = MAX(maxBlockSize, zfh.blockSizeMax);
+        } else {
+            assert(zfh.frameType == ZSTD_skippableFrame);
+            /* Add the entire skippable frame size to our margin. */
+            margin += compressedSize;
+        }
+
+        assert(srcSize >= compressedSize);
+        src = (const BYTE*)src + compressedSize;
+        srcSize -= compressedSize;
+    }
+
+    /* Add the max block size back to the margin. */
+    margin += maxBlockSize;
+
+    return margin;
+}
 
 /*-*************************************************************
  *   Frame decoding
@@ -38995,7 +38908,7 @@ static size_t ZSTD_copyRawBlock(void* dst, size_t dstCapacity,
         if (srcSize == 0) return 0;
         RETURN_ERROR(dstBuffer_null, "");
     }
-    ZSTD_memcpy(dst, src, srcSize);
+    ZSTD_memmove(dst, src, srcSize);
     return srcSize;
 }
 
@@ -39073,6 +38986,7 @@ static size_t ZSTD_decompressFrame(ZSTD_DCtx* dctx,
 
     /* Loop on each block */
     while (1) {
+        BYTE* oBlockEnd = oend;
         size_t decodedSize;
         blockProperties_t blockProperties;
         size_t const cBlockSize = ZSTD_getcBlockSize(ip, remainingSrcSize, &blockProperties);
@@ -39082,16 +38996,34 @@ static size_t ZSTD_decompressFrame(ZSTD_DCtx* dctx,
         remainingSrcSize -= ZSTD_blockHeaderSize;
         RETURN_ERROR_IF(cBlockSize > remainingSrcSize, srcSize_wrong, "");
 
+        if (ip >= op && ip < oBlockEnd) {
+            /* We are decompressing in-place. Limit the output pointer so that we
+             * don't overwrite the block that we are currently reading. This will
+             * fail decompression if the input & output pointers aren't spaced
+             * far enough apart.
+             *
+             * This is important to set, even when the pointers are far enough
+             * apart, because ZSTD_decompressBlock_internal() can decide to store
+             * literals in the output buffer, after the block it is decompressing.
+             * Since we don't want anything to overwrite our input, we have to tell
+             * ZSTD_decompressBlock_internal to never write past ip.
+             *
+             * See ZSTD_allocateLiteralsBuffer() for reference.
+             */
+            oBlockEnd = op + (ip - op);
+        }
+
         switch(blockProperties.blockType)
         {
         case bt_compressed:
-            decodedSize = ZSTD_decompressBlock_internal(dctx, op, (size_t)(oend-op), ip, cBlockSize, /* frame */ 1, not_streaming);
+            decodedSize = ZSTD_decompressBlock_internal(dctx, op, (size_t)(oBlockEnd-op), ip, cBlockSize, /* frame */ 1, not_streaming);
             break;
         case bt_raw :
+            /* Use oend instead of oBlockEnd because this function is safe to overlap. It uses memmove. */
             decodedSize = ZSTD_copyRawBlock(op, (size_t)(oend-op), ip, cBlockSize);
             break;
         case bt_rle :
-            decodedSize = ZSTD_setRleBlock(op, (size_t)(oend-op), *ip, blockProperties.origSize);
+            decodedSize = ZSTD_setRleBlock(op, (size_t)(oBlockEnd-op), *ip, blockProperties.origSize);
             break;
         case bt_reserved :
         default:
@@ -39126,6 +39058,7 @@ static size_t ZSTD_decompressFrame(ZSTD_DCtx* dctx,
     }
     ZSTD_DCtx_trace_end(dctx, (U64)(op-ostart), (U64)(ip-istart), /* streaming */ 0);
     /* Allow caller to get size read */
+    DEBUGLOG(4, "ZSTD_decompressFrame: decompressed frame of size %zi, consuming %zi bytes of input", op-ostart, ip - (const BYTE*)*srcPtr);
     *srcPtr = ip;
     *srcSizePtr = remainingSrcSize;
     return (size_t)(op-ostart);
@@ -39520,11 +39453,11 @@ ZSTD_loadDEntropy(ZSTD_entropyDTables_t* entropy,
         /* in minimal huffman, we always use X1 variants */
         size_t const hSize = HUF_readDTableX1_wksp(entropy->hufTable,
                                                 dictPtr, dictEnd - dictPtr,
-                                                workspace, workspaceSize);
+                                                workspace, workspaceSize, /* flags */ 0);
 #else
         size_t const hSize = HUF_readDTableX2_wksp(entropy->hufTable,
                                                 dictPtr, (size_t)(dictEnd - dictPtr),
-                                                workspace, workspaceSize);
+                                                workspace, workspaceSize, /* flags */ 0);
 #endif
         RETURN_ERROR_IF(HUF_isError(hSize), dictionary_corrupted, "");
         dictPtr += hSize;
@@ -39801,7 +39734,9 @@ size_t ZSTD_initDStream_usingDict(ZSTD_DStream* zds, const void* dict, size_t di
 size_t ZSTD_initDStream(ZSTD_DStream* zds)
 {
     DEBUGLOG(4, "ZSTD_initDStream");
-    return ZSTD_initDStream_usingDDict(zds, NULL);
+    FORWARD_IF_ERROR(ZSTD_DCtx_reset(zds, ZSTD_reset_session_only), "");
+    FORWARD_IF_ERROR(ZSTD_DCtx_refDDict(zds, NULL), "");
+    return ZSTD_startingInputLength(zds->format);
 }
 
 /* ZSTD_initDStream_usingDDict() :
@@ -39809,6 +39744,7 @@ size_t ZSTD_initDStream(ZSTD_DStream* zds)
  * this function cannot fail */
 size_t ZSTD_initDStream_usingDDict(ZSTD_DStream* dctx, const ZSTD_DDict* ddict)
 {
+    DEBUGLOG(4, "ZSTD_initDStream_usingDDict");
     FORWARD_IF_ERROR( ZSTD_DCtx_reset(dctx, ZSTD_reset_session_only) , "");
     FORWARD_IF_ERROR( ZSTD_DCtx_refDDict(dctx, ddict) , "");
     return ZSTD_startingInputLength(dctx->format);
@@ -39819,6 +39755,7 @@ size_t ZSTD_initDStream_usingDDict(ZSTD_DStream* dctx, const ZSTD_DDict* ddict)
  * this function cannot fail */
 size_t ZSTD_resetDStream(ZSTD_DStream* dctx)
 {
+    DEBUGLOG(4, "ZSTD_resetDStream");
     FORWARD_IF_ERROR(ZSTD_DCtx_reset(dctx, ZSTD_reset_session_only), "");
     return ZSTD_startingInputLength(dctx->format);
 }
@@ -39890,6 +39827,11 @@ ZSTD_bounds ZSTD_dParam_getBounds(ZSTD_dParameter dParam)
             bounds.lowerBound = (int)ZSTD_rmd_refSingleDDict;
             bounds.upperBound = (int)ZSTD_rmd_refMultipleDDicts;
             return bounds;
+        case ZSTD_d_disableHuffmanAssembly:
+            bounds.lowerBound = 0;
+            bounds.upperBound = 1;
+            return bounds;
+
         default:;
     }
     bounds.error = ERROR(parameter_unsupported);
@@ -39930,6 +39872,9 @@ size_t ZSTD_DCtx_getParameter(ZSTD_DCtx* dctx, ZSTD_dParameter param, int* value
         case ZSTD_d_refMultipleDDicts:
             *value = (int)dctx->refMultipleDDicts;
             return 0;
+        case ZSTD_d_disableHuffmanAssembly:
+            *value = (int)dctx->disableHufAsm;
+            return 0;
         default:;
     }
     RETURN_ERROR(parameter_unsupported, "");
@@ -39962,6 +39907,10 @@ size_t ZSTD_DCtx_setParameter(ZSTD_DCtx* dctx, ZSTD_dParameter dParam, int value
                 RETURN_ERROR(parameter_unsupported, "Static dctx does not support multiple DDicts!");
             }
             dctx->refMultipleDDicts = (ZSTD_refMultipleDDicts_e)value;
+            return 0;
+        case ZSTD_d_disableHuffmanAssembly:
+            CHECK_DBOUNDS(ZSTD_d_disableHuffmanAssembly, value);
+            dctx->disableHufAsm = value != 0;
             return 0;
         default:;
     }
@@ -40304,7 +40253,7 @@ size_t ZSTD_decompressStream(ZSTD_DStream* zds, ZSTD_outBuffer* output, ZSTD_inB
                 int const isSkipFrame = ZSTD_isSkipFrame(zds);
                 size_t loadedSize;
                 /* At this point we shouldn't be decompressing a block that we can stream. */
-                assert(neededInSize == ZSTD_nextSrcSizeToDecompressWithInputSize(zds, iend - ip));
+                assert(neededInSize == ZSTD_nextSrcSizeToDecompressWithInputSize(zds, (size_t)(iend - ip)));
                 if (isSkipFrame) {
                     loadedSize = MIN(toLoad, (size_t)(iend-ip));
                 } else {
@@ -40364,8 +40313,8 @@ size_t ZSTD_decompressStream(ZSTD_DStream* zds, ZSTD_outBuffer* output, ZSTD_inB
     if ((ip==istart) && (op==ostart)) {  /* no forward progress */
         zds->noForwardProgress ++;
         if (zds->noForwardProgress >= ZSTD_NO_FORWARD_PROGRESS_MAX) {
-            RETURN_ERROR_IF(op==oend, dstSize_tooSmall, "");
-            RETURN_ERROR_IF(ip==iend, srcSize_wrong, "");
+            RETURN_ERROR_IF(op==oend, noForwardProgress_destFull, "");
+            RETURN_ERROR_IF(ip==iend, noForwardProgress_inputEmpty, "");
             assert(0);
         }
     } else {
@@ -40402,13 +40351,19 @@ size_t ZSTD_decompressStream_simpleArgs (
                             void* dst, size_t dstCapacity, size_t* dstPos,
                       const void* src, size_t srcSize, size_t* srcPos)
 {
-    ZSTD_outBuffer output = { dst, dstCapacity, *dstPos };
-    ZSTD_inBuffer  input  = { src, srcSize, *srcPos };
-    /* ZSTD_compress_generic() will check validity of dstPos and srcPos */
-    size_t const cErr = ZSTD_decompressStream(dctx, &output, &input);
-    *dstPos = output.pos;
-    *srcPos = input.pos;
-    return cErr;
+    ZSTD_outBuffer output;
+    ZSTD_inBuffer  input;
+    output.dst = dst;
+    output.size = dstCapacity;
+    output.pos = *dstPos;
+    input.src = src;
+    input.size = srcSize;
+    input.pos = *srcPos;
+    {   size_t const cErr = ZSTD_decompressStream(dctx, &output, &input);
+        *dstPos = output.pos;
+        *srcPos = input.pos;
+        return cErr;
+    }
 }
 /**** ended inlining decompress/zstd_decompress.c ****/
 /**** start inlining decompress/zstd_decompress_block.c ****/
@@ -40434,7 +40389,6 @@ size_t ZSTD_decompressStream_simpleArgs (
 /**** skipping file: ../common/mem.h ****/
 #define FSE_STATIC_LINKING_ONLY
 /**** skipping file: ../common/fse.h ****/
-#define HUF_STATIC_LINKING_ONLY
 /**** skipping file: ../common/huf.h ****/
 /**** skipping file: ../common/zstd_internal.h ****/
 /**** skipping file: zstd_decompress_internal.h ****/
@@ -40556,6 +40510,9 @@ size_t ZSTD_decodeLiteralsBlock(ZSTD_DCtx* dctx,
                 U32 const lhc = MEM_readLE32(istart);
                 size_t hufSuccess;
                 size_t expectedWriteSize = MIN(ZSTD_BLOCKSIZE_MAX, dstCapacity);
+                int const flags = 0
+                    | (ZSTD_DCtx_get_bmi2(dctx) ? HUF_flags_bmi2 : 0)
+                    | (dctx->disableHufAsm ? HUF_flags_disableAsm : 0);
                 switch(lhlCode)
                 {
                 case 0: case 1: default:   /* note : default is impossible, since lhlCode into [0..3] */
@@ -40595,14 +40552,14 @@ size_t ZSTD_decodeLiteralsBlock(ZSTD_DCtx* dctx,
 
                 if (litEncType==set_repeat) {
                     if (singleStream) {
-                        hufSuccess = HUF_decompress1X_usingDTable_bmi2(
+                        hufSuccess = HUF_decompress1X_usingDTable(
                             dctx->litBuffer, litSize, istart+lhSize, litCSize,
-                            dctx->HUFptr, ZSTD_DCtx_get_bmi2(dctx));
+                            dctx->HUFptr, flags);
                     } else {
                         assert(litSize >= MIN_LITERALS_FOR_4_STREAMS);
-                        hufSuccess = HUF_decompress4X_usingDTable_bmi2(
+                        hufSuccess = HUF_decompress4X_usingDTable(
                             dctx->litBuffer, litSize, istart+lhSize, litCSize,
-                            dctx->HUFptr, ZSTD_DCtx_get_bmi2(dctx));
+                            dctx->HUFptr, flags);
                     }
                 } else {
                     if (singleStream) {
@@ -40610,18 +40567,18 @@ size_t ZSTD_decodeLiteralsBlock(ZSTD_DCtx* dctx,
                         hufSuccess = HUF_decompress1X_DCtx_wksp(
                             dctx->entropy.hufTable, dctx->litBuffer, litSize,
                             istart+lhSize, litCSize, dctx->workspace,
-                            sizeof(dctx->workspace));
+                            sizeof(dctx->workspace), flags);
 #else
-                        hufSuccess = HUF_decompress1X1_DCtx_wksp_bmi2(
+                        hufSuccess = HUF_decompress1X1_DCtx_wksp(
                             dctx->entropy.hufTable, dctx->litBuffer, litSize,
                             istart+lhSize, litCSize, dctx->workspace,
-                            sizeof(dctx->workspace), ZSTD_DCtx_get_bmi2(dctx));
+                            sizeof(dctx->workspace), flags);
 #endif
                     } else {
-                        hufSuccess = HUF_decompress4X_hufOnly_wksp_bmi2(
+                        hufSuccess = HUF_decompress4X_hufOnly_wksp(
                             dctx->entropy.hufTable, dctx->litBuffer, litSize,
                             istart+lhSize, litCSize, dctx->workspace,
-                            sizeof(dctx->workspace), ZSTD_DCtx_get_bmi2(dctx));
+                            sizeof(dctx->workspace), flags);
                     }
                 }
                 if (dctx->litBufferLocation == ZSTD_split)
@@ -41582,7 +41539,7 @@ ZSTD_updateFseStateWithDInfo(ZSTD_fseState* DStatePtr, BIT_DStream_t* bitD, U16 
 }
 
 /* We need to add at most (ZSTD_WINDOWLOG_MAX_32 - 1) bits to read the maximum
- * offset bits. But we can only read at most (STREAM_ACCUMULATOR_MIN_32 - 1)
+ * offset bits. But we can only read at most STREAM_ACCUMULATOR_MIN_32
  * bits before reloading. This value is the maximum number of bytes we read
  * after reloading when we are decoding long offsets.
  */
@@ -41632,6 +41589,10 @@ ZSTD_decodeSequence(seqState_t* seqState, const ZSTD_longOffset_e longOffsets)
         U32 const llnbBits = llDInfo->nbBits;
         U32 const mlnbBits = mlDInfo->nbBits;
         U32 const ofnbBits = ofDInfo->nbBits;
+
+        assert(llBits <= MaxLLBits);
+        assert(mlBits <= MaxMLBits);
+        assert(ofBits <= MaxOff);
         /*
          * As gcc has better branch and block analyzers, sometimes it is only
          * valuable to mark likeliness for clang, it gives around 3-4% of
@@ -41647,13 +41608,16 @@ ZSTD_decodeSequence(seqState_t* seqState, const ZSTD_longOffset_e longOffsets)
     #endif
                 ZSTD_STATIC_ASSERT(ZSTD_lo_isLongOffset == 1);
                 ZSTD_STATIC_ASSERT(LONG_OFFSETS_MAX_EXTRA_BITS_32 == 5);
-                assert(ofBits <= MaxOff);
+                ZSTD_STATIC_ASSERT(STREAM_ACCUMULATOR_MIN_32 > LONG_OFFSETS_MAX_EXTRA_BITS_32);
+                ZSTD_STATIC_ASSERT(STREAM_ACCUMULATOR_MIN_32 - LONG_OFFSETS_MAX_EXTRA_BITS_32 >= MaxMLBits);
                 if (MEM_32bits() && longOffsets && (ofBits >= STREAM_ACCUMULATOR_MIN_32)) {
-                    U32 const extraBits = ofBits - MIN(ofBits, 32 - seqState->DStream.bitsConsumed);
+                    /* Always read extra bits, this keeps the logic simple,
+                     * avoids branches, and avoids accidentally reading 0 bits.
+                     */
+                    U32 const extraBits = LONG_OFFSETS_MAX_EXTRA_BITS_32;
                     offset = ofBase + (BIT_readBitsFast(&seqState->DStream, ofBits - extraBits) << extraBits);
                     BIT_reloadDStream(&seqState->DStream);
-                    if (extraBits) offset += BIT_readBitsFast(&seqState->DStream, extraBits);
-                    assert(extraBits <= LONG_OFFSETS_MAX_EXTRA_BITS_32);   /* to avoid another reload */
+                    offset += BIT_readBitsFast(&seqState->DStream, extraBits);
                 } else {
                     offset = ofBase + BIT_readBitsFast(&seqState->DStream, ofBits/*>0*/);   /* <=  (ZSTD_WINDOWLOG_MAX-1) bits */
                     if (MEM_32bits()) BIT_reloadDStream(&seqState->DStream);
@@ -42391,34 +42355,79 @@ ZSTD_decompressSequencesLong(ZSTD_DCtx* dctx,
 #endif /* ZSTD_FORCE_DECOMPRESS_SEQUENCES_SHORT */
 
 
+/**
+ * @returns The total size of the history referencable by zstd, including
+ * both the prefix and the extDict. At @p op any offset larger than this
+ * is invalid.
+ */
+static size_t ZSTD_totalHistorySize(BYTE* op, BYTE const* virtualStart)
+{
+    return (size_t)(op - virtualStart);
+}
 
-#if !defined(ZSTD_FORCE_DECOMPRESS_SEQUENCES_SHORT) && \
-    !defined(ZSTD_FORCE_DECOMPRESS_SEQUENCES_LONG)
-/* ZSTD_getLongOffsetsShare() :
+typedef struct {
+    unsigned longOffsetShare;
+    unsigned maxNbAdditionalBits;
+} ZSTD_OffsetInfo;
+
+/* ZSTD_getOffsetInfo() :
  * condition : offTable must be valid
  * @return : "share" of long offsets (arbitrarily defined as > (1<<23))
- *           compared to maximum possible of (1<<OffFSELog) */
-static unsigned
-ZSTD_getLongOffsetsShare(const ZSTD_seqSymbol* offTable)
+ *           compared to maximum possible of (1<<OffFSELog),
+ *           as well as the maximum number additional bits required.
+ */
+static ZSTD_OffsetInfo
+ZSTD_getOffsetInfo(const ZSTD_seqSymbol* offTable, int nbSeq)
 {
-    const void* ptr = offTable;
-    U32 const tableLog = ((const ZSTD_seqSymbol_header*)ptr)[0].tableLog;
-    const ZSTD_seqSymbol* table = offTable + 1;
-    U32 const max = 1 << tableLog;
-    U32 u, total = 0;
-    DEBUGLOG(5, "ZSTD_getLongOffsetsShare: (tableLog=%u)", tableLog);
+    ZSTD_OffsetInfo info = {0, 0};
+    /* If nbSeq == 0, then the offTable is uninitialized, but we have
+     * no sequences, so both values should be 0.
+     */
+    if (nbSeq != 0) {
+        const void* ptr = offTable;
+        U32 const tableLog = ((const ZSTD_seqSymbol_header*)ptr)[0].tableLog;
+        const ZSTD_seqSymbol* table = offTable + 1;
+        U32 const max = 1 << tableLog;
+        U32 u;
+        DEBUGLOG(5, "ZSTD_getLongOffsetsShare: (tableLog=%u)", tableLog);
 
-    assert(max <= (1 << OffFSELog));  /* max not too large */
-    for (u=0; u<max; u++) {
-        if (table[u].nbAdditionalBits > 22) total += 1;
+        assert(max <= (1 << OffFSELog));  /* max not too large */
+        for (u=0; u<max; u++) {
+            info.maxNbAdditionalBits = MAX(info.maxNbAdditionalBits, table[u].nbAdditionalBits);
+            if (table[u].nbAdditionalBits > 22) info.longOffsetShare += 1;
+        }
+
+        assert(tableLog <= OffFSELog);
+        info.longOffsetShare <<= (OffFSELog - tableLog);  /* scale to OffFSELog */
     }
 
-    assert(tableLog <= OffFSELog);
-    total <<= (OffFSELog - tableLog);  /* scale to OffFSELog */
-
-    return total;
+    return info;
 }
-#endif
+
+/**
+ * @returns The maximum offset we can decode in one read of our bitstream, without
+ * reloading more bits in the middle of the offset bits read. Any offsets larger
+ * than this must use the long offset decoder.
+ */
+static size_t ZSTD_maxShortOffset(void)
+{
+    if (MEM_64bits()) {
+        /* We can decode any offset without reloading bits.
+         * This might change if the max window size grows.
+         */
+        ZSTD_STATIC_ASSERT(ZSTD_WINDOWLOG_MAX <= 31);
+        return (size_t)-1;
+    } else {
+        /* The maximum offBase is (1 << (STREAM_ACCUMULATOR_MIN + 1)) - 1.
+         * This offBase would require STREAM_ACCUMULATOR_MIN extra bits.
+         * Then we have to subtract ZSTD_REP_NUM to get the maximum possible offset.
+         */
+        size_t const maxOffbase = ((size_t)1 << (STREAM_ACCUMULATOR_MIN + 1)) - 1;
+        size_t const maxOffset = maxOffbase - ZSTD_REP_NUM;
+        assert(ZSTD_highbit32((U32)maxOffbase) == STREAM_ACCUMULATOR_MIN);
+        return maxOffset;
+    }
+}
 
 size_t
 ZSTD_decompressBlock_internal(ZSTD_DCtx* dctx,
@@ -42426,13 +42435,6 @@ ZSTD_decompressBlock_internal(ZSTD_DCtx* dctx,
                         const void* src, size_t srcSize, const int frame, const streaming_operation streaming)
 {   /* blockType == blockCompressed */
     const BYTE* ip = (const BYTE*)src;
-    /* isLongOffset must be true if there are long offsets.
-     * Offsets are long if they are larger than 2^STREAM_ACCUMULATOR_MIN.
-     * We don't expect that to be the case in 64-bit mode.
-     * In block mode, window size is not known, so we have to be conservative.
-     * (note: it could possibly be evaluated from current-lowLimit)
-     */
-    ZSTD_longOffset_e const isLongOffset = (ZSTD_longOffset_e)(MEM_32bits() && (!frame || (dctx->fParams.windowSize > (1ULL << STREAM_ACCUMULATOR_MIN))));
     DEBUGLOG(5, "ZSTD_decompressBlock_internal (size : %u)", (U32)srcSize);
 
     /* Note : the wording of the specification
@@ -42455,6 +42457,23 @@ ZSTD_decompressBlock_internal(ZSTD_DCtx* dctx,
 
     /* Build Decoding Tables */
     {
+        /* Compute the maximum block size, which must also work when !frame and fParams are unset.
+         * Additionally, take the min with dstCapacity to ensure that the totalHistorySize fits in a size_t.
+         */
+        size_t const blockSizeMax = MIN(dstCapacity, (frame ? dctx->fParams.blockSizeMax : ZSTD_BLOCKSIZE_MAX));
+        size_t const totalHistorySize = ZSTD_totalHistorySize((BYTE*)dst + blockSizeMax, (BYTE const*)dctx->virtualStart);
+        /* isLongOffset must be true if there are long offsets.
+         * Offsets are long if they are larger than ZSTD_maxShortOffset().
+         * We don't expect that to be the case in 64-bit mode.
+         *
+         * We check here to see if our history is large enough to allow long offsets.
+         * If it isn't, then we can't possible have (valid) long offsets. If the offset
+         * is invalid, then it is okay to read it incorrectly.
+         *
+         * If isLongOffsets is true, then we will later check our decoding table to see
+         * if it is even possible to generate long offsets.
+         */
+        ZSTD_longOffset_e isLongOffset = (ZSTD_longOffset_e)(MEM_32bits() && (totalHistorySize > ZSTD_maxShortOffset()));
         /* These macros control at build-time which decompressor implementation
          * we use. If neither is defined, we do some inspection and dispatch at
          * runtime.
@@ -42462,6 +42481,11 @@ ZSTD_decompressBlock_internal(ZSTD_DCtx* dctx,
 #if !defined(ZSTD_FORCE_DECOMPRESS_SEQUENCES_SHORT) && \
     !defined(ZSTD_FORCE_DECOMPRESS_SEQUENCES_LONG)
         int usePrefetchDecoder = dctx->ddictIsCold;
+#else
+        /* Set to 1 to avoid computing offset info if we don't need to.
+         * Otherwise this value is ignored.
+         */
+        int usePrefetchDecoder = 1;
 #endif
         int nbSeq;
         size_t const seqHSize = ZSTD_decodeSeqHeaders(dctx, &nbSeq, ip, srcSize);
@@ -42471,26 +42495,38 @@ ZSTD_decompressBlock_internal(ZSTD_DCtx* dctx,
 
         RETURN_ERROR_IF(dst == NULL && nbSeq > 0, dstSize_tooSmall, "NULL not handled");
 
-#if !defined(ZSTD_FORCE_DECOMPRESS_SEQUENCES_SHORT) && \
-    !defined(ZSTD_FORCE_DECOMPRESS_SEQUENCES_LONG)
-        if ( !usePrefetchDecoder
-          && (!frame || (dctx->fParams.windowSize > (1<<24)))
-          && (nbSeq>ADVANCED_SEQS) ) {  /* could probably use a larger nbSeq limit */
-            U32 const shareLongOffsets = ZSTD_getLongOffsetsShare(dctx->OFTptr);
-            U32 const minShare = MEM_64bits() ? 7 : 20; /* heuristic values, correspond to 2.73% and 7.81% */
-            usePrefetchDecoder = (shareLongOffsets >= minShare);
+        /* If we could potentially have long offsets, or we might want to use the prefetch decoder,
+         * compute information about the share of long offsets, and the maximum nbAdditionalBits.
+         * NOTE: could probably use a larger nbSeq limit
+         */
+        if (isLongOffset || (!usePrefetchDecoder && (totalHistorySize > (1u << 24)) && (nbSeq > 8))) {
+            ZSTD_OffsetInfo const info = ZSTD_getOffsetInfo(dctx->OFTptr, nbSeq);
+            if (isLongOffset && info.maxNbAdditionalBits <= STREAM_ACCUMULATOR_MIN) {
+                /* If isLongOffset, but the maximum number of additional bits that we see in our table is small
+                 * enough, then we know it is impossible to have too long an offset in this block, so we can
+                 * use the regular offset decoder.
+                 */
+                isLongOffset = ZSTD_lo_isRegularOffset;
+            }
+            if (!usePrefetchDecoder) {
+                U32 const minShare = MEM_64bits() ? 7 : 20; /* heuristic values, correspond to 2.73% and 7.81% */
+                usePrefetchDecoder = (info.longOffsetShare >= minShare);
+            }
         }
-#endif
 
         dctx->ddictIsCold = 0;
 
 #if !defined(ZSTD_FORCE_DECOMPRESS_SEQUENCES_SHORT) && \
     !defined(ZSTD_FORCE_DECOMPRESS_SEQUENCES_LONG)
-        if (usePrefetchDecoder)
+        if (usePrefetchDecoder) {
+#else
+        (void)usePrefetchDecoder;
+        {
 #endif
 #ifndef ZSTD_FORCE_DECOMPRESS_SEQUENCES_SHORT
             return ZSTD_decompressSequencesLong(dctx, dst, dstCapacity, ip, srcSize, nbSeq, isLongOffset, frame);
 #endif
+        }
 
 #ifndef ZSTD_FORCE_DECOMPRESS_SEQUENCES_LONG
         /* else */
@@ -44114,9 +44150,17 @@ void COVER_best_finish(COVER_best_t *best, ZDICT_cover_params_t parameters,
   }
 }
 
+static COVER_dictSelection_t setDictSelection(BYTE* buf, size_t s, size_t csz)
+{
+    COVER_dictSelection_t ds;
+    ds.dictContent = buf;
+    ds.dictSize = s;
+    ds.totalCompressedSize = csz;
+    return ds;
+}
+
 COVER_dictSelection_t COVER_dictSelectionError(size_t error) {
-    COVER_dictSelection_t selection = { NULL, 0, error };
-    return selection;
+    return setDictSelection(NULL, 0, error);
 }
 
 unsigned COVER_dictSelectionIsError(COVER_dictSelection_t selection) {
@@ -44169,9 +44213,8 @@ COVER_dictSelection_t COVER_selectDict(BYTE* customDictContent, size_t dictBuffe
   }
 
   if (params.shrinkDict == 0) {
-    COVER_dictSelection_t selection = { largestDictbuffer, dictContentSize, totalCompressedSize };
     free(candidateDictBuffer);
-    return selection;
+    return setDictSelection(largestDictbuffer, dictContentSize, totalCompressedSize);
   }
 
   largestDict = dictContentSize;
@@ -44204,19 +44247,15 @@ COVER_dictSelection_t COVER_selectDict(BYTE* customDictContent, size_t dictBuffe
     }
 
     if ((double)totalCompressedSize <= (double)largestCompressed * regressionTolerance) {
-      COVER_dictSelection_t selection = { candidateDictBuffer, dictContentSize, totalCompressedSize };
       free(largestDictbuffer);
-      return selection;
+      return setDictSelection( candidateDictBuffer, dictContentSize, totalCompressedSize );
     }
     dictContentSize *= 2;
   }
   dictContentSize = largestDict;
   totalCompressedSize = largestCompressed;
-  {
-    COVER_dictSelection_t selection = { largestDictbuffer, dictContentSize, totalCompressedSize };
-    free(candidateDictBuffer);
-    return selection;
-  }
+  free(candidateDictBuffer);
+  return setDictSelection( largestDictbuffer, dictContentSize, totalCompressedSize );
 }
 
 /**
@@ -47214,7 +47253,6 @@ ZDICT_optimizeTrainFromBuffer_fastCover(
 #ifndef ZDICT_STATIC_LINKING_ONLY
 #  define ZDICT_STATIC_LINKING_ONLY
 #endif
-#define HUF_STATIC_LINKING_ONLY
 
 /**** skipping file: ../common/mem.h ****/
 /**** skipping file: ../common/fse.h ****/
@@ -47846,6 +47884,7 @@ static size_t ZDICT_analyzeEntropy(void*  dstBuffer, size_t maxDstSize,
     size_t const totalSrcSize = ZDICT_totalSampleSize(fileSizes, nbFiles);
     size_t const averageSampleSize = totalSrcSize / (nbFiles + !nbFiles);
     BYTE* dstPtr = (BYTE*)dstBuffer;
+    U32 wksp[HUF_CTABLE_WORKSPACE_SIZE_U32];
 
     /* init */
     DEBUGLOG(4, "ZDICT_analyzeEntropy");
@@ -47886,7 +47925,7 @@ static size_t ZDICT_analyzeEntropy(void*  dstBuffer, size_t maxDstSize,
     }   }
 
     /* analyze, build stats, starting with literals */
-    {   size_t maxNbBits = HUF_buildCTable (hufTable, countLit, 255, huffLog);
+    {   size_t maxNbBits = HUF_buildCTable_wksp(hufTable, countLit, 255, huffLog, wksp, sizeof(wksp));
         if (HUF_isError(maxNbBits)) {
             eSize = maxNbBits;
             DISPLAYLEVEL(1, " HUF_buildCTable error \n");
@@ -47895,7 +47934,7 @@ static size_t ZDICT_analyzeEntropy(void*  dstBuffer, size_t maxDstSize,
         if (maxNbBits==8) {  /* not compressible : will fail on HUF_writeCTable() */
             DISPLAYLEVEL(2, "warning : pathological dataset : literals are not compressible : samples are noisy or too regular \n");
             ZDICT_flatLit(countLit);  /* replace distribution by a fake "mostly flat but still compressible" distribution, that HUF_writeCTable() can encode */
-            maxNbBits = HUF_buildCTable (hufTable, countLit, 255, huffLog);
+            maxNbBits = HUF_buildCTable_wksp(hufTable, countLit, 255, huffLog, wksp, sizeof(wksp));
             assert(maxNbBits==9);
         }
         huffLog = (U32)maxNbBits;
@@ -47936,7 +47975,7 @@ static size_t ZDICT_analyzeEntropy(void*  dstBuffer, size_t maxDstSize,
     llLog = (U32)errorCode;
 
     /* write result to buffer */
-    {   size_t const hhSize = HUF_writeCTable(dstPtr, maxDstSize, hufTable, 255, huffLog);
+    {   size_t const hhSize = HUF_writeCTable_wksp(dstPtr, maxDstSize, hufTable, 255, huffLog, wksp, sizeof(wksp));
         if (HUF_isError(hhSize)) {
             eSize = hhSize;
             DISPLAYLEVEL(1, "HUF_writeCTable error \n");
