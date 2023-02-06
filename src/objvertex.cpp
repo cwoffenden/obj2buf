@@ -193,6 +193,18 @@ namespace mtsutil {
  * And this, though we're out of places to pack the extra bits required:
  *
  * \see https://johnwhite3d.blogspot.com/2017/10/signed-octahedron-normal-encoding.html
+ *
+ * For tangents, angle encoding from a deterministic orthonormal vector looks
+ * interesting, mentioned in the SIGGRAPH 2020 Doom eternal slides with more
+ * details here:
+ *
+ * \see https://www.jeremyong.com/graphics/2023/01/09/tangent-spaces-and-diamond-encoding/
+ *
+ * But the decoding requires \c cos() and \c tan(), which may incur a
+ * performance penalty when compared with the simple ALU needs of octahedral
+ * encoding (the same reason why spherical coordinates aren't used), and it
+ * really needs more bits to encode otherwise the accuracy suffers, so we end
+ * up with the same storage as oct (though Doom packs into a byte).
  */
 namespace impl {
 /**
