@@ -23,7 +23,7 @@ public:
 	 *
 	 * \param[in] opts command-line options
 	 */
-	BufferLayout(const ToolOptions& opts);
+    explicit BufferLayout(const ToolOptions& opts);
 
 	/**
 	 * Prints the layout to \c stdout (as GL calls).
@@ -71,7 +71,7 @@ private:
 		PACK_TANS_W = 6, /**< Packed in the tangent's \c w (4th) component. */
 	};
 
-	/*
+	/**
 	 * Vertex attribute IDs, see \c AttrParams#write(). In GL, for example,
 	 * these can be used to map indices to attribute names:
 	 * \code

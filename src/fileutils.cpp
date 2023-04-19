@@ -79,7 +79,7 @@ bool write(const char* const dstPath, const void* const data, size_t const size,
 			 * (with a mono-threaded Zstd). This *should* generate a single Zstd
 			 * frame, containing a magic in the first four bytes, 0xFD2FB528,
 			 * always little endian, and the original frame content size (making
-			 * the compressed data self contained).
+			 * the compressed data self-contained).
 			 */
 			size_t bounds = ZSTD_compressBound(size);
 			void* compBuf = malloc(bounds);

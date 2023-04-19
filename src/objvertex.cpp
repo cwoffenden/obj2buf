@@ -394,8 +394,8 @@ vec2 encodeOct(const vec3& vec, unsigned const bits) {
 	 * as u & v = 0).
 	 *
 	 * From the original paper: no attempt is made to wrap the oct boundaries,
-	 * but since this this should be a worse encoding (when decoded) it will
-	 * never class as best.
+	 * but since this should be a worse encoding (when decoded) it will never
+	 * class as best.
 	 */
 	float bestErr = std::abs(1.0f - vec3::dot(bestDec, vec));
 	float bestLen = std::abs(1.0f - bestDec.len());

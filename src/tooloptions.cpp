@@ -103,7 +103,7 @@ int ToolOptions::parseArgs(const char* const argv[], int const argc, bool const 
 	/*
 	 * Two entries in argv are special: the first (0) which is the program name
 	 * if called from the CLI, and the last, the file to process (without a
-	 * filename we shortcut directly to the help.
+	 * filename we shortcut directly to the help).
 	 */
 	int next = 0;
 	if (cli) {
