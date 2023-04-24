@@ -161,6 +161,17 @@ void extract(fastObjMesh* const obj, bool const genTans, bool const flipG, ObjMe
  */
 bool open(const char* const srcPath, bool const genTans, bool const flipG, ObjMesh& mesh) {
 	if (srcPath) {
+		size_t pathLen = strlen(srcPath);
+		if (pathLen > 4) {
+			if (strncmp(srcPath + (pathLen - 4), ".fbx", 4) == 0) {
+				// Options here:
+				// https://github.com/ufbx/ufbx/blob/70d552625622819e91881ead78c5fe649a855075/ufbx.h#L3853
+				ufbx_load_opts opts = {};
+				opts.ignore_animation = true;
+				ufbx_scene* scene = ufbx_load_file(srcPath, &opts, NULL);
+				delete scene;
+			}
+		}
 		if (fastObjMesh* obj = fast_obj_read(srcPath)) {
 			extract(obj, genTans, flipG, mesh);
 			fast_obj_destroy(obj);

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "fast_obj.h"
+#include "ufbx.h"
 #include "vec.h"
 
 /**
