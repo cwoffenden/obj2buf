@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.15)
 
 # mkdir out
 # cd out
@@ -79,3 +79,9 @@ set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 11)
 # (Note: the working dir only works from a generated solution, not as a folder in VS)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/dat")
+set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY VS_DEBUGGER_COMMAND_ARGUMENTS "-c 8115547B cube.obj out.inc")
+
+# Add some scheme defaults for an Xcode generated solution (note we chose CMake's own vars over, e.g., $PROJECT_DIR)
+set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY XCODE_GENERATE_SCHEME TRUE)
+set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY XCODE_SCHEME_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/dat")
+set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY XCODE_SCHEME_ARGUMENTS "-c 8115547B cube.obj out.inc")

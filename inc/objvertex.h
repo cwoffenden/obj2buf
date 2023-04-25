@@ -29,10 +29,18 @@ struct ObjVertex
 	 * Constructs a single vertex from the \c obj data, extracting the relevant
 	 * position, normal and UV data. The tangents are zeroed.
 	 *
-	 * \param[in] obj the \c fast_obj file
+	 * \param[in] obj the \c fast_obj mesh
 	 * \param[in] idx current face index being processed
 	 */
 	ObjVertex(fastObjMesh* obj, fastObjIndex* idx);
+	/**
+	 * Constructs a single vertex from the FBX mesh data, extracting the
+	 * relevant position, normal, tangents and UV data.
+	 *
+	 * \param[in] fbx the FBX mesh
+	 * \param[in] idx current face index being processed
+	 */
+	ObjVertex(ufbx_mesh* fbx, size_t const idx);
 
 	//****************************** Conversions ******************************/
 

@@ -89,7 +89,7 @@ static unsigned millis() {
 }
 
 /**
- * Extracts the mesh data as vertex and index buffers.
+ * Extracts the \c .obj file mesh data as vertex and index buffers.
  *
  * \todo indices should be optional (since they're optional for export) unless we generate then manually export the tris (since we miss out on other meshopt features otherwise)
  *
@@ -150,6 +150,43 @@ void extract(fastObjMesh* const obj, bool const genTans, bool const flipG, ObjMe
 	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
 }
 
+void extract(ufbx_mesh* const fbx, bool const /*genTans*/, bool const /*flipG*/, ObjMesh& mesh) {
+	// Same as the fast_obj variant, create one big mesh
+	ObjVertex::Container verts;
+	size_t maxVerts = 0;
+	for (size_t face = 0; face < fbx->num_faces; face++) {
+		maxVerts += 3 * (fbx->faces[face].num_indices - 2);
+	}
+	verts.reserve(maxVerts);
+	for (size_t face = 0; face < fbx->num_faces; face++) {
+		size_t vertBase  = fbx->faces[face].index_begin;
+		size_t faceVerts = fbx->faces[face].num_indices;
+		size_t polyStart = verts.size();
+		for (size_t vert = 0; vert < faceVerts; vert++) {
+			if (vert > 2) {
+				if ((vert & 1) != 0) {
+					verts.push_back(verts[verts.size() - 1]);
+				} else {
+					verts.push_back(verts[polyStart]);
+					verts.push_back(verts[verts.size() - 3]);
+				}
+			}
+			verts.emplace_back(fbx, vertBase + vert);
+			if (vert > 2) {
+				if ((vert & 1) != 0) {
+					verts.push_back(verts[polyStart]);
+				}
+			}
+		}
+	}
+	std::vector<unsigned> remap(maxVerts);
+	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
+	// Now create the buffers we'll be working with (overwriting any existing data)
+	mesh.resize(numVerts, maxVerts);
+	meshopt_remapIndexBuffer (mesh.index.data(), NULL, maxVerts, remap.data());
+	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
+}
+
 /**
  * Opens an \c .obj file and extract its content into \a mesh.
  *
@@ -160,6 +197,7 @@ void extract(fastObjMesh* const obj, bool const genTans, bool const flipG, ObjMe
  * \return \c true if the file was valid and \a mesh has its content
  */
 bool open(const char* const srcPath, bool const genTans, bool const flipG, ObjMesh& mesh) {
+	bool validSrc = false;
 	if (srcPath) {
 		size_t pathLen = strlen(srcPath);
 		if (pathLen > 4) {
@@ -167,18 +205,37 @@ bool open(const char* const srcPath, bool const genTans, bool const flipG, ObjMe
 				// Options here:
 				// https://github.com/ufbx/ufbx/blob/70d552625622819e91881ead78c5fe649a855075/ufbx.h#L3853
 				ufbx_load_opts opts = {};
-				opts.ignore_animation = true;
+				opts.ignore_animation   = true;
+				opts.ignore_embedded    = true;
+				opts.skip_skin_vertices = true;
 				ufbx_scene* scene = ufbx_load_file(srcPath, &opts, NULL);
-				delete scene;
+
+				for (size_t n = 0; n < scene->nodes.count; n++) {
+					ufbx_node* node = scene->nodes.data[n];
+					if (node->mesh) {
+						printf("Mesh %s with %d faces\n", node->name.data, (int) node->mesh->faces.count);
+						extract(node->mesh, genTans, flipG, mesh);
+						validSrc = true;
+						continue;
+					}
+				}
+
+				ufbx_free_scene(scene);
 			}
 		}
 		if (fastObjMesh* obj = fast_obj_read(srcPath)) {
-			extract(obj, genTans, flipG, mesh);
+			/*
+			 * If fast_obj can open a file it will always return a mesh object,
+			 * so we need to perform some minimal validation.
+			 */
+			if (obj->face_count > 0) {
+				extract(obj, genTans, flipG, mesh);
+				validSrc = true;
+			}
 			fast_obj_destroy(obj);
-			return true;
 		}
 	}
-	return false;
+	return validSrc;
 }
 
 /**

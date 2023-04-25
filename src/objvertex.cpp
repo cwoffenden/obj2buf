@@ -432,6 +432,52 @@ vec2 encodeOct(const vec3& vec, unsigned const bits) {
 zeroed:
 	return bestEnc;
 }
+
+/**
+ * Helper to copy FBX vertex data to our internal vector. A check is made to
+ * verify the vertex data are valid, then the face index converted to its vertex
+ * equivalent, finally the elements are copied. The destination is zeroed if no
+ * source data exists.
+ *
+ * \param[in] src source 2D vertex vector
+ * \param[in] idx source face index
+ * \param[out] dst destination 2D vector
+ * \return \c true if the vertex type has data
+ */
+bool copyVec(const ufbx_vertex_vec2& src, size_t const idx, vec2& dst) {
+	if (src.exists) {
+		ufbx_vec2& vec = src.values.data[src.indices.data[idx]];
+		dst.x = static_cast<float>(vec.x);
+		dst.y = static_cast<float>(vec.y);
+		return true;
+	} else {
+		dst   = 0.0f;
+	}
+	return false;
+}
+/**
+ * Helper to copy FBX vertex data to our internal vector. A check is made to
+ * verify the vertex data are valid, then the face index converted to its vertex
+ * equivalent, finally the elements are copied. The destination is zeroed if no
+ * source data exists.
+ *
+ * \param[in] src source 3D vertex vector
+ * \param[in] idx source face index
+ * \param[out] dst destination 3D vector
+ * \return \c true if the vertex type has data
+ */
+bool copyVec(const ufbx_vertex_vec3& src, size_t const idx, vec3& dst) {
+	if (src.exists) {
+		ufbx_vec3& vec = src.values.data[src.indices.data[idx]];
+		dst.x = static_cast<float>(vec.x);
+		dst.y = static_cast<float>(vec.y);
+		dst.z = static_cast<float>(vec.z);
+		return true;
+	} else {
+		dst   = 0.0f;
+	}
+	return false;
+}
 }
 
 //*****************************************************************************/
@@ -453,6 +499,19 @@ ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	 * the normals benefit from renormalising (plus any encoding is off too).
 	 */
 	norm   = norm.normalize();
+}
+
+ObjVertex::ObjVertex(ufbx_mesh* fbx, size_t const idx) {
+	/*
+	 * Initial attempt at this: all vertex data are copied, zeroing if they
+	 * don't exist (no effort has been made so far to generate missing data).
+	 */
+	impl::copyVec(fbx->vertex_position,  idx, posn);
+	impl::copyVec(fbx->vertex_uv,        idx, tex0);
+	impl::copyVec(fbx->vertex_normal,    idx, norm);
+	impl::copyVec(fbx->vertex_tangent,   idx, tans);
+	impl::copyVec(fbx->vertex_bitangent, idx, btan);
+	sign = 0.0f;
 }
 
 bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
