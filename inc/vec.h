@@ -6,6 +6,14 @@
 
 #include <cmath>
 
+/**
+ * \def M_PI
+ * Missing POSIX definition (for MSVC/Win32).
+ */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846264338327950288
+#endif
+
 #include "vertexpacker.h"
 
 /**

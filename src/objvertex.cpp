@@ -10,14 +10,6 @@
 #include "mikktspace.h"
 
 /**
- * \def M_PI
- * Missing POSIX definition (for MSVC/Win32).
- */
-#ifndef M_PI
-#define M_PI 3.14159265358979323846264338327950288
-#endif
-
-/**
  * Utility functions to bridge between \c ObjVertex and \e MikkTSpace. These are
  * all internal to this implementation and only \c ObjVertex#generateTangents()
  * should be used.
