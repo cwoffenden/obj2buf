@@ -305,6 +305,61 @@ struct Vec4
 	}
 };
 
+template<typename T>
+struct Mat3
+{
+	Vec3<T> m[3];
+	explicit Mat3() {
+		m[0] = Vec3<T>(T(1), T(0), T(0));
+		m[1] = Vec3<T>(T(0), T(1), T(0));
+		m[2] = Vec3<T>(T(0), T(0), T(1));
+	}
+	operator T*() {
+		return m;
+	}
+	/*
+	 * Sets the matrix from an angle rotating around the supplied vector,
+	 * overwriting any existing values.
+	 *
+	 * \note No test is performed to ensure \a x, \a y and \a z form a unit
+	 * vector.
+	 *
+	 * \param[in] a rotation in radians (following the \e right-hand rule)
+	 * \param[in] x x-axis coordinate of the vector around which the rotation occurs
+	 * \param[in] y y-axis coordinate of the vector around which the rotation occurs
+	 * \param[in] z z-axis coordinate of the vector around which the rotation occurs
+	 */
+	void set(T const a, T const x, T const y, T const z) {
+		T const cosA(std::cos(a));
+		T const sinA(std::sin(a));
+		T const omc (T(1) - cosA);
+		T const omcX(omc * x);
+		T const omcY(omc * y);
+		T const omcZ(omc * z);
+		m[0][0] = omcX * x +     cosA;	// xx * (1 - cos) +     cos
+		m[0][1] = omcX * y + z * sinA;	// yx * (1 - cos) + z * sin
+		m[0][2] = omcX * z - y * sinA;	// xz * (1 - cos) - y * sin
+		m[1][0] = omcY * x - z * sinA;	// xy * (1 - cos) - z * sin
+		m[1][1] = omcY * y +     cosA;	// yy * (1 - cos) +     cos
+		m[1][2] = omcY * z + x * sinA;	// yz * (1 - cos) + x * sin
+		m[2][0] = omcZ * x + y * sinA;	// xz * (1 - cos) + y * sin
+		m[2][1] = omcZ * y - x * sinA;	// yz * (1 - cos) - x * sin
+		m[2][2] = omcZ * z +     cosA;	// zz * (1 - cos) +     cos
+	}
+	/**
+	 * Transforms the supplied vector.
+	 */
+	NO_DISCARD
+	Vec3<T> apply(Vec3<T> vec) const {
+		return Vec3<T>(
+			Vec3<T>::dot(m[0], vec),
+			Vec3<T>::dot(m[1], vec),
+			Vec3<T>::dot(m[2], vec)
+		);
+	}
+};
+
 typedef Vec2<float> vec2;
 typedef Vec3<float> vec3;
 typedef Vec4<float> vec4;
+typedef Mat3<float> mat3;

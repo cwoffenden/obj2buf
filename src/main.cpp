@@ -150,7 +150,7 @@ void extract(fastObjMesh* const obj, bool const genTans, bool const flipG, ObjMe
 	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
 }
 
-void extract(ufbx_mesh* const fbx, bool const /*genTans*/, bool const /*flipG*/, ObjMesh& mesh) {
+void extract(ufbx_mesh* const fbx, bool const genTans, bool const flipG, ObjMesh& mesh) {
 	// Same as the fast_obj variant, create one big mesh
 	ObjVertex::Container verts;
 	size_t maxVerts = 0;
@@ -178,6 +178,15 @@ void extract(ufbx_mesh* const fbx, bool const /*genTans*/, bool const /*flipG*/,
 				}
 			}
 		}
+	}
+	mat3 rot;
+	rot.set(static_cast<float>(M_PI) / 2, 1.0f, 0.0f, 0.0f);
+	for (ObjVertex::Container::iterator it = verts.begin(); it != verts.end(); ++it) {
+		it->posn = rot.apply(it->posn);
+		it->norm = rot.apply(it->norm);
+	}
+	if (genTans) {
+		ObjVertex::generateTangents(verts, flipG);
 	}
 	std::vector<unsigned> remap(maxVerts);
 	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
