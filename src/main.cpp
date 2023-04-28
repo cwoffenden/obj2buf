@@ -179,6 +179,18 @@ void extract(ufbx_mesh* const fbx, bool const genTans, bool const flipG, ObjMesh
 			}
 		}
 	}
+	/*
+	 * It doesn't seem to matter (at least with ufbx importing) whether a Max
+	 * file was exported with Z-up or Y-up, the result is the same (at least
+	 * from the mesh's point of view). Going from Max to Modo, for example, with
+	 * Y-up will add a root transform node, whereas Z-up seems to do the
+	 * transform on import (though it could be tucked away in the pre-transform,
+	 * I didn't look too much). Modo originated content is X-up.
+	 *
+	 * TL;DR: rotate by 90 on the X-axis if Max is the 'original_application' in
+	 * the metadata (it probably needs more experimentation with other apps, but
+	 * it's a simple enough rule for now).
+	 */
 	mat3 rot;
 	rot.set(static_cast<float>(M_PI) / 2, 1.0f, 0.0f, 0.0f);
 	for (ObjVertex::Container::iterator it = verts.begin(); it != verts.end(); ++it) {
