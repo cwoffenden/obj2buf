@@ -1,6 +1,7 @@
 #include "objmesh.h"
 
 #include <cfloat>
+#include <cstdio>
 
 #include "meshoptimizer.h"
 
