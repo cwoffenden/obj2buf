@@ -143,7 +143,11 @@ void extract(ufbx_mesh* const fbx, bool const genTans, bool const flipG, ObjMesh
 
 //*****************************************************************************/
 
-bool ObjMesh::open(const char* const srcPath, bool const genTans, bool const flipG) {
+bool ObjMesh::load(const char* const srcPath, bool const genTans, bool const flipG) {
+	verts.clear();
+	index.clear();
+	scale = 1.0f;
+	bias  = 0.0f;
 	bool validSrc = false;
 	if (srcPath) {
 		size_t pathLen = strlen(srcPath);

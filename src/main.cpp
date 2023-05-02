@@ -64,9 +64,9 @@ int main(int argc, const char* argv[]) {
 	BufferLayout const layout(opts);
 	// Now we start
 	unsigned const startMs = millis();
-	bool tans = opts.tans != VertexPacker::Storage::EXCLUDE;
-	bool flip = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_FLIP_G);
-	if (!mesh.open(srcPath, tans, flip)) {
+	bool const tans = opts.tans != VertexPacker::Storage::EXCLUDE;
+	bool const flip = O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_TANGENTS_FLIP_G);
+	if (!mesh.load(srcPath, tans, flip)) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
 		return EXIT_FAILURE;
 	}

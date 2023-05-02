@@ -27,8 +27,8 @@ public:
 		, bias (0.0f, 0.0f, 0.0f) {};
 
 	/**
-	 * Opens an \c .obj file and extract its content into \a mesh (experimental
-	 * support was added for FBX files, extracting the first mesh found).
+	 * Opens an \c .obj file and extracts its content (experimental support was
+	 * added for FBX files, extracting the first mesh found).
 	 *
 	 * \note Any existing content is replaced.
 	 *
@@ -37,7 +37,7 @@ public:
 	 * \param[in] flipG generate tangents for a flipped green channel (by negating the texture's y-axis)
 	 * \return \c true if the file was valid and \a mesh has its content
 	 */
-	bool open(const char* const srcPath, bool const genTans, bool const flipG);
+	bool load(const char* const srcPath, bool const genTans, bool const flipG);
 
 	/**
 	 * Scale the mesh positions so that each is normalised between \c -1 and \c 1.
