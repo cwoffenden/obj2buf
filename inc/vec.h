@@ -313,10 +313,17 @@ struct Vec4
 	}
 };
 
+/**
+ * 3x3 matrix. It exists primarily to perform axis conversion (so is missing
+ * most features).
+ */
 template<typename T>
 struct Mat3
 {
 	Vec3<T> m[3];
+	/**
+	 * Creates an identity matrix.
+	 */
 	explicit Mat3() {
 		m[0] = Vec3<T>(T(1), T(0), T(0));
 		m[1] = Vec3<T>(T(0), T(1), T(0));
@@ -355,7 +362,7 @@ struct Mat3
 		m[2][2] = omcZ * z +     cosA;	// zz * (1 - cos) +     cos
 	}
 	/**
-	 * Transforms the supplied vector.
+	 * Transforms the supplied vector by this matrix.
 	 */
 	NO_DISCARD
 	Vec3<T> apply(Vec3<T> vec) const {

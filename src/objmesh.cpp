@@ -21,6 +21,28 @@
  */
 namespace impl {
 /**
+ * Performs work common to both the \c .obj and FBX mesh extraction.
+ *
+ * \param[in] verts all raw the vertices
+ * \param[in] genTans \c true if tangents should be generated
+ * \param[in] flipG generate tangents for a flipped green channel (by negating the texture's y-axis)
+ * \param[out] mesh destination for the indexed mesh content
+ */
+void postExtract(ObjVertex::Container& verts, bool const genTans, bool const flipG, ObjMesh& mesh) {
+	size_t maxVerts = verts.size();
+	// Optionally create the tangents
+	if (genTans) {
+		ObjVertex::generateTangents(verts, flipG);
+	}
+	// Generate the indices
+	std::vector<unsigned> remap(verts.size());
+	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
+	// Now create the buffers we'll be working with (overwriting any existing data)
+	mesh.resize(numVerts, verts.size());
+	meshopt_remapIndexBuffer (mesh.index.data(), NULL, maxVerts, remap.data());
+	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
+}
+/**
  * Extracts the \c .obj file mesh data as vertex and index buffers.
  *
  * \todo indices should be optional (since they're optional for export) unless we generate then manually export the tris (since we miss out on other meshopt features otherwise)
@@ -70,20 +92,21 @@ void extract(fastObjMesh* const obj, bool const genTans, bool const flipG, ObjMe
 		}
 		vertBase += faceVerts;
 	}
-	if (genTans) {
-		ObjVertex::generateTangents(verts, flipG);
-	}
-	// Generate the indices
-	std::vector<unsigned> remap(maxVerts);
-	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
-	// Now create the buffers we'll be working with (overwriting any existing data)
-	mesh.resize(numVerts, maxVerts);
-	meshopt_remapIndexBuffer (mesh.index.data(), NULL, maxVerts, remap.data());
-	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
+	postExtract(verts, genTans, flipG, mesh);
 }
-
+/**
+ * Extracts the FBX mesh data as vertex and index buffers.
+ *
+ * \param[in] obj valid \c fast_obj content
+ * \param[in] genTans \c true if tangents should be generated
+ * \param[in] flipG generate tangents for a flipped green channel (by negating the texture's y-axis)
+ * \param[out] mesh destination for the \c .obj file content
+ */
 void extract(ufbx_mesh* const fbx, bool const genTans, bool const flipG, ObjMesh& mesh) {
-	// Same as the fast_obj variant, create one big mesh
+	/*
+	 * This follows the same pattern as the fast_obj variant, create a single
+	 * mesh and triangulate it with fans in *exactly* the same way.
+	 */
 	ObjVertex::Container verts;
 	size_t maxVerts = 0;
 	for (size_t face = 0; face < fbx->num_faces; face++) {
@@ -123,77 +146,80 @@ void extract(ufbx_mesh* const fbx, bool const genTans, bool const flipG, ObjMesh
 	 * the metadata (it probably needs more experimentation with other apps, but
 	 * it's a simple enough rule for now).
 	 */
-	mat3 rot;
-	rot.set(static_cast<float>(M_PI) / 2, 1.0f, 0.0f, 0.0f);
-	for (ObjVertex::Container::iterator it = verts.begin(); it != verts.end(); ++it) {
-		it->posn = rot.apply(it->posn);
-		it->norm = rot.apply(it->norm);
+	if (fbx->element.scene) {
+		if (strncmp(fbx->element.scene->metadata.original_application.name.data, "3ds Max", 7) == 0) {
+			mat3 rot;
+			rot.set(static_cast<float>(M_PI) / 2, 1.0f, 0.0f, 0.0f);
+			for (ObjVertex::Container::iterator it = verts.begin(); it != verts.end(); ++it) {
+				it->posn = rot.apply(it->posn);
+				it->norm = rot.apply(it->norm);
+			}
+		}
 	}
-	if (genTans) {
-		ObjVertex::generateTangents(verts, flipG);
-	}
-	std::vector<unsigned> remap(maxVerts);
-	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
-	// Now create the buffers we'll be working with (overwriting any existing data)
-	mesh.resize(numVerts, maxVerts);
-	meshopt_remapIndexBuffer (mesh.index.data(), NULL, maxVerts, remap.data());
-	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
+	postExtract(verts, genTans, flipG, mesh);
 }
 }
 
 //*****************************************************************************/
 
-bool ObjMesh::load(const char* const srcPath, bool const genTans, bool const flipG) {
+void ObjMesh::reset() {
 	verts.clear();
 	index.clear();
 	scale = 1.0f;
 	bias  = 0.0f;
-	bool validSrc = false;
+}
+
+bool ObjMesh::load(const char* const srcPath, bool const genTans, bool const flipG) {
+	bool loaded = false;
+	reset();
 	if (srcPath) {
 		size_t pathLen = strlen(srcPath);
 		if (pathLen > 4) {
-			if (strncmp(srcPath + (pathLen - 4), ".fbx", 4) == 0) {
+			if (strncmp(srcPath + (pathLen - 4), ".fbx", 4) == 0 ||
+				strncmp(srcPath + (pathLen - 4), ".FBX", 4) == 0) {
+				/*
+				 * We have an FBX file, so ignore elements we're not interested
+				 * in and step through the scene nodes. Otherwise lower down we
+				 * continue with loading an obj.
+				 */
 				ufbx_load_opts opts = {};
 				opts.ignore_animation   = true;
 				opts.ignore_embedded    = true;
 				opts.skip_skin_vertices = true;
-				ufbx_scene* scene = ufbx_load_file(srcPath, &opts, NULL);
-
-				for (size_t n = 0; n < scene->nodes.count; n++) {
-					ufbx_node* node = scene->nodes.data[n];
-					if (node->mesh) {
-						printf("Mesh %s with %d faces\n", node->name.data, (int) node->mesh->faces.count);
-						impl::extract(node->mesh, genTans, flipG, *this);
-						validSrc = true;
-						continue;
+				if (ufbx_scene* scene = ufbx_load_file(srcPath, &opts, NULL)) {
+					for (size_t n = 0; n < scene->nodes.count; n++) {
+						ufbx_node* node = scene->nodes.data[n];
+						if (node->mesh) {
+							/*
+							 * We found the first mesh, extract the data then
+							 * stop processing.
+							 */
+							impl::extract(node->mesh, genTans, flipG, *this);
+							loaded = true;
+							continue;
+						}
 					}
+					ufbx_free_scene(scene);
 				}
-
-				ufbx_free_scene(scene);
 			}
 		}
-		if (fastObjMesh* obj = fast_obj_read(srcPath)) {
-			/*
-			 * If fast_obj can open a file it will always return a mesh object,
-			 * so we need to perform some minimal validation.
-			 */
-			if (obj->face_count > 0) {
-				impl::extract(obj, genTans, flipG, *this);
-				validSrc = true;
+		if (!loaded) {
+			if (fastObjMesh* obj = fast_obj_read(srcPath)) {
+				/*
+				 * If fast_obj can open a file it will always return a mesh object,
+				 * so we need to perform some minimal validation.
+				 */
+				if (obj->face_count > 0) {
+					impl::extract(obj, genTans, flipG, *this);
+					loaded = true;
+				}
+				fast_obj_destroy(obj);
 			}
-			fast_obj_destroy(obj);
 		}
 	}
-	return validSrc;
+	return loaded;
 }
 
-/**
- * Scale the mesh positions so that each is normalised between \c -1 and \c 1.
- *
- * \param[in,out] mesh mesh to in-place scale
- * \param[in] uniform \c true if the same scale should be applied to all axes (otherwise a per-axis scale is applied)
- * \param[in] unbiased  \c true if the origin should be maintained at zero (otherwise a bias is applied to make the most of the normalised range)
- */
 void ObjMesh::normalise(bool const uniform, bool const unbiased) {
 	// Get min and max for each component
 	vec3 minPosn({ FLT_MAX,  FLT_MAX,  FLT_MAX});

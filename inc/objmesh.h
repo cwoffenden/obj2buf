@@ -1,6 +1,6 @@
 /**
  * \file objmesh.h
- * Wavefront \c .obj loader.
+ * Wrapper for mesh data.
  *
  * \copyright 2022 Numfum GmbH
  */
@@ -25,6 +25,11 @@ public:
 	ObjMesh()
 		: scale(1.0f, 1.0f, 1.0f)
 		, bias (0.0f, 0.0f, 0.0f) {};
+
+	/**
+	 * Clears the content, sets the scale to \c 1 and bias to \c 0.
+	 */
+	void reset();
 
 	/**
 	 * Opens an \c .obj file and extracts its content (experimental support was

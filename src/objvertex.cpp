@@ -497,6 +497,9 @@ ObjVertex::ObjVertex(ufbx_mesh* fbx, size_t const idx) {
 	/*
 	 * Initial attempt at this: all vertex data are copied, zeroing if they
 	 * don't exist (no effort has been made so far to generate missing data).
+	 *
+	 * Note: we're currently reading this but then ignoring any tangents (since
+	 * at a first glance they weren't correct) and recreating them.
 	 */
 	impl::copyVec(fbx->vertex_position,  idx, posn);
 	impl::copyVec(fbx->vertex_uv,        idx, tex0);
