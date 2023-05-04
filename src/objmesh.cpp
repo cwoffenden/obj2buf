@@ -24,24 +24,30 @@ namespace impl {
  * Performs work common to both the \c .obj and FBX mesh extraction (tangent
  * generation, then creating vertex and index buffers).
  *
+ * \note The vertices are triangles here, with triangulation having been
+ * performed beforehand. The size of \a verts is then the size of the index
+ * buffer, whilst the vertex buffer is generated from unique entries after the
+ * tangents.
+ *
  * \param[in] verts all raw the vertices
  * \param[in] genTans \c true if tangents should be generated
  * \param[in] flipG generate tangents for a flipped green channel (by negating the texture's y-axis)
  * \param[out] mesh destination for the indexed mesh content
  */
 void postExtract(ObjVertex::Container& verts, bool const genTans, bool const flipG, ObjMesh& mesh) {
-	// Optionally create the tangents
-	if (genTans) {
-		ObjVertex::generateTangents(verts, flipG);
+	if (size_t maxVerts = verts.size()) {
+		// Optionally create the tangents
+		if (genTans) {
+			ObjVertex::generateTangents(verts, flipG);
+		}
+		// Generate the indices
+		std::vector<unsigned> remap(maxVerts);
+		size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
+		// Now create the buffers we'll be working with (overwriting any existing data)
+		mesh.resize(numVerts, maxVerts);
+		meshopt_remapIndexBuffer (mesh.index.data(), NULL, maxVerts, remap.data());
+		meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
 	}
-	// Generate the indices
-	size_t maxVerts = verts.size();
-	std::vector<unsigned> remap(maxVerts);
-	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
-	// Now create the buffers we'll be working with (overwriting any existing data)
-	mesh.resize(numVerts, verts.size());
-	meshopt_remapIndexBuffer (mesh.index.data(), NULL, maxVerts, remap.data());
-	meshopt_remapVertexBuffer(mesh.verts.data(), verts.data(), maxVerts, sizeof(ObjVertex), remap.data());
 }
 /**
  * Extracts the \c .obj file mesh data as vertex and index buffers.
@@ -190,10 +196,10 @@ bool ObjMesh::load(const char* const srcPath, bool const genTans, bool const fli
 				if (ufbx_scene* scene = ufbx_load_file(srcPath, &opts, NULL)) {
 					for (size_t n = 0; n < scene->nodes.count; n++) {
 						ufbx_node* node = scene->nodes.data[n];
-						if (node->mesh) {
+						if (node->mesh && node->mesh->num_faces) {
 							/*
-							 * We found the first mesh, extract the data then
-							 * stop processing.
+							 * We found the first valid mesh, extract the data
+							 * then stop processing.
 							 */
 							impl::extract(node->mesh, genTans, flipG, *this);
 							loaded = true;
@@ -207,10 +213,10 @@ bool ObjMesh::load(const char* const srcPath, bool const genTans, bool const fli
 		if (!loaded) {
 			if (fastObjMesh* obj = fast_obj_read(srcPath)) {
 				/*
-				 * If fast_obj can open a file it will always return a mesh object,
-				 * so we need to perform some minimal validation.
+				 * If fast_obj can open a file it will always return a mesh
+				 * object, so we need to perform some minimal validation.
 				 */
-				if (obj->face_count > 0) {
+				if (obj->face_count) {
 					impl::extract(obj, genTans, flipG, *this);
 					loaded = true;
 				}
