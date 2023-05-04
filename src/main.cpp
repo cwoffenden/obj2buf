@@ -176,6 +176,8 @@ int main(int argc, const char* argv[]) {
 		return EXIT_FAILURE;
 	}
 	printf("\n");
-	printf("Total time: %dms\n", millis() - startMs);
+	printf("Source file: %s\n", ToolOptions::filename(srcPath));
+	printf("Destination: %s\n", ToolOptions::filename(dstPath));
+	printf("Total time:  %dms\n", millis() - startMs);
 	return EXIT_SUCCESS;
 }
