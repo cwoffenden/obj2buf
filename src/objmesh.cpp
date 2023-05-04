@@ -17,11 +17,12 @@
 #endif
 
 /**
- * Helpers to extract mesh data.
+ * Helpers to extract mesh data (see\c ObjMesh#load() )
  */
 namespace impl {
-/**
- * Performs work common to both the \c .obj and FBX mesh extraction.
+/*
+ * Performs work common to both the \c .obj and FBX mesh extraction (tangent
+ * generation, then creating vertex and index buffers).
  *
  * \param[in] verts all raw the vertices
  * \param[in] genTans \c true if tangents should be generated
@@ -29,13 +30,13 @@ namespace impl {
  * \param[out] mesh destination for the indexed mesh content
  */
 void postExtract(ObjVertex::Container& verts, bool const genTans, bool const flipG, ObjMesh& mesh) {
-	size_t maxVerts = verts.size();
 	// Optionally create the tangents
 	if (genTans) {
 		ObjVertex::generateTangents(verts, flipG);
 	}
 	// Generate the indices
-	std::vector<unsigned> remap(verts.size());
+	size_t maxVerts = verts.size();
+	std::vector<unsigned> remap(maxVerts);
 	size_t numVerts = meshopt_generateVertexRemap(remap.data(), NULL, maxVerts, verts.data(), maxVerts, sizeof(ObjVertex));
 	// Now create the buffers we'll be working with (overwriting any existing data)
 	mesh.resize(numVerts, verts.size());
@@ -196,7 +197,7 @@ bool ObjMesh::load(const char* const srcPath, bool const genTans, bool const fli
 							 */
 							impl::extract(node->mesh, genTans, flipG, *this);
 							loaded = true;
-							continue;
+							break;
 						}
 					}
 					ufbx_free_scene(scene);
