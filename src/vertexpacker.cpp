@@ -141,7 +141,7 @@ static int32_t storeLegacy(float const val, VertexPacker::Storage const type) {
 /*
  * Performs the inverse of \c storeLegacy(float,VertexPacker::Storage).
  */
-static float fetchLegacy(int32_t const val, VertexPacker::Storage const type) {
+/*static*/ float fetchLegacy(int32_t const val, VertexPacker::Storage const type) {
 	switch (type) {
 	case VertexPacker::Storage::EXCLUDE:
 		return 0.0f;
