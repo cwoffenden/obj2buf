@@ -36,12 +36,28 @@ static inline T clamp(T const val, T const min, T const max) {
  *
  * \param[in] val float value to convert
  * \tparam Bits bit-depth to use (e.g. \c 8 for bytes)
+ * \return \a val stored in the the specified number of bits
  *
  * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Alternate_mapping
  */
 template<int Bits>
 static inline int32_t signedLegacy(float const val) {
 	return static_cast<int32_t>(round((val * ((1 << Bits) - 1) - 1) / 2.0f));
+}
+
+/*
+ * Performs the inverse of \c signedLegacy() following the same OpenGL rules.
+ *
+ * \note Values outside of the range of bits will overflow (see \c #clamp()) and
+ * need to be accounted for in the next steps.
+ *
+ * \param[in] val stored value
+ * \tparam Bits bit-depth to use (e.g. \c 8 for bytes)
+ * \return an approximation of the original value
+ */
+template<int Bits>
+static inline float legacySigned(int32_t const val) {
+	return static_cast<float>(2 * val + 1) / ((1 << Bits) - 1);
 }
 
 /**
@@ -55,12 +71,28 @@ static inline int32_t signedLegacy(float const val) {
  *
  * \param[in] val float value to convert
  * \tparam Bits bit-depth to use (e.g. \c 8 for bytes)
+ * \return \a val stored in the the specified number of bits
  *
  * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Signed
  */
 template<int Bits>
 static inline int32_t signedModern(float const val) {
 	return static_cast<int32_t>(round(val * ((1 << (Bits - 1)) - 1)));
+}
+
+/*
+ * Performs the inverse of \c signedModern() following the same OpenGL rules.
+ *
+ * \note Values outside of the range of bits will overflow (see \c #clamp()) and
+ * need to be accounted for in the next steps.
+ *
+ * \param[in] val stored value
+ * \tparam Bits bit-depth to use (e.g. \c 8 for bytes)
+ * \return an approximation of the original value
+ */
+template<int Bits>
+static inline float modernSigned(int32_t const val) {
+	return val / ((1 << (Bits - 1)) - 1);
 }
 
 /**
@@ -103,6 +135,36 @@ static int32_t storeLegacy(float const val, VertexPacker::Storage const type) {
 		} temp = {val};
 		return temp.i;
 	}
+	}
+}
+
+/*
+ * Performs the inverse of \c storeLegacy(float,VertexPacker::Storage).
+ */
+static float fetchLegacy(int32_t const val, VertexPacker::Storage const type) {
+	switch (type) {
+	case VertexPacker::Storage::EXCLUDE:
+		return 0.0f;
+	case VertexPacker::Storage::SINT08N:
+		return legacySigned<8>(clamp<int32_t>(val, INT8_MIN, INT8_MAX));
+	case VertexPacker::Storage::SINT08C:
+		return static_cast<float>(clamp<int32_t>(val, INT8_MIN, INT8_MAX));
+	case VertexPacker::Storage::UINT08N:
+		return static_cast<float>(clamp<int32_t>(val, 0, UINT8_MAX)) / UINT8_MAX;
+	case VertexPacker::Storage::UINT08C:
+		return static_cast<float>(clamp<int32_t>(val, 0, UINT8_MAX));
+	case VertexPacker::Storage::SINT16N:
+		return legacySigned<16>(clamp<int32_t>(val, INT16_MIN, INT16_MAX));
+	case VertexPacker::Storage::SINT16C:
+		return static_cast<float>(clamp<int32_t>(val, INT16_MIN, INT16_MAX));
+	case VertexPacker::Storage::UINT16N:
+		return static_cast<float>(clamp<int32_t>(val, 0, UINT16_MAX)) / UINT16_MAX;
+	case VertexPacker::Storage::UINT16C:
+		return static_cast<float>(clamp<int32_t>(val, 0, UINT16_MAX));
+	case VertexPacker::Storage::FLOAT16:
+		return utils::halfToFloat(static_cast<utils::float16>(val));
+	default:
+		return 0.0f;
 	}
 }
 
