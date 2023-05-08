@@ -27,6 +27,8 @@ if (MSVC)
 		set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /INCREMENTAL:NO /LTCG")
 	endif()
 else()
+	# TODO: the generated Xcode project is nonsense, with these flags being ignored and any old crap being compilable
+	# (e.g. Cmake is inserting -Wno-float-conversion plus others, so -Werror never gets flagged)
 	if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc64|powerpc")
 		# We're on one of my own machines here (no one has Power) so we can apply a tune
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mtune=native")
