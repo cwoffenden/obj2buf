@@ -43,13 +43,13 @@ static inline T clamp(T const val, T const min, T const max) {
  * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Alternate_mapping
  */
 template<int Bits>
-static inline int32_t encodeSignedLegacy(float const val) {
+static inline int32_t encodeLegacy(float const val) {
 	return static_cast<int32_t>(round((val * ((1 << Bits) - 1) - 1) / 2.0f));
 }
 
 /**
- * Performs the inverse of \c encodeSignedLegacy() following the same OpenGL
- * rules (desktop pre-4.2 and ES pre-3.0).
+ * Performs the inverse of \c encodeLegacy() following the same OpenGL rules
+ * (desktop pre-4.2 and ES pre-3.0).
  *
  * \note Values outside of the range of bits will overflow (see \c #clamp()) and
  * need to be accounted for in the next steps.
@@ -59,7 +59,7 @@ static inline int32_t encodeSignedLegacy(float const val) {
  * \return an approximation of the original value
  */
 template<int Bits>
-static inline float decodeSignedLegacy(int32_t const val) {
+static inline float decodeLegacy(int32_t const val) {
 	return static_cast<float>(2 * val + 1) / ((1 << Bits) - 1);
 }
 
@@ -79,13 +79,13 @@ static inline float decodeSignedLegacy(int32_t const val) {
  * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Signed
  */
 template<int Bits>
-static inline int32_t encodeSignedModern(float const val) {
+static inline int32_t encodeModern(float const val) {
 	return static_cast<int32_t>(round(val * ((1 << (Bits - 1)) - 1)));
 }
 
 /**
- * Performs the inverse of \c encodeSignedModern() following the same OpenGL
- * rules (desktop 4.2, ES 3.0 and WebGL 2.0 onwards)
+ * Performs the inverse of \c encodeModern() following the same OpenGL rules
+ * (desktop 4.2, ES 3.0 and WebGL 2.0 onwards).
  *
  * \note Values outside of the range of bits will overflow (see \c #clamp()) and
  * need to be accounted for in the next steps.
@@ -95,24 +95,31 @@ static inline int32_t encodeSignedModern(float const val) {
  * \return an approximation of the original value
  */
 template<int Bits>
-static inline float decodeSignedModern(int32_t const val) {
+static inline float decodeModern(int32_t const val) {
 	return static_cast<float>(val) / ((1 << (Bits - 1)) - 1);
 }
 
 /**
- * Helper to encode a float using the \c VertexPacker#Storage rules for legacy
- * OpenGL (desktop pre-4.2 and ES pre-3.0, see \c signedLegacy()).
+ * Helper to encode a float using the \c VertexPacker#Storage rules. Signed
+ * normalised values are encoded using separate rules, depending on whether this
+ * is \e legacy OpenGL (desktop pre-4.2 and ES pre-3.0, see \c encodeLegacy())
+ * or modern (desktop 4.2, ES 3.0 and WebGL 2.0 onwards, see \c encodeModern()).
  *
  * \param[in] val float value to convert
  * \param[in] type storage type (and rules to follow)
+ * \param[in] legacy \c true if the old encoding rules for signed normalised values from OpenGL desktop pre-4.2 should be used
  * \return \a val stored using \a type
  */
-static int32_t encodeLegacy(float const val, VertexPacker::Storage const type) {
+static int32_t encode(float const val, VertexPacker::Storage const type, bool const legacy = false) {
 	switch (type) {
 	case VertexPacker::Storage::EXCLUDE:
 		return 0;
 	case VertexPacker::Storage::SINT08N:
-		return clamp<int32_t>(encodeSignedLegacy<8>(val), INT8_MIN, INT8_MAX);
+		if (!legacy) {
+			return clamp<int32_t>(encodeModern<8>(val), -INT8_MAX, INT8_MAX);
+		} else {
+			return clamp<int32_t>(encodeLegacy<8>(val),  INT8_MIN, INT8_MAX);
+		}
 	case VertexPacker::Storage::SINT08C:
 		return clamp<int32_t>(int32_t(round(val)), INT8_MIN, INT8_MAX);
 	case VertexPacker::Storage::UINT08N:
@@ -120,7 +127,11 @@ static int32_t encodeLegacy(float const val, VertexPacker::Storage const type) {
 	case VertexPacker::Storage::UINT08C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT8_MAX);
 	case VertexPacker::Storage::SINT16N:
-		return clamp<int32_t>(encodeSignedLegacy<16>(val), INT16_MIN, INT16_MAX);
+		if (!legacy) {
+			return clamp<int32_t>(encodeModern<16>(val), -INT16_MAX, INT16_MAX);
+		} else {
+			return clamp<int32_t>(encodeLegacy<16>(val),  INT16_MIN, INT16_MAX);
+		}
 	case VertexPacker::Storage::SINT16C:
 		return clamp<int32_t>(int32_t(round(val)), INT16_MIN, INT16_MAX);
 	case VertexPacker::Storage::UINT16N:
@@ -147,12 +158,16 @@ static int32_t encodeLegacy(float const val, VertexPacker::Storage const type) {
  * Performs the inverse of \c encodeLegacy(float,VertexPacker::Storage),
  * extracting an encoded float from integer bits.
  */
-/*static*/ float decodeLegacy(int32_t const val, VertexPacker::Storage const type) {
+/*static*/ float decode(int32_t const val, VertexPacker::Storage const type, bool const legacy = false) {
 	switch (type) {
 	case VertexPacker::Storage::EXCLUDE:
 		return 0.0f;
 	case VertexPacker::Storage::SINT08N:
-		return decodeSignedLegacy<8>(clamp<int32_t>(val, INT8_MIN, INT8_MAX));
+		if (!legacy) {
+			return decodeModern<8>(clamp<int32_t>(val, -INT8_MAX, INT8_MAX));
+		} else {
+			return decodeLegacy<8>(clamp<int32_t>(val,  INT8_MIN, INT8_MAX));
+		}
 	case VertexPacker::Storage::SINT08C:
 		return static_cast<float>(clamp<int32_t>(val, INT8_MIN, INT8_MAX));
 	case VertexPacker::Storage::UINT08N:
@@ -160,7 +175,11 @@ static int32_t encodeLegacy(float const val, VertexPacker::Storage const type) {
 	case VertexPacker::Storage::UINT08C:
 		return static_cast<float>(clamp<int32_t>(val, 0, UINT8_MAX));
 	case VertexPacker::Storage::SINT16N:
-		return decodeSignedLegacy<16>(clamp<int32_t>(val, INT16_MIN, INT16_MAX));
+		if (!legacy) {
+			return decodeModern<16>(clamp<int32_t>(val, -INT16_MAX, INT16_MAX));
+		} else {
+			return decodeLegacy<16>(clamp<int32_t>(val,  INT16_MIN, INT16_MAX));
+		}
 	case VertexPacker::Storage::SINT16C:
 		return static_cast<float>(clamp<int32_t>(val, INT16_MIN, INT16_MAX));
 	case VertexPacker::Storage::UINT16N:
@@ -175,84 +194,9 @@ static int32_t encodeLegacy(float const val, VertexPacker::Storage const type) {
 }
 
 /**
- * Helper to encode a float using the \c VertexPacker#Storage rules for modern
- * OpenGL (desktop 4.2 and ES 3.0 onwards, see \c signedModern()).
- *
- * \param[in] val float value to convert
- * \param[in] type storage type (and rules to follow)
- * \return \a val stored using \a type
- */
-static int32_t encodeModern(float const val, VertexPacker::Storage const type) {
-	switch (type) {
-	case VertexPacker::Storage::EXCLUDE:
-		return 0;
-	case VertexPacker::Storage::SINT08N:
-		return clamp<int32_t>(encodeSignedModern<8>(val), -INT8_MAX, INT8_MAX);
-	case VertexPacker::Storage::SINT08C:
-		return clamp<int32_t>(int32_t(round(val)), INT8_MIN, INT8_MAX);
-	case VertexPacker::Storage::UINT08N:
-		return clamp<int32_t>(int32_t(round(val) * UINT8_MAX), 0, UINT8_MAX);
-	case VertexPacker::Storage::UINT08C:
-		return clamp<int32_t>(int32_t(round(val)), 0, UINT8_MAX);
-	case VertexPacker::Storage::SINT16N:
-		return clamp<int32_t>(encodeSignedModern<16>(val), -INT16_MAX, INT16_MAX);
-	case VertexPacker::Storage::SINT16C:
-		return clamp<int32_t>(int32_t(round(val)), INT16_MIN, INT16_MAX);
-	case VertexPacker::Storage::UINT16N:
-		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
-	case VertexPacker::Storage::UINT16C:
-		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
-	case VertexPacker::Storage::FLOAT16:
-		return static_cast<int32_t>(utils::floatToHalf(val));
-	case VertexPacker::Storage::SINT32C:
-		return int32_t(clamp<long>(long(round(val)), INT32_MIN, INT32_MAX));
-	case VertexPacker::Storage::UINT32C:
-		return int32_t(clamp<long>(long(round(val)), 0, UINT32_MAX));
-	default: {
-		union {
-			float   f; // where we write
-			int32_t i; // where we read
-		} temp = {val};
-		return temp.i;
-	}
-	}
-}
-
-/*
- * Performs the inverse of \c encodeModern(float,VertexPacker::Storage),
- * extracting an encoded float from integer bits.
- */
-/*static*/ float decodeModern(int32_t const val, VertexPacker::Storage const type) {
-	switch (type) {
-	case VertexPacker::Storage::EXCLUDE:
-		return 0.0f;
-	case VertexPacker::Storage::SINT08N:
-		return decodeSignedModern<8>(clamp<int32_t>(val, -INT8_MAX, INT8_MAX));
-	case VertexPacker::Storage::SINT08C:
-		return static_cast<float>(clamp<int32_t>(val, INT8_MIN, INT8_MAX));
-	case VertexPacker::Storage::UINT08N:
-		return static_cast<float>(clamp<int32_t>(val, 0, UINT8_MAX)) / UINT8_MAX;
-	case VertexPacker::Storage::UINT08C:
-		return static_cast<float>(clamp<int32_t>(val, 0, UINT8_MAX));
-	case VertexPacker::Storage::SINT16N:
-		return decodeSignedModern<16>(clamp<int32_t>(val, INT16_MIN, INT16_MAX));
-	case VertexPacker::Storage::SINT16C:
-		return static_cast<float>(clamp<int32_t>(val, -INT16_MAX, INT16_MAX));
-	case VertexPacker::Storage::UINT16N:
-		return static_cast<float>(clamp<int32_t>(val, 0, UINT16_MAX)) / UINT16_MAX;
-	case VertexPacker::Storage::UINT16C:
-		return static_cast<float>(clamp<int32_t>(val, 0, UINT16_MAX));
-	case VertexPacker::Storage::FLOAT16:
-		return utils::halfToFloat(static_cast<utils::float16>(val));
-	default:
-		return 0.0f;
-	}
-}
-
-/**
  * Helper to bypass encoding for \e clamped 8- and 16-bit integers and pass them
  * as-is. All other types are converted to floats and processed through \c
- * #encodeLegacy(float,VertexPacker::Storage).
+ * #encode(float,VertexPacker::Storage,bool).
  *
  * \note This hasn't had any testing on systems with large integer types (from
  * memory, MipsPro n64 comes to mind, but it's doubtful this even compiles on
@@ -260,9 +204,10 @@ static int32_t encodeModern(float const val, VertexPacker::Storage const type) {
  *
  * \param[in] val integer value to convert
  * \param[in] type storage type (and rules to follow)
+ * \param[in] legacy \c true if the old encoding rules for signed normalised values from OpenGL desktop pre-4.2 should be used
  * \return \a val stored using \a type
  */
-static int32_t encodeLegacy(int const val, VertexPacker::Storage const type) {
+static int32_t encode(int const val, VertexPacker::Storage const type, bool const legacy = false) {
 	switch (type) {
 	case VertexPacker::Storage::SINT08C:
 		return clamp<int32_t>(val, INT8_MIN, INT8_MAX);
@@ -277,52 +222,22 @@ static int32_t encodeLegacy(int const val, VertexPacker::Storage const type) {
 	case VertexPacker::Storage::UINT32C:
 		return static_cast<int32_t>(clamp<uint32_t>(val, 0U, UINT32_MAX));
 	default:
-		return encodeLegacy(static_cast<float>(val), type);
-	}
-}
-
-/**
- * Helper to bypass encoding for \e clamped 8- and 16-bit integers and pass them
- * as-is. All other types are converted to floats and processed through \c
- * #encodeModern(float,VertexPacker::Storage).
- *
- * \note This hasn't had any testing on systems with large integer types (from
- * memory, MipsPro n64 comes to mind, but it's doubtful this even compiles on
- * there).
- *
- * \param[in] val integer value to convert
- * \param[in] type storage type (and rules to follow)
- * \return \a val stored using \a type
- */
-static int32_t encodeModern(int const val, VertexPacker::Storage const type) {
-	switch (type) {
-	case VertexPacker::Storage::SINT08C:
-		return clamp<int32_t>(val, INT8_MIN, INT8_MAX);
-	case VertexPacker::Storage::UINT08C:
-		return clamp<int32_t>(val, 0, UINT8_MAX);
-	case VertexPacker::Storage::SINT16C:
-		return clamp<int32_t>(val, INT16_MIN, INT16_MAX);
-	case VertexPacker::Storage::UINT16C:
-		return clamp<int32_t>(val, 0, UINT16_MAX);
-	case VertexPacker::Storage::SINT32C:
-		return clamp<int32_t>(val, INT32_MIN, INT32_MAX);
-	case VertexPacker::Storage::UINT32C:
-		return static_cast<int32_t>(clamp<uint32_t>(val, 0U, UINT32_MAX));
-	default:
-		return encodeModern(static_cast<float>(val), type);
+		return encode(static_cast<float>(val), type, legacy);
 	}
 }
 
 void runTests() {
 	for (int32_t n = INT8_MIN; n < INT8_MAX; n++) {
-		float   f = decodeLegacy(n, VertexPacker::Storage::SINT08N);
-		int32_t i = encodeLegacy(f, VertexPacker::Storage::SINT08N);
+		float   f = decode(n, VertexPacker::Storage::SINT08N, true);
+		assert(f >= -1.0 && f <= 1.0);
+		int32_t i = encode(f, VertexPacker::Storage::SINT08N, true);
 		assert(n == i);
 		(void) i;
 	}
 	for (int32_t n = INT8_MIN; n < INT8_MAX; n++) {
-		float   f = decodeModern(n, VertexPacker::Storage::SINT08N);
-		int32_t i = encodeModern(f, VertexPacker::Storage::SINT08N);
+		float   f = decode(n, VertexPacker::Storage::SINT08N, false);
+		assert(f >= -1.0 && f <= 1.0);
+		int32_t i = encode(f, VertexPacker::Storage::SINT08N, false);
 		if (n == INT8_MIN) {
 			assert(i == -INT8_MAX);
 		} else {
@@ -331,14 +246,16 @@ void runTests() {
 		(void) i;
 	}
 	for (int32_t n = INT16_MIN; n < INT16_MAX; n++) {
-		float   f = decodeLegacy(n, VertexPacker::Storage::SINT16N);
-		int32_t i = encodeLegacy(f, VertexPacker::Storage::SINT16N);
+		float   f = decode(n, VertexPacker::Storage::SINT16N, true);
+		assert(f >= -1.0 && f <= 1.0);
+		int32_t i = encode(f, VertexPacker::Storage::SINT16N, true);
 		assert(n == i);
 		(void) i;
 	}
 	for (int32_t n = INT16_MIN; n < INT16_MAX; n++) {
-		float   f = decodeModern(n, VertexPacker::Storage::SINT16N);
-		int32_t i = encodeModern(f, VertexPacker::Storage::SINT16N);
+		float   f = decode(n, VertexPacker::Storage::SINT16N, false);
+		assert(f >= -1.0 && f <= 1.0);
+		int32_t i = encode(f, VertexPacker::Storage::SINT16N, false);
 		if (n == INT16_MIN) {
 			assert(i == -INT16_MAX);
 		} else {
@@ -364,36 +281,31 @@ size_t VertexPacker::size() const {
 VertexPacker::Failed VertexPacker::add(float const data, Storage const type) {
 	if (hasFreeSpace(type)) {
 		if (type) {
-			int32_t temp;
-			if ((opts & OPTS_SIGNED_LEGACY) == 0) {
-				temp = encodeModern(data, type);
-			} else {
-				temp = encodeLegacy(data, type);
-			}
+			int32_t bits = encode(data, type, (opts & OPTS_SIGNED_LEGACY) != 0);
 			switch (type.bytes()) {
 			case 1:
-				*next++ = temp & 0xFF;
+				*next++ = bits & 0xFF;
 				break;
 			case 2:
 				if ((opts & OPTS_BIG_ENDIAN) == 0) {
-					*next++ = (temp >>  0) & 0xFF;
-					*next++ = (temp >>  8) & 0xFF;
+					*next++ = (bits >>  0) & 0xFF;
+					*next++ = (bits >>  8) & 0xFF;
 				} else {
-					*next++ = (temp >>  8) & 0xFF;
-					*next++ = (temp >>  0) & 0xFF;
+					*next++ = (bits >>  8) & 0xFF;
+					*next++ = (bits >>  0) & 0xFF;
 				}
 				break;
 			default:
 				if ((opts & OPTS_BIG_ENDIAN) == 0) {
-					*next++ = (temp >>  0) & 0xFF;
-					*next++ = (temp >>  8) & 0xFF;
-					*next++ = (temp >> 16) & 0xFF;
-					*next++ = (temp >> 24) & 0xFF;
+					*next++ = (bits >>  0) & 0xFF;
+					*next++ = (bits >>  8) & 0xFF;
+					*next++ = (bits >> 16) & 0xFF;
+					*next++ = (bits >> 24) & 0xFF;
 				} else {
-					*next++ = (temp >> 24) & 0xFF;
-					*next++ = (temp >> 16) & 0xFF;
-					*next++ = (temp >>  8) & 0xFF;
-					*next++ = (temp >>  0) & 0xFF;
+					*next++ = (bits >> 24) & 0xFF;
+					*next++ = (bits >> 16) & 0xFF;
+					*next++ = (bits >>  8) & 0xFF;
+					*next++ = (bits >>  0) & 0xFF;
 				}
 			}
 		}
@@ -405,7 +317,7 @@ VertexPacker::Failed VertexPacker::add(float const data, Storage const type) {
 VertexPacker::Failed VertexPacker::add(int const data, Storage const type) {
 	if (hasFreeSpace(type)) {
 		if (type) {
-			int32_t temp;
+			int32_t bits;
 			switch (type) {
 			case Storage::SINT08C:
 			case Storage::UINT08C:
@@ -413,11 +325,7 @@ VertexPacker::Failed VertexPacker::add(int const data, Storage const type) {
 			case Storage::UINT16C:
 			case Storage::SINT32C:
 			case Storage::UINT32C:
-				if ((opts & OPTS_SIGNED_LEGACY) == 0) {
-					temp = encodeModern(data, type);
-				} else {
-					temp = encodeLegacy(data, type);
-				}
+				bits = encode(data, type, (opts & OPTS_SIGNED_LEGACY) != 0);
 				break;
 			default:
 				/*
@@ -428,28 +336,28 @@ VertexPacker::Failed VertexPacker::add(int const data, Storage const type) {
 			}
 			switch (type.bytes()) {
 			case 1:
-				*next++ = temp & 0xFF;
+				*next++ = bits & 0xFF;
 				break;
 			case 2:
 				if ((opts & OPTS_BIG_ENDIAN) == 0) {
-					*next++ = (temp >>  0) & 0xFF;
-					*next++ = (temp >>  8) & 0xFF;
+					*next++ = (bits >>  0) & 0xFF;
+					*next++ = (bits >>  8) & 0xFF;
 				} else {
-					*next++ = (temp >>  8) & 0xFF;
-					*next++ = (temp >>  0) & 0xFF;
+					*next++ = (bits >>  8) & 0xFF;
+					*next++ = (bits >>  0) & 0xFF;
 				}
 				break;
 			default:
 				if ((opts & OPTS_BIG_ENDIAN) == 0) {
-					*next++ = (temp >>  0) & 0xFF;
-					*next++ = (temp >>  8) & 0xFF;
-					*next++ = (temp >> 16) & 0xFF;
-					*next++ = (temp >> 24) & 0xFF;
+					*next++ = (bits >>  0) & 0xFF;
+					*next++ = (bits >>  8) & 0xFF;
+					*next++ = (bits >> 16) & 0xFF;
+					*next++ = (bits >> 24) & 0xFF;
 				} else {
-					*next++ = (temp >> 24) & 0xFF;
-					*next++ = (temp >> 16) & 0xFF;
-					*next++ = (temp >>  8) & 0xFF;
-					*next++ = (temp >>  0) & 0xFF;
+					*next++ = (bits >> 24) & 0xFF;
+					*next++ = (bits >> 16) & 0xFF;
+					*next++ = (bits >>  8) & 0xFF;
+					*next++ = (bits >>  0) & 0xFF;
 				}
 			}
 		}
