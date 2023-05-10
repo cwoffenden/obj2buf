@@ -332,7 +332,7 @@ struct Mat3
 	operator T*() {
 		return m;
 	}
-	/*
+	/**
 	 * Sets the matrix from an angle rotating around the supplied vector,
 	 * overwriting any existing values.
 	 *

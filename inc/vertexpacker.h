@@ -2,7 +2,7 @@
  * \file vertexpacker.h
  * Utility to build packed vertex buffers.
  *
- * \copyright 2011-2022 Numfum GmbH
+ * \copyright 2011-2023 Numfum GmbH
  */
 #pragma once
 
@@ -385,6 +385,10 @@ public:
 		/**
 		 * Normalised \e signed values are compatible with older APIs, where the
 		 * full range of bits is used but zero cannot be represented.
+		 *
+		 * \note See the OpenGL specification for component conversions, e.g.
+		 * GL 3.0 Colors and Coloring table 2.10, or the ES 2.0 2.1.2 Data
+		 * Conversions.
 		 */
 		OPTS_SIGNED_LEGACY = 2,
 	};
@@ -453,6 +457,18 @@ public:
 	 * content and allowing underlying storage to be reused).
 	 */
 	void rewind();
+
+	/*
+	 * Encodes \a val to \a type (optionally following the \a legacy rules for
+	 * signed values), then returns its decoded value. It allows measuring what
+	 * the error would be when considering the storage type.
+	 *
+	 * \param[in] data value to encode/decode
+	 * \param[in] type conversion and byte storage
+	 * \param[in] legacy see \c Options#OPTS_SIGNED_LEGACY
+	 * \return the equivalent float value with the chosen storage
+	 */
+	static float roundtrip(float const data, Storage const type, bool const legacy = false);
 
 private:
 	VertexPacker   (const VertexPacker&) = delete; /**< Not copyable   */

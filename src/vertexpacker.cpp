@@ -1,7 +1,7 @@
 /**
  * \file vertexpacker.cpp
  *
- * \copyright 2011-2022 Numfum GmbH
+ * \copyright 2011-2023 Numfum GmbH
  */
 #include "vertexpacker.h"
 
@@ -459,6 +459,10 @@ VertexPacker::Failed VertexPacker::align(size_t const base) {
 
 void VertexPacker::rewind() {
 	next = root;
+}
+
+float VertexPacker::roundtrip(float const data, Storage const type, bool const legacy) {
+	return decode(encode(data, type, legacy), type, legacy);
 }
 
 bool VertexPacker::hasFreeSpace(Storage const type) const {
