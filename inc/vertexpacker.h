@@ -383,7 +383,7 @@ public:
 		 */
 		OPTS_BIG_ENDIAN = 1,
 		/**
-		 * Normalised signed values are compatible with older APIs, where the
+		 * Normalised \e signed values are compatible with older APIs, where the
 		 * full range of bits is used but zero cannot be represented.
 		 */
 		OPTS_SIGNED_LEGACY = 2,

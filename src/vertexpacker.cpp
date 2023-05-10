@@ -9,6 +9,7 @@
 #include <algorithm>
 
 #include <cassert>
+#include <cfloat>
 
 #include "minifloat.h"
 
@@ -105,6 +106,9 @@ static inline float decodeModern(int32_t const val) {
  * is \e legacy OpenGL (desktop pre-4.2 and ES pre-3.0, see \c encodeLegacy())
  * or modern (desktop 4.2, ES 3.0 and WebGL 2.0 onwards, see \c encodeModern()).
  *
+ * \note \a legacy only affects \c Storage#SINT08N and \c Storage#SINT16N, for
+ * all other types the result is the same.
+ *
  * \param[in] val float value to convert
  * \param[in] type storage type (and rules to follow)
  * \param[in] legacy \c true if the old encoding rules for signed normalised values from OpenGL desktop pre-4.2 should be used
@@ -123,7 +127,7 @@ static int32_t encode(float const val, VertexPacker::Storage const type, bool co
 	case VertexPacker::Storage::SINT08C:
 		return clamp<int32_t>(int32_t(round(val)), INT8_MIN, INT8_MAX);
 	case VertexPacker::Storage::UINT08N:
-		return clamp<int32_t>(int32_t(round(val) * UINT8_MAX), 0, UINT8_MAX);
+		return clamp<int32_t>(int32_t(round(val * UINT8_MAX)), 0, UINT8_MAX);
 	case VertexPacker::Storage::UINT08C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT8_MAX);
 	case VertexPacker::Storage::SINT16N:
@@ -135,7 +139,7 @@ static int32_t encode(float const val, VertexPacker::Storage const type, bool co
 	case VertexPacker::Storage::SINT16C:
 		return clamp<int32_t>(int32_t(round(val)), INT16_MIN, INT16_MAX);
 	case VertexPacker::Storage::UINT16N:
-		return clamp<int32_t>(int32_t(round(val) * UINT16_MAX), 0, UINT16_MAX);
+		return clamp<int32_t>(int32_t(round(val * UINT16_MAX)), 0, UINT16_MAX);
 	case VertexPacker::Storage::UINT16C:
 		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
 	case VertexPacker::Storage::FLOAT16:
@@ -226,44 +230,113 @@ static int32_t encode(int const val, VertexPacker::Storage const type, bool cons
 	}
 }
 
-void runTests() {
-	for (int32_t n = INT8_MIN; n < INT8_MAX; n++) {
+#ifndef NDEBUG
+/*
+ * Tests the correctness of the encoder and decoder, or at least tests that they
+ * behave as expected (since short of having a table of known values this is as
+ * good as it gets).
+ *
+ * \return \c true if the tests all ran (it would've asserted otherwise)
+ */
+static bool testEncoding() {
+	// Test all follow the same pattern, documenting only differences
+	// Signed normalised 8-bit, legacy encoding
+	float last = -1.0 - FLT_EPSILON;
+	for (int32_t n = INT8_MIN; n <= INT8_MAX; n++) {
+		// For the entire bit range, decode the normalised float
 		float   f = decode(n, VertexPacker::Storage::SINT08N, true);
-		assert(f >= -1.0 && f <= 1.0);
+		// Test that it's within the valid normalised range
+		assert(f >= -1.0f && f <= 1.0f);
+		// Test that the value continuously increases
+		assert(f > last);
+		last = f;
+		// Re-encode the float as an integer
 		int32_t i = encode(f, VertexPacker::Storage::SINT08N, true);
-		assert(n == i);
-		(void) i;
+		// Test that it is the same as the initial decoded value
+		assert(i == n);
+		// We know 'decode(i) == f' because 'n == 1' so stop
 	}
-	for (int32_t n = INT8_MIN; n < INT8_MAX; n++) {
+	assert(last == 1.0f);
+	// Unsigned normalised 8-bit, legacy and modern encoding (same codepath)
+	last = 0.0 - FLT_EPSILON;
+	for (int32_t n = 0; n <= UINT8_MAX; n++) {
+		float   f = decode(n, VertexPacker::Storage::UINT08N);
+		// For unsigned the range is now only positive
+		assert(f >= 0.0f && f <= 1.0f);
+		assert(f > last);
+		last = f;
+		int32_t i = encode(f, VertexPacker::Storage::UINT08N);
+		assert(i == n);
+	}
+	assert(last == 1.0f);
+	// Signed normalised 8-bit, modern encoding (with a few extra gotchas)
+	last = -1.0 - FLT_EPSILON;
+	for (int32_t n = INT8_MIN; n <= INT8_MAX; n++) {
 		float   f = decode(n, VertexPacker::Storage::SINT08N, false);
+		// INT8_MIN and INT8_MIN + 1 should both be the same -1.0
 		assert(f >= -1.0 && f <= 1.0);
+		// We can't test the increase until the second entry
+		if (n > INT8_MIN) {
+			assert(f > last);
+			last = f;
+		}
 		int32_t i = encode(f, VertexPacker::Storage::SINT08N, false);
+		// And again that the same value resolves twice
 		if (n == INT8_MIN) {
 			assert(i == -INT8_MAX);
 		} else {
-			assert(n == i);
+			assert(i == n);
 		}
-		(void) i;
 	}
-	for (int32_t n = INT16_MIN; n < INT16_MAX; n++) {
+	assert(last == 1.0f);
+	// Signed normalised 16-bit, legacy encoding
+	last = -1.0 - FLT_EPSILON;
+	for (int32_t n = INT16_MIN; n <= INT16_MAX; n++) {
 		float   f = decode(n, VertexPacker::Storage::SINT16N, true);
-		assert(f >= -1.0 && f <= 1.0);
+		assert(f >= -1.0f && f <= 1.0f);
+		assert(f > last);
+		last = f;
 		int32_t i = encode(f, VertexPacker::Storage::SINT16N, true);
-		assert(n == i);
-		(void) i;
+		assert(i == n);
 	}
-	for (int32_t n = INT16_MIN; n < INT16_MAX; n++) {
+	assert(last == 1.0f);
+	// Unsigned normalised 16-bit, legacy and modern encoding (same codepath)
+	last = 0.0 - FLT_EPSILON;
+	for (int32_t n = 0; n <= UINT16_MAX; n++) {
+		float   f = decode(n, VertexPacker::Storage::UINT16N, true);
+		// For unsigned the range is now only positive
+		assert(f >= 0.0f && f <= 1.0f);
+		assert(f > last);
+		last = f;
+		int32_t i = encode(f, VertexPacker::Storage::UINT16N, true);
+		assert(i == n);
+	}
+	// Signed normalised 16-bit, modern encoding
+	last = -1.0 - FLT_EPSILON;
+	for (int32_t n = INT16_MIN; n <= INT16_MAX; n++) {
 		float   f = decode(n, VertexPacker::Storage::SINT16N, false);
 		assert(f >= -1.0 && f <= 1.0);
+		if (n > INT16_MIN) {
+			assert(f > last);
+			last = f;
+		}
 		int32_t i = encode(f, VertexPacker::Storage::SINT16N, false);
 		if (n == INT16_MIN) {
 			assert(i == -INT16_MAX);
 		} else {
-			assert(n == i);
+			assert(i == n);
 		}
-		(void) i;
 	}
+	assert(last == 1.0f);
+	return last == 1.0f;
 }
+
+/*
+ * Result of the encoding test (only run during debug to detect the validity of
+ * the different data types).
+ */
+bool const ENCODE_TEST_ONE_TIME = testEncoding();
+#endif
 
 //*****************************************************************************/
 
