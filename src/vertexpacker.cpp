@@ -14,6 +14,20 @@
 #include "minifloat.h"
 
 /**
+ * Rounding function signature. This takes a float and returns the rounded
+ * equivalent, using an appropriate rounding function.
+ *
+ * \note For most cases this will be \c std::round(), unless there are specific
+ * needs (which for greedily determining the best approximation to encode a
+ * value in fewer bits, this is changed to \c std::floor() and \c std::ceil()
+ * to get the upper and lower bounds).
+ *
+ * \param[in] val value to apply rounding to
+ * \return rounded value
+ */
+typedef float (*Rounding) (float val);
+
+/**
  * Helper to constrain a value between upper and lower bounds.
  *
  * \param[in] val value to constrain
@@ -39,13 +53,14 @@ static inline T clamp(T const val, T const min, T const max) {
  *
  * \param[in] val float value to convert
  * \tparam Bits bit-depth to use (e.g. \c 8 for bytes)
+ * \tparam Round rounding function to use (for most cases this is \c std::round, the default)
  * \return \a val stored in the the specified number of bits
  *
  * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Alternate_mapping
  */
-template<int Bits>
+template<int Bits, Rounding Round=std::round>
 static inline int32_t encodeLegacy(float const val) {
-	return static_cast<int32_t>(round((val * ((1 << Bits) - 1) - 1) / 2.0f));
+	return static_cast<int32_t>(Round((val * ((1 << Bits) - 1) - 1) / 2.0f));
 }
 
 /**
@@ -75,13 +90,14 @@ static inline float decodeLegacy(int32_t const val) {
  *
  * \param[in] val float value to convert
  * \tparam Bits bit-depth to use (e.g. \c 8 for bytes)
+ * \tparam Round rounding function to use (for most cases this is \c std::round, the default)
  * \return \a val stored in the the specified number of bits
  *
  * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Signed
  */
-template<int Bits>
+template<int Bits, Rounding Round = std::round>
 static inline int32_t encodeModern(float const val) {
-	return static_cast<int32_t>(round(val * ((1 << (Bits - 1)) - 1)));
+	return static_cast<int32_t>(Round(val * ((1 << (Bits - 1)) - 1)));
 }
 
 /**
@@ -112,42 +128,44 @@ static inline float decodeModern(int32_t const val) {
  * \param[in] val float value to convert
  * \param[in] type storage type (and rules to follow)
  * \param[in] legacy \c true if the old encoding rules for signed normalised values from OpenGL desktop pre-4.2 should be used
+ * \tparam Round rounding function to use (for most cases this is \c std::round, the default)
  * \return \a val stored using \a type
  */
+template<Rounding Round = std::round>
 static int32_t encode(float const val, VertexPacker::Storage const type, bool const legacy = false) {
 	switch (type) {
 	case VertexPacker::Storage::EXCLUDE:
 		return 0;
 	case VertexPacker::Storage::SINT08N:
 		if (!legacy) {
-			return clamp<int32_t>(encodeModern<8>(val), -INT8_MAX, INT8_MAX);
+			return clamp<int32_t>(encodeModern<8, Round>(val), -INT8_MAX, INT8_MAX);
 		} else {
-			return clamp<int32_t>(encodeLegacy<8>(val),  INT8_MIN, INT8_MAX);
+			return clamp<int32_t>(encodeLegacy<8, Round>(val),  INT8_MIN, INT8_MAX);
 		}
 	case VertexPacker::Storage::SINT08C:
-		return clamp<int32_t>(int32_t(round(val)), INT8_MIN, INT8_MAX);
+		return clamp<int32_t>(int32_t(Round(val)), INT8_MIN, INT8_MAX);
 	case VertexPacker::Storage::UINT08N:
-		return clamp<int32_t>(int32_t(round(val * UINT8_MAX)), 0, UINT8_MAX);
+		return clamp<int32_t>(int32_t(Round(val * UINT8_MAX)), 0, UINT8_MAX);
 	case VertexPacker::Storage::UINT08C:
-		return clamp<int32_t>(int32_t(round(val)), 0, UINT8_MAX);
+		return clamp<int32_t>(int32_t(Round(val)), 0, UINT8_MAX);
 	case VertexPacker::Storage::SINT16N:
 		if (!legacy) {
-			return clamp<int32_t>(encodeModern<16>(val), -INT16_MAX, INT16_MAX);
+			return clamp<int32_t>(encodeModern<16, Round>(val), -INT16_MAX, INT16_MAX);
 		} else {
-			return clamp<int32_t>(encodeLegacy<16>(val),  INT16_MIN, INT16_MAX);
+			return clamp<int32_t>(encodeLegacy<16, Round>(val),  INT16_MIN, INT16_MAX);
 		}
 	case VertexPacker::Storage::SINT16C:
-		return clamp<int32_t>(int32_t(round(val)), INT16_MIN, INT16_MAX);
+		return clamp<int32_t>(int32_t(Round(val)), INT16_MIN, INT16_MAX);
 	case VertexPacker::Storage::UINT16N:
-		return clamp<int32_t>(int32_t(round(val * UINT16_MAX)), 0, UINT16_MAX);
+		return clamp<int32_t>(int32_t(Round(val * UINT16_MAX)), 0, UINT16_MAX);
 	case VertexPacker::Storage::UINT16C:
-		return clamp<int32_t>(int32_t(round(val)), 0, UINT16_MAX);
+		return clamp<int32_t>(int32_t(Round(val)), 0, UINT16_MAX);
 	case VertexPacker::Storage::FLOAT16:
 		return static_cast<int32_t>(utils::floatToHalf(val));
 	case VertexPacker::Storage::SINT32C:
-		return int32_t(clamp<long>(long(round(val)), INT32_MIN, INT32_MAX));
+		return int32_t(clamp<long>(long(Round(val)), INT32_MIN, INT32_MAX));
 	case VertexPacker::Storage::UINT32C:
-		return int32_t(clamp<long>(long(round(val)), 0, UINT32_MAX));
+		return int32_t(clamp<long>(long(Round(val)), 0, UINT32_MAX));
 	default: {
 		union {
 			float   f; // where we write
