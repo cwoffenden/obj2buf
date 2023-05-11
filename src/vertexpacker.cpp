@@ -272,7 +272,7 @@ static bool testEncoding() {
 		int32_t i = encode(f, VertexPacker::Storage::SINT08N, true);
 		// Test that it is the same as the initial decoded value
 		assert(i == n);
-		// We know 'decode(i) == f' because 'n == 1' so stop
+		// We know 'decode(i) == f' because 'i == n' so no need to test it
 	}
 	assert(last == 1.0f);
 	// Unsigned normalised 8-bit, legacy and modern encoding (same codepath)
