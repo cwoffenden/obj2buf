@@ -394,6 +394,16 @@ public:
 	};
 
 	/**
+	 * Rounding choices for doing \c #roundtrip() conversions.
+	 */
+	enum Rounding {
+		ROUND_NEAREST,  /**< Round to the nearest integral value, away from zero. */
+		ROUND_FLOOR,    /**< Round downwards. */
+		ROUND_CEILING,  /**< Round upwards. */
+		ROUND_TRUNCATE, /**< Round towards zero. */
+	};
+
+	/**
 	 * Creates a new empty packer.
 	 *
 	 * \param[in] root start of the \e block where the vertex data will be stored
@@ -458,17 +468,19 @@ public:
 	 */
 	void rewind();
 
-	/*
+	/**
 	 * Encodes \a val to \a type (optionally following the \a legacy rules for
 	 * signed values), then returns its decoded value. It allows measuring what
 	 * the error would be when considering the storage type.
 	 *
 	 * \param[in] data value to encode/decode
 	 * \param[in] type conversion and byte storage
-	 * \param[in] legacy see \c Options#OPTS_SIGNED_LEGACY
+	 * \param[in] rounding rounding choice to use (default to rounding to nearest)
+	 * \param[in] legacy see \c Options#OPTS_SIGNED_LEGACY (default is modern encoding)
+	 * \param[in] rounding rounding choice to use (default to rounding to nearest)
 	 * \return the equivalent float value with the chosen storage
 	 */
-	static float roundtrip(float const data, Storage const type, bool const legacy = false);
+	static float roundtrip(float const data, Storage const type, bool const legacy = false, Rounding rounding = ROUND_NEAREST);
 
 private:
 	VertexPacker   (const VertexPacker&) = delete; /**< Not copyable   */

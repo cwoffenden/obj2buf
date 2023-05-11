@@ -25,7 +25,7 @@
  * \param[in] val value to apply rounding to
  * \return rounded value
  */
-typedef float (*Rounding) (float val);
+typedef float (*RoundFunc) (float val);
 
 /**
  * Helper to constrain a value between upper and lower bounds.
@@ -58,7 +58,7 @@ static inline T clamp(T const val, T const min, T const max) {
  *
  * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Alternate_mapping
  */
-template<int Bits, Rounding Round=std::round>
+template<int Bits, RoundFunc Round=std::round>
 static inline int32_t encodeLegacy(float const val) {
 	return static_cast<int32_t>(Round((val * ((1 << Bits) - 1) - 1) / 2.0f));
 }
@@ -95,7 +95,7 @@ static inline float decodeLegacy(int32_t const val) {
  *
  * \sa https://www.khronos.org/opengl/wiki/Normalized_Integer#Signed
  */
-template<int Bits, Rounding Round = std::round>
+template<int Bits, RoundFunc Round = std::round>
 static inline int32_t encodeModern(float const val) {
 	return static_cast<int32_t>(Round(val * ((1 << (Bits - 1)) - 1)));
 }
@@ -131,7 +131,7 @@ static inline float decodeModern(int32_t const val) {
  * \tparam Round rounding function to use (for most cases this is \c std::round, the default)
  * \return \a val stored using \a type
  */
-template<Rounding Round = std::round>
+template<RoundFunc Round = std::round>
 static int32_t encode(float const val, VertexPacker::Storage const type, bool const legacy = false) {
 	switch (type) {
 	case VertexPacker::Storage::EXCLUDE:
@@ -479,8 +479,22 @@ void VertexPacker::rewind() {
 	next = root;
 }
 
-float VertexPacker::roundtrip(float const data, Storage const type, bool const legacy) {
-	return decode(encode(data, type, legacy), type, legacy);
+float VertexPacker::roundtrip(float const data, Storage const type, bool const legacy, Rounding rounding) {
+	int bits;
+	switch (rounding) {
+	case ROUND_NEAREST:
+		bits = encode<std::round>(data, type, legacy);
+		break;
+	case ROUND_FLOOR:
+		bits = encode<std::floor>(data, type, legacy);
+		break;
+	case ROUND_CEILING:
+		bits = encode<std::ceil >(data, type, legacy);
+		break;
+	default:
+		bits = encode<std::trunc>(data, type, legacy);
+	}
+	return decode(bits, type, legacy);
 }
 
 bool VertexPacker::hasFreeSpace(Storage const type) const {
