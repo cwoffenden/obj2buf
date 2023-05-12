@@ -299,6 +299,24 @@ static Vec2<T> run(T (* const func)(T), const Vec2<T>& vec) {
 		func(vec.y)
 	);
 }
+
+/**
+ * Helper to call \c VertexPacker#roundtrip() on a vector's components.
+ *
+ * \param[in] vec vector to encode/decode
+ * \param[in] type conversion and byte storage
+ * \param[in] rounding rounding choice to use (default to rounding to nearest)
+ * \param[in] legacy see \c Options#OPTS_SIGNED_LEGACY (default is modern encoding)
+ * \param[in] rounding rounding choice to use (default to rounding to nearest)
+ * \return a vector of the equivalent float values with the chosen storage
+ */
+/*static*/ vec2 roundtrip(const vec2& vec, VertexPacker::Storage const type, bool const legacy = false, VertexPacker::Rounding rounding = VertexPacker::ROUND_NEAREST) {
+	return vec2(
+		VertexPacker::roundtrip(vec.x, type, legacy, rounding),
+		VertexPacker::roundtrip(vec.y, type, legacy, rounding)
+	);
+}
+
 /**
  * Returns the sign of \a val with \c 0 considered as \c +1 (whereas the
  * standard \c std::sign() would return zero).
@@ -375,11 +393,23 @@ vec2 encodeOct(const vec3& vec, unsigned const bits) {
 	 * Note: the original C++ implementation wasn't tested against this for
 	 * performance, so might be better. This GLSL adaptation was written because
 	 * it's smaller, not relying on any support code that isn't already in use.
+	 *
+	 * The solution with roudtripped floor and ceiling is:
+	 *
+	 * 	vec2 start = encodeOct(vec);
+	 *	vec2 encFl = roundtrip(start, VertexPacker::Storage::SINT08N, true, VertexPacker::ROUND_FLOOR);
+	 *	vec2 encCe = roundtrip(start, VertexPacker::Storage::SINT08N, true, VertexPacker::ROUND_CEILING);
+	 *	vec2 flCeX = vec2(encFl.x, encCe.x);
+	 *	vec2 flCeY = vec2(encFl.y, encCe.y);
+	 *
+	 * Which gets used below as vec2(flCeX[u], flCeY[v]). Verified against this
+	 * existing implementation for modern encoding. It needs a solve for
+	 * float32 and float16 encoding (which the existing implementation covers).
 	 */
 	float const one = (1 << (bits - 1)) - 1.0f;
 	vec2 const base = run(std::floor, (clamp(encodeOct(vec), -1.0f, 1.0f) * one)) * (1.0f / one);
 	vec2 bestEnc = base;
-	vec3 bestDec = decodeOct(base);
+	vec3 bestDec = decodeOct(bestEnc);
 	/*
 	 * Then test the combination of floor() and ceil() to better bestDec's
 	 * angular error (from the decoded value, closest to zero, with the baseline

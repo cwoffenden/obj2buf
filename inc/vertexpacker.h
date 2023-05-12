@@ -438,6 +438,13 @@ public:
 	/**
 	 * \copydoc #add(float,Storage)
 	 */
+	Failed add(double const data, Storage const type) {
+		return add(static_cast<float>(data), type);
+	}
+
+	/**
+	 * \copydoc #add(float,Storage)
+	 */
 	Failed add(int const data, Storage const type);
 
 	/**

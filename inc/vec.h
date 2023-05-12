@@ -125,6 +125,9 @@ struct Vec2
 	operator T*() {
 		return &x;
 	}
+	operator const T*() const {
+		return &x;
+	}
 	VEC2_SIMPLE_OPERATOR_WITH_VECTOR(+)
 	VEC2_SIMPLE_OPERATOR_WITH_VECTOR(-)
 	VEC2_SIMPLE_OPERATOR_WITH_VECTOR(*)
@@ -172,6 +175,9 @@ struct Vec3
 		return *this;
 	}
 	operator T*() {
+		return &x;
+	}
+	operator const T*() const {
 		return &x;
 	}
 	/**
@@ -291,6 +297,9 @@ struct Vec4
 	operator T*() {
 		return &x;
 	}
+	operator const T*() const {
+		return &x;
+	}
 	/**
 	 * Getter for the \c x, \c y and \c z components.
 	 *
@@ -330,7 +339,10 @@ struct Mat3
 		m[2] = Vec3<T>(T(0), T(0), T(1));
 	}
 	operator T*() {
-		return m;
+		return m[0];
+	}
+	operator const T*() const {
+		return m[0];
 	}
 	/**
 	 * Sets the matrix from an angle rotating around the supplied vector,
