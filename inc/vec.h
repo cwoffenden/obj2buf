@@ -240,6 +240,7 @@ struct Vec3
 	/**
 	 * Dot product.
 	 */
+	NO_DISCARD
 	static T dot(const Vec3& a, const Vec3& b) {
 		return a.x * b.x
 			 + a.y * b.y

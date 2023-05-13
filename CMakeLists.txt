@@ -48,7 +48,7 @@ else()
 		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s SINGLE_FILE=1")
 	endif()
 	if(CMAKE_GENERATOR STREQUAL Xcode)
-		# We can only set this for Xcode, otherwise it resolves as an empty string and fails
+		# $(ARCHS_STANDARD) resolves to "" outside of Xcode so compilation fails
 		set(CMAKE_OSX_ARCHITECTURES "$(ARCHS_STANDARD)")
 	endif()
 endif()
