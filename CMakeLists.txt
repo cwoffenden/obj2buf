@@ -47,7 +47,10 @@ else()
 		set(CMAKE_EXECUTABLE_SUFFIX ".html")
 		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s SINGLE_FILE=1")
 	endif()
-	set(CMAKE_OSX_ARCHITECTURES "$(ARCHS_STANDARD)")
+	if(CMAKE_GENERATOR STREQUAL Xcode)
+		# We can only set this for Xcode, otherwise it resolves as an empty string and fails
+		set(CMAKE_OSX_ARCHITECTURES "$(ARCHS_STANDARD)")
+	endif()
 endif()
 
 file(GLOB INCS "inc/*.h")
