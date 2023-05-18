@@ -1,7 +1,5 @@
-mtllib teapot.mtl
-
 #
-# object Teapot001
+# object Teapot (4096 faces)
 #
 
 v  7.0000000 12.0000000 -0.0000000
@@ -5302,8 +5300,8 @@ vt 0.4375000 0.9874999 0.0000000
 vt 0.4375000 0.9999999 0.0000000
 # 1129 texture coords
 
-o Teapot001
-g Teapot001
+o Teapot
+g Teapot
 s 2
 f 1/1/1 2/2/2 3/3/3 
 f 3/3/3 4/4/4 1/1/1 

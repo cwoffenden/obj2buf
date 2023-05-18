@@ -122,6 +122,9 @@ struct Vec2
 		y = val;
 		return *this;
 	}
+	bool operator ==(const Vec2& vec) const {
+		return x == vec.x && y == vec.y;
+	}
 	operator T*() {
 		return &x;
 	}
@@ -173,6 +176,9 @@ struct Vec3
 		y = val;
 		z = val;
 		return *this;
+	}
+	bool operator ==(const Vec3& vec) const {
+		return x == vec.x && y == vec.y && z == vec.z;
 	}
 	operator T*() {
 		return &x;
@@ -252,9 +258,9 @@ struct Vec3
 	NO_DISCARD
 	static Vec3 cross(const Vec3& lhs, const Vec3& rhs) {
 		return Vec3(
-			lhs.y * rhs.z - lhs.z - rhs.y,
-			lhs.z * rhs.x - lhs.x - rhs.z,
-			lhs.x * rhs.y - lhs.y - rhs.x
+			lhs.y * rhs.z - lhs.z * rhs.y,
+			lhs.z * rhs.x - lhs.x * rhs.z,
+			lhs.x * rhs.y - lhs.y * rhs.x
 		);
 	}
 	/**

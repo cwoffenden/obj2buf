@@ -1,7 +1,5 @@
-mtllib sphere.mtl
-
 #
-# object GeoSphere001
+# object GeoSphere (720 faces)
 #
 
 v  0.0000000 20.0000000 -0.0000000
@@ -1121,8 +1119,8 @@ vt 0.4787953 0.2619143 9.9999981
 vt 0.4377124 0.2729419 9.9999990
 # 387 texture coords
 
-o GeoSphere001
-g GeoSphere001
+o GeoSphere
+g GeoSphere
 s 1
 f 1/1/1 2/2/2 3/3/3 
 f 2/2/2 4/4/4 5/5/5 

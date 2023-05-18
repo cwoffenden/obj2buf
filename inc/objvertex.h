@@ -67,9 +67,10 @@ struct ObjVertex
 	 * \param[in,out] verts collection of triangles
 	 * \param[in] tans \c true if tangents should also be converted
 	 * \param[in] btan \c true if bitangents should also be converted
-	 * \param[in] bits bit-depth the encoded value will be stored in (e.g. \c 8 for byte storage)
+	 * \param[in] type conversion and byte storage
+	 * \param[in] legacy see \c VertexPacker::Options#OPTS_SIGNED_LEGACY (default is modern encoding)
 	 */
-	static void encodeNormals(Container& verts, bool const tans, bool const btan, unsigned const bits);
+	static void encodeNormals(Container& verts, VertexPacker::Storage norm, VertexPacker::Storage tans, bool const btan, bool const legacy = false);
 
 	//*************************************************************************/
 

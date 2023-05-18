@@ -14,6 +14,22 @@
 #include "minifloat.h"
 
 /**
+ * \def INT10_MAX
+ * Custom limit for the internal \c VertexPacker::Storage::SINT10N.
+ */
+#ifndef INT10_MAX
+#define INT10_MAX ((1 << (10 - 1)) - 1)
+#endif
+
+ /**
+  * \def INT23_MAX
+  * Custom limit for the internal \c VertexPacker::Storage::SINT23N.
+  */
+#ifndef INT23_MAX
+#define INT23_MAX ((1 << (23 - 1)) - 1)
+#endif
+
+/**
  * Rounding function signature. This takes a float and returns the rounded
  * equivalent, using an appropriate rounding function.
  *
@@ -166,13 +182,19 @@ static int32_t encode(float const val, VertexPacker::Storage const type, bool co
 		return int32_t(clamp<long>(long(Round(val)), INT32_MIN, INT32_MAX));
 	case VertexPacker::Storage::UINT32C:
 		return int32_t(clamp<long>(long(Round(val)), 0, UINT32_MAX));
-	default: {
+	case VertexPacker::Storage::FLOAT32: {
 		union {
 			float   f; // where we write
 			int32_t i; // where we read
-		} temp = {val};
+		} temp = { val };
 		return temp.i;
 	}
+	case VertexPacker::Storage::SINT10N:
+		return clamp<int32_t>(encodeModern<10, Round>(val), -INT10_MAX, INT10_MAX);
+	case VertexPacker::Storage::SINT23N:
+		return clamp<int32_t>(encodeModern<23, Round>(val), -INT23_MAX, INT23_MAX);
+	default:
+		return 0;
 	}
 }
 
@@ -180,7 +202,7 @@ static int32_t encode(float const val, VertexPacker::Storage const type, bool co
  * Performs the inverse of \c encodeLegacy(float,VertexPacker::Storage),
  * extracting an encoded float from integer bits.
  */
-/*static*/ float decode(int32_t const val, VertexPacker::Storage const type, bool const legacy = false) {
+static float decode(int32_t const val, VertexPacker::Storage const type, bool const legacy = false) {
 	switch (type) {
 	case VertexPacker::Storage::EXCLUDE:
 		return 0.0f;
@@ -210,6 +232,21 @@ static int32_t encode(float const val, VertexPacker::Storage const type, bool co
 		return static_cast<float>(clamp<int32_t>(val, 0, UINT16_MAX));
 	case VertexPacker::Storage::FLOAT16:
 		return utils::halfToFloat(static_cast<utils::float16>(val));
+	case VertexPacker::Storage::SINT32C:
+		return static_cast<float>(val);
+	case VertexPacker::Storage::UINT32C:
+		return static_cast<float>(static_cast<uint32_t>(val));
+	case VertexPacker::Storage::FLOAT32: {
+		union {
+			int32_t i; // where we write
+			float   f; // where we read
+		} temp = { val };
+		return temp.f;
+	}
+	case VertexPacker::Storage::SINT10N:
+		return decodeModern<10>(clamp<int32_t>(val, -INT10_MAX, INT10_MAX));
+	case VertexPacker::Storage::SINT23N:
+		return decodeModern<23>(clamp<int32_t>(val, -INT23_MAX, INT23_MAX));
 	default:
 		return 0.0f;
 	}

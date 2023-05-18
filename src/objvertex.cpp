@@ -10,6 +10,17 @@
 #include "mikktspace.h"
 
 /**
+ * \def O2B_ATAN2_ERROR
+ * Chooses which error calculation to use for angular error. The more accurate
+ * with small differences is \c atan2 (otherwise the \c dot product is taken).
+ *
+ * \note \c atan2 is the clear winner, leaving the choice only for testing.
+ */
+#ifndef O2B_ATAN2_ERROR
+#define O2B_ATAN2_ERROR
+#endif
+
+/**
  * Utility functions to bridge between \c ObjVertex and \e MikkTSpace. These are
  * all internal to this implementation and only \c ObjVertex#generateTangents()
  * should be used.
@@ -222,32 +233,34 @@ public:
 	 */
 	void add(const vec3& a, const vec3& b) {
 		/*
-		 * Notes: float rounding errors can product a dot product greater than
-		 * one; none of the angles should be larger than 90 degrees (even at
-		 * 4-bit precision the maximum error is approx 10 degrees).
+		 * Notes: (1) float rounding errors can produce a dot product greater
+		 * than one; (2) none of the angles should be larger than 90 degrees
+		 * (even at 4-bit precision the maximum error is approx 10 degrees).
 		 *
-		 * Note: we're currently clamping the dot product but what about
-		 * measuring these greater than 1.0 errors? We do this when tuning the
-		 * precision. Something like:
+		 * Experimentation shows that atan2() is a better match for these small
+		 * angular differences. Earlier code used to be:
 		 *
-		 *	dot = 1.0f - std::abs(1.0f - dot);
+		 *	rad = std::acos(std::min(vec3::dot(a, b), 1.0f));
 		 *
-		 * This would add a penalty for these errors too.
+		 * Which works, but see below for a detailed description.
 		 */
-		float dot = vec3::dot(a, b);
-		float rad = std::acos(std::min(dot, 1.0f));
+	#ifdef O2B_ATAN2_ERROR
+		float rad = std::atan2(vec3::cross(a, b).len(), vec3::dot(a, b));
+	#else
+		float rad = std::acos(std::min(vec3::dot(a, b), 1.0f));
+	#endif
 		float deg = rad * 180.0f / float(M_PI);
 		sumAbs += deg;
 		maxAbs = std::max(maxAbs, deg);
 		count++;
 	}
 	/**
-	 * Prints the average and maximum errors.
+	 * Prints the mean and maximum errors.
 	 *
 	 * \param[in] name title to prefix the output, e.g. \c error
 	 */
 	void print(const char* const name) const {
-		printf("%s: average: %0.5f, maximum: %0.5f (all in degrees)\n", name, sumAbs / count, maxAbs);
+		printf("%s: mean: %0.5f, max: %0.5f (all in degrees)\n", name, sumAbs / count, maxAbs);
 	}
 private:
 	float sumAbs;   /**< Absolute sum of the entries added. */
@@ -317,6 +330,8 @@ static Vec2<T> run(T (* const func)(T), const Vec2<T>& vec) {
 	);
 }
 
+//******************************* Oct Encoding ********************************/
+
 /**
  * Returns the sign of \a val with \c 0 considered as \c +1 (whereas the
  * standard \c std::sign() would return zero).
@@ -363,79 +378,81 @@ vec3 decodeOct(const vec2& enc) {
  * Performs \c encodeOct() optimising for a more precise decode knowing the
  * number of bits the result will be stored in.
  *
- * \note The \e modern approach to storing signed values is used, e.g. for a
- * bit-depth of \c 8 the range is \c -127 to \c +127 preserving zero.
- *
  * \note Whilst this is designed for normalised ints it also improves encoding
- * for floats. Pass in \c 23 as the number of \a bits (the fraction bits for a
- * 32-bit float) and it will significantly reduce the average error. Use \c 10
- * for half-floats.
- *
- * \todo is it worth adding a choice to use the legacy storage? Yes.
+ * for floats, converting using the internal \c SINT10N and \c SINT23N types
+ * (significantly improving the decoded precision).
  *
  * \param[in] vec normal vector (the emphasis on this being normalised)
- * \param[in] bits bit-depth the encoded value will be stored in (e.g. \c 8 for byte storage)
+ * \param[in] type conversion and byte storage
+ * \param[in] legacy see \c VertexPacker::Options#OPTS_SIGNED_LEGACY (default is modern encoding)
  * \return encoded normal
  */
-vec2 encodeOct(const vec3& vec, unsigned const bits) {
-	if (bits == 0) {
+vec2 encodeOct(const vec3& vec, VertexPacker::Storage type, bool const legacy = false) {
+	if (!type) {
 		return encodeOct(vec);
 	}
 	/*
-	 * This is adapted from float32x3_to_octn_precise() in the Survey paper at
-	 * the top, from the GLSL code instead of the C++ implementation, operating
-	 * on the data as floats instead of the float-bits (flip-flopping between
-	 * the floor() and ceil() for the two components).
-	 *
-	 * Start with the signed normalised value of one (for the given bit-depth),
-	 * and calculate the base (floor) from which other variants will be created.
-	 *
-	 * Note: the original C++ implementation wasn't tested against this for
-	 * performance, so might be better. This GLSL adaptation was written because
-	 * it's smaller, not relying on any support code that isn't already in use.
-	 *
-	 * The solution with roudtripped floor and ceiling is:
-	 *
-	 * 	vec2 start = encodeOct(vec);
-	 *	vec2 encFl = roundtrip(start, VertexPacker::Storage::SINT08N, true, VertexPacker::ROUND_FLOOR);
-	 *	vec2 encCe = roundtrip(start, VertexPacker::Storage::SINT08N, true, VertexPacker::ROUND_CEILING);
-	 *	vec2 flCeX = vec2(encFl.x, encCe.x);
-	 *	vec2 flCeY = vec2(encFl.y, encCe.y);
-	 *
-	 * Which gets used below as vec2(flCeX[u], flCeY[v]). Verified against this
-	 * existing implementation for modern encoding. It needs a solve for
-	 * float32 and float16 encoding (which the existing implementation covers).
+	 * This has been through various implmentations, starting with an adaptation
+	 * of float32x3_to_octn_precise() in the Survey paper at the top, though
+	 * from the GLSL code instead of the C++ implementation, before taking this
+	 * approach, similar in that it starts with the floor(), then extended to
+	 * work with many encoding types (including legacy GL). Documented in-line.
 	 */
-	float const one = (1 << (bits - 1)) - 1.0f;
-	vec2 const base = run(std::floor, (clamp(encodeOct(vec), -1.0f, 1.0f) * one)) * (1.0f / one);
-	vec2 bestEnc = base;
-	vec3 bestDec = decodeOct(bestEnc);
+	// The encoded oct at float32 precision
+	vec2 const hires = encodeOct(vec);
+	// Special-case 'type' for floats (to treat the mantissa bits as a normalised int)
+	VertexPacker::Storage rtType;
+	switch (type) {
+	case VertexPacker::Storage::FLOAT16:
+		rtType = VertexPacker::Storage::SINT10N;
+		break;
+	case VertexPacker::Storage::FLOAT32:
+		rtType = VertexPacker::Storage::SINT23N;
+		break;
+	default:
+		rtType = type;
+	}
+	// Roundtrip the high precision encoding to floor and ceiling lower precision
+	vec2 const encFloor = roundtrip(hires, rtType, legacy, VertexPacker::ROUND_FLOOR);
+	vec2 const encCeil  = roundtrip(hires, rtType, legacy, VertexPacker::ROUND_CEILING);
+	// Then repackage the floor/ceiling to enable more convenient selection
+	vec2 const flrCeilX = vec2(encFloor.x, encCeil.x);
+	vec2 const flrCeilY = vec2(encFloor.y, encCeil.y);
 	/*
-	 * Then test the combination of floor() and ceil() to better bestDec's
-	 * angular error (from the decoded value, closest to zero, with the baseline
-	 * as u & v = 0).
+	 * Then, starting with the floor, test the combination of floor and ceil to
+	 * better bestDec's angular error (from the decoded value, closest to zero).
 	 *
 	 * From the original paper: no attempt is made to wrap the oct boundaries,
 	 * but since this should be a worse encoding (when decoded) it will never
 	 * class as best.
 	 */
-	float bestErr = std::abs(1.0f - vec3::dot(bestDec, vec));
+	vec2 bestEnc = encFloor;
+	vec3 bestDec = decodeOct(bestEnc);
+#ifdef O2B_ATAN2_ERROR
+	float bestErr = std::atan2(vec3::cross(vec, bestDec).len(), vec3::dot(vec, bestDec));
+#else
+	float bestErr = std::max(1.0f - vec3::dot(vec, bestDec), 0.0f);
+#endif
 	float bestLen = std::abs(1.0f - bestDec.len());
 	for (unsigned u = 0; u < 2; u++) {
 		for (unsigned v = 0; v < 2; v++) {
 			if ((u != 0) || (v != 0)) {
-				/*
-				 * We're adding (or not) the LSB (e.g. 1/127th for 8-bits)
-				 * before testing the angular error. We pick the best angular
-				 * error (closest to zero) and if we have a tie, the closest to
-				 * unit length (best difference from 1.0).
-				 */
-				vec2  testEnc = (vec2(float(u), float(v)) * (1.0f / one)) + base;
+				vec2  testEnc = vec2(flrCeilX[u], flrCeilY[v]);
 				vec3  testDec = decodeOct(testEnc);
-				float testErr = std::abs(1.0f - vec3::dot(testDec, vec));
+			#ifdef O2B_ATAN2_ERROR
+				float testErr = std::atan2(vec3::cross(vec, testDec).len(), vec3::dot(vec, testDec));
+			#else
+				float testErr = std::max(1.0f - vec3::dot(vec, testDec), 0.0f);
+			#endif
 				if (testErr <= bestErr) {
 					float testLen = std::abs(1.0f - testDec.len());
 					if (testErr == bestErr) {
+						/*
+						 * Notes on this: refining on the unit length doesn't
+						 * affect the angular error, and using atan2 over the
+						 * dot it takes until 23-bit encoding before see it used
+						 * (otherwise it's a negligible percentage).
+						 */
 						if (testLen < bestLen) {
 							bestEnc = testEnc;
 							bestLen = testLen;
@@ -443,6 +460,7 @@ vec2 encodeOct(const vec3& vec, unsigned const bits) {
 					} else {
 						bestEnc = testEnc;
 						bestLen = testLen;
+						bestErr = testErr;
 					}
 				}
 			}
@@ -455,15 +473,17 @@ zeroed:
 	return bestEnc;
 }
 
+//*****************************************************************************/
+
 /**
  * Helper to copy FBX vertex data to our internal vector. A check is made to
  * verify the vertex data are valid, then the face index converted to its vertex
  * equivalent, finally the elements are copied. The destination is zeroed if no
  * source data exists.
  *
- * \param[in] src source 2D vertex vector
+ * \param[in] src source vertex vector
  * \param[in] idx source face index
- * \param[out] dst destination 2D vector
+ * \param[out] dst destination vector
  * \return \c true if the vertex type has data
  */
 bool copyVec(const ufbx_vertex_vec2& src, size_t const idx, vec2& dst) {
@@ -478,15 +498,7 @@ bool copyVec(const ufbx_vertex_vec2& src, size_t const idx, vec2& dst) {
 	return false;
 }
 /**
- * Helper to copy FBX vertex data to our internal vector. A check is made to
- * verify the vertex data are valid, then the face index converted to its vertex
- * equivalent, finally the elements are copied. The destination is zeroed if no
- * source data exists.
- *
- * \param[in] src source 3D vertex vector
- * \param[in] idx source face index
- * \param[out] dst destination 3D vector
- * \return \c true if the vertex type has data
+ * \copydoc copyVec(const ufbx_vertex_vec2&,size_t,vec2&)
  */
 bool copyVec(const ufbx_vertex_vec3& src, size_t const idx, vec3& dst) {
 	if (src.exists) {
@@ -560,14 +572,14 @@ bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
 	return genTangSpaceDefault(&mCtx) != 0;
 }
 
-void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan, unsigned const bits) {
+void ObjVertex::encodeNormals(Container& verts, VertexPacker::Storage norm, VertexPacker::Storage tans, bool const btan, bool const legacy) {
 #ifndef NDEBUG
 	impl::Accumulator normErr;
 	impl::Accumulator tansErr;
 	impl::Accumulator btanErr;
 #endif
 	for (Container::iterator it = verts.begin(); it != verts.end(); ++it) {
-		vec2 enc = impl::encodeOct(it->norm, bits);
+		vec2 enc = impl::encodeOct(it->norm, norm, legacy);
 	#ifndef NDEBUG
 		normErr.add(it->norm, impl::decodeOct(enc));
 	#endif
@@ -575,7 +587,7 @@ void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan
 		it->norm.y = enc.y;
 		it->norm.z = 0.0f;
 		if (tans) {
-			enc = impl::encodeOct(it->tans, bits);
+			enc = impl::encodeOct(it->tans, tans, legacy);
 		#ifndef NDEBUG
 			tansErr.add(it->tans, impl::decodeOct(enc));
 		#endif
@@ -583,7 +595,7 @@ void ObjVertex::encodeNormals(Container& verts, bool const tans, bool const btan
 			it->tans.y = enc.y;
 			it->tans.z = 0.0f;
 			if (btan) {
-				enc = impl::encodeOct(it->btan, bits);
+				enc = impl::encodeOct(it->btan, tans, legacy);
 			#ifndef NDEBUG
 				btanErr.add(it->btan, impl::decodeOct(enc));
 			#endif

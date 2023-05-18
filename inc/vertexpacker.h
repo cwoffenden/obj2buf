@@ -138,6 +138,21 @@ public:
 			 * consecutive bytes.
 			 */
 			FLOAT32,
+
+			//************************ Internal Types ************************/
+
+			/**
+			 * Internal signed 10-bit integer. The intended use is to either \c
+			 * roundtrip() half-precision \c #FLOAT16 when the range is \c -1.0
+			 * to \c 1.0, or for composing \c 10_10_10_2 signed formats.
+			 */
+			SINT10N,
+			/**
+			 * Internal signed 23-bit integer. The intended use is to \c
+			 * roundtrip() single-precision \c #FLOAT32 when the range is \c -1.0
+			 * to \c 1.0.
+			 */
+			SINT23N,
 		};
 
 		/**
@@ -203,6 +218,7 @@ public:
 			case UINT16N:
 			case UINT16C:
 			case FLOAT16:
+			case SINT10N:
 				return 2;
 			default:
 				return 4;
@@ -331,6 +347,8 @@ public:
 			case UINT08N:
 			case SINT16N:
 			case UINT16N:
+			case SINT10N:
+			case SINT23N:
 				return true;
 			default:
 				return false;
@@ -354,8 +372,10 @@ public:
 			case UINT16N:
 				return 16;
 			case FLOAT16:
+			case SINT10N:
 				return 10;
 			case FLOAT32:
+			case SINT23N:
 				return 23;
 			default:
 				return 0;

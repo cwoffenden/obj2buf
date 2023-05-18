@@ -77,9 +77,8 @@ int main(int argc, const char* argv[]) {
 	}
 	// In-place normals/tangents/bitangents encode (into the X/Y components)
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_NORMALS_ENCODED)) {
-		ObjVertex::encodeNormals(mesh.verts, tans,
-			!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN),
-				std::max(opts.norm.fractionBits(), opts.tans.fractionBits()));
+		ObjVertex::encodeNormals(mesh.verts, opts.norm, opts.tans,
+			!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN));
 	}
 	// Then the various optimisations
 	mesh.optimise();
