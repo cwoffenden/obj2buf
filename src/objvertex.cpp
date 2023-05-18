@@ -323,7 +323,7 @@ static Vec2<T> run(T (* const func)(T), const Vec2<T>& vec) {
  * \param[in] rounding rounding choice to use (default to rounding to nearest)
  * \return a vector of the equivalent float values with the chosen storage
  */
-/*static*/ vec2 roundtrip(const vec2& vec, VertexPacker::Storage const type, bool const legacy = false, VertexPacker::Rounding rounding = VertexPacker::ROUND_NEAREST) {
+static vec2 roundtrip(const vec2& vec, VertexPacker::Storage const type, bool const legacy = false, VertexPacker::Rounding rounding = VertexPacker::ROUND_NEAREST) {
 	return vec2(
 		VertexPacker::roundtrip(vec.x, type, legacy, rounding),
 		VertexPacker::roundtrip(vec.y, type, legacy, rounding)
