@@ -251,7 +251,15 @@ VertexPacker::Failed BufferLayout::writeVertex(VertexPacker& packer, const ObjVe
 		}
 	}
 	if (btan) {
-		if (packTans == PACK_NONE && packSign == PACK_NONE) {
+		/*
+		 * The design looks to have originally been 'packTans' is for tangents
+		 * and bitangent, since from the command-line they both take the same
+		 * type. Then somewhere along the way tangents were packed in the
+		 8 normals, so this needs a little work.
+		 *
+		 * TODO: as above, this is unfinished
+		 */
+		if (/*packTans == PACK_NONE &&*/ packSign == PACK_NONE) {
 			failed |= store(vertex.btan, packer, btan.storage, btan.components == 2);
 			if (btan.unaligned) {
 				failed |= packer.align(base);
