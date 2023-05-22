@@ -74,6 +74,8 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 		 * sign, but *encoded* can also fit the encoded tangents into Z & W
 		 * (note the 'true' to force the packing). The type should always be
 		 * signed.
+		 *
+		 * TODO: we only fit the encoded tangents *if* they're of the same type *and* (preferably) bitangents aren't stored as sign
 		 */
 		norm.fill(opts.norm, offset, (hasEncNormals) ? 2 : 3);
 		if (hasTansPacked && hasEncNormals) {
@@ -91,6 +93,8 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 		 * pack the bitangents sign but not the bitangents (simply because, if
 		 * we've made it to here with unpacked items the formats chosen aren't
 		 * packable).
+		 *
+		 * TODO: if tangents aren't the same type as normals then it is preferable to pack them here (since they're the same type)
 		 */
 		if (packTans == PACK_NONE) {
 			tans.fill(opts.tans, offset, (hasEncNormals) ? 2 : 3);
@@ -105,6 +109,8 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 			 * bitangents will go. We write standalone with the following
 			 * components: 1, the sign, 2 encoded, or 3 unencoded. Worst case is
 			 * the sign and 3 bytes of padding.
+			 *
+			 * TODO: see above, there are places to pack them
 			 */
 			btan.fill(opts.tans, offset, (hasBitansSign) ? 1 : ((hasEncNormals) ? 2 : 3));
 			offset += btan.getAlignedSize();

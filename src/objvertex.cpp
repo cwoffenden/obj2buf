@@ -517,6 +517,9 @@ bool copyVec(const ufbx_vertex_vec3& src, size_t const idx, vec3& dst) {
 //*****************************************************************************/
 
 ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
+	/*
+	 * TODO: if adding vertex colours to FBX (would need migrating to 'tinyobjloader')
+	 */
 	posn.x = obj->positions[idx->p * 3 + 0];
 	posn.y = obj->positions[idx->p * 3 + 1];
 	posn.z = obj->positions[idx->p * 3 + 2];
@@ -542,6 +545,9 @@ ObjVertex::ObjVertex(ufbx_mesh* fbx, size_t const idx) {
 	 *
 	 * Note: we're currently reading this but then ignoring any tangents (since
 	 * at a first glance they weren't correct) and recreating them.
+	 *
+	 * TODO: extract (and support) tex1 from ufbx_uv_set_list
+	 * TODO: add support for vertex_color
 	 */
 	impl::copyVec(fbx->vertex_position,  idx, posn);
 	impl::copyVec(fbx->vertex_uv,        idx, tex0);
