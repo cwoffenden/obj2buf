@@ -81,6 +81,7 @@ int main(int argc, const char* argv[]) {
 			!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN));
 	}
 	// Then the various optimisations
+	// TODO: if we want to compare meshes, this needs to go before in-place changes
 	mesh.optimise();
 	printf("\n");
 	printf("Vertices:  %d\n", static_cast<int>(mesh.verts.size()));

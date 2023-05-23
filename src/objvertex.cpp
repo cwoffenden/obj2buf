@@ -518,7 +518,11 @@ bool copyVec(const ufbx_vertex_vec3& src, size_t const idx, vec3& dst) {
 
 ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	/*
-	 * TODO: if adding vertex colours to FBX (would need migrating to 'tinyobjloader')
+	 * Note: Max's default .obj exporter writes all floats at four decimal
+	 * places, so the normals benefit from renormalising (plus any encoding is
+	 * off if we don't).
+	 *
+	 * TODO: migrating to 'tinyobjloader' since it support vertex colours and multiple UVs
 	 */
 	posn.x = obj->positions[idx->p * 3 + 0];
 	posn.y = obj->positions[idx->p * 3 + 1];
@@ -531,10 +535,6 @@ ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	tans   = 0.0f;
 	btan   = 0.0f;
 	sign   = 0.0f;
-	/*
-	 * Max's default .obj exporter writes all floats at four decimal places, so
-	 * the normals benefit from renormalising (plus any encoding is off too).
-	 */
 	norm   = norm.normalize();
 }
 
