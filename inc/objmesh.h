@@ -45,6 +45,17 @@ public:
 	bool load(const char* const srcPath, bool const genTans, bool const flipG);
 
 	/**
+	 * Run meshopt's various optimisation processes (namely vertex cache,
+	 * overdraw and vertex vetch optimisations).
+	 *
+	 * \note meshopt's docs say to run these after indexing (performed in the
+	 * load) and before quantisation, of which \c #normalise() could be
+	 * considered a form (though normalising with a uniform scale whilst
+	 * maintaining the mesh's own origin should barely alter the positions).
+	 */
+	void optimise();
+
+	/**
 	 * Scale the mesh positions so that each is normalised between \c -1 and \c 1.
 	 *
 	 * \param[in] uniform \c true if the same scale should be applied to all axes (otherwise a per-axis scale is applied)
@@ -53,13 +64,13 @@ public:
 	void normalise(bool const uniform, bool const unbiased);
 
 	/**
-	 * Run meshopt's various processes (namely vertex cache, overdraw and vertex
-	 * vetch optimisations).
-	 */
-	void optimise();
-
-	/**
 	 * Resizes the buffers (usually as a prelude to filling them).
+	 *
+	 * \note This is internal to the loading process, exposed due to helper
+	 * functions, and should not be called directly.
+	 *
+	 * \param[in] numVerts new size of the vertex buffer (in vertex entries)
+	 * \param[in] numIndex new size of the index buffer (in indices)
 	 */
 	void resize(size_t const numVerts, size_t const numIndex);
 

@@ -70,6 +70,8 @@ int main(int argc, const char* argv[]) {
 		fprintf(stderr, "Unable to read: %s\n", (srcPath) ? srcPath : "null");
 		return EXIT_FAILURE;
 	}
+	// Vertex cache, overdraw, and vertex fetch optimisations (see function notes)
+	mesh.optimise();
 	// Perform an in-place scale/bias if requested
 	if (O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_POSITIONS_SCALE)) {
 		mesh.normalise(O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_SCALE_UNIFORM),
@@ -80,9 +82,6 @@ int main(int argc, const char* argv[]) {
 		ObjVertex::encodeNormals(mesh.verts, opts.norm, opts.tans,
 			!O2B_HAS_OPT(opts.opts, ToolOptions::OPTS_BITANGENTS_SIGN));
 	}
-	// Then the various optimisations
-	// TODO: if we want to compare meshes, this needs to go before in-place changes
-	mesh.optimise();
 	printf("\n");
 	printf("Vertices:  %d\n", static_cast<int>(mesh.verts.size()));
 	printf("Indices:   %d\n", static_cast<int>(mesh.index.size()));

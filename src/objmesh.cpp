@@ -227,6 +227,12 @@ bool ObjMesh::load(const char* const srcPath, bool const genTans, bool const fli
 	return loaded;
 }
 
+void ObjMesh::optimise() {
+	meshopt_optimizeVertexCache(index.data(), index.data(), index.size(), verts.size());
+	meshopt_optimizeOverdraw   (index.data(), index.data(), index.size(), verts[0].posn, verts.size(), sizeof(ObjVertex), 1.01f /*allow 1% worse ACMR*/);
+	meshopt_optimizeVertexFetch(verts.data(), index.data(), index.size(), verts.data(),  verts.size(), sizeof(ObjVertex));
+}
+
 void ObjMesh::normalise(bool const uniform, bool const unbiased) {
 	// Get min and max for each component
 	vec3 minPosn({ FLT_MAX,  FLT_MAX,  FLT_MAX});
@@ -254,12 +260,6 @@ void ObjMesh::normalise(bool const uniform, bool const unbiased) {
 	for (std::vector<ObjVertex>::iterator it = verts.begin(); it != verts.end(); ++it) {
 		it->posn = (it->posn - bias) / scale;
 	}
-}
-
-void ObjMesh::optimise() {
-	meshopt_optimizeVertexCache(index.data(), index.data(), index.size(), verts.size());
-	meshopt_optimizeOverdraw   (index.data(), index.data(), index.size(), verts[0].posn, verts.size(), sizeof(ObjVertex), 1.01f);
-	meshopt_optimizeVertexFetch(verts.data(), index.data(), index.size(), verts.data(),  verts.size(), sizeof(ObjVertex));
 }
 
 void ObjMesh::resize(size_t const numVerts, size_t const numIndex) {
