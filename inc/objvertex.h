@@ -79,6 +79,7 @@ struct ObjVertex
 	vec3 norm; /**< Normals (from the \c .obj file). */
 	vec3 tans; /**< Tangents (generated if needed). */
 	vec3 btan; /**< Bitangents (generated if needed). */
+	vec4 rgba; /**< Vertex colours (standard only in the FBX file). */
 	/**
 	 * An alternative to storing the bitangents is to recreate them from:
 	 * \code

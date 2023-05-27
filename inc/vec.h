@@ -294,6 +294,7 @@ struct Vec4
 	T y;
 	T z;
 	T w;
+	Vec4() {}
 	Vec4& operator =(T const val) {
 		x = val;
 		y = val;

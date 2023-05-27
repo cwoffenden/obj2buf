@@ -512,6 +512,22 @@ bool copyVec(const ufbx_vertex_vec3& src, size_t const idx, vec3& dst) {
 	}
 	return false;
 }
+/**
+ * \copydoc copyVec(const ufbx_vertex_vec2&,size_t,vec2&)
+ */
+bool copyVec(const ufbx_vertex_vec4& src, size_t const idx, vec4& dst) {
+	if (src.exists) {
+		ufbx_vec4& vec = src.values.data[src.indices.data[idx]];
+		dst.x = static_cast<float>(vec.x);
+		dst.y = static_cast<float>(vec.y);
+		dst.z = static_cast<float>(vec.z);
+		dst.w = static_cast<float>(vec.w);
+		return true;
+	} else {
+		dst   = 0.0f;
+	}
+	return false;
+}
 }
 
 //*****************************************************************************/
@@ -543,17 +559,18 @@ ObjVertex::ObjVertex(ufbx_mesh* fbx, size_t const idx) {
 	 * Initial attempt at this: all vertex data are copied, zeroing if they
 	 * don't exist (no effort has been made so far to generate missing data).
 	 *
-	 * Note: we're currently reading this but then ignoring any tangents (since
-	 * at a first glance they weren't correct) and recreating them.
+	 * Note: we're recreating tangents (1. because they have the wrong
+	 * orientation and need correcting, and 2. so that we have the same
+	 * MikkTSpace calculations throughout).
 	 *
 	 * TODO: extract (and support) tex1 from ufbx_uv_set_list
-	 * TODO: add support for vertex_color
 	 */
 	impl::copyVec(fbx->vertex_position,  idx, posn);
 	impl::copyVec(fbx->vertex_uv,        idx, tex0);
 	impl::copyVec(fbx->vertex_normal,    idx, norm);
-	impl::copyVec(fbx->vertex_tangent,   idx, tans);
-	impl::copyVec(fbx->vertex_bitangent, idx, btan);
+	impl::copyVec(fbx->vertex_color,     idx, rgba);
+	tans = 0.0f;
+	btan = 0.0f;
 	sign = 0.0f;
 }
 
