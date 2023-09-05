@@ -19,7 +19,7 @@ jobs:
       BUILD_PATH: ${{ github.workspace }}/out/web/${{ matrix.type }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: mymindstorm/setup-emsdk@v12
 
     - name: Test Emscripten
