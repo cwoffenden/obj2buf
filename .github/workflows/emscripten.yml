@@ -20,7 +20,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - uses: mymindstorm/setup-emsdk@v12
+    - uses: mymindstorm/setup-emsdk@v13
 
     - name: Test Emscripten
       run: emcc -v
