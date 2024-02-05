@@ -62,6 +62,7 @@ set(SRCS ${SRCS}
 	"src/meshopt/indexgenerator.cpp"
 #	"src/meshopt/overdrawanalyzer.cpp"
 	"src/meshopt/overdrawoptimizer.cpp"
+#	"src/meshopt/quantization.cpp"
 #	"src/meshopt/simplifier.cpp"
 #	"src/meshopt/spatialorder.cpp"
 #	"src/meshopt/stripifier.cpp"
