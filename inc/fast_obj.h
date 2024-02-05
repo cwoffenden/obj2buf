@@ -65,6 +65,9 @@ typedef struct
     float                       d;      /* Disolve (alpha) */
     int                         illum;  /* Illumination model */
 
+    /* Set for materials that don't come from the associated mtllib */
+    int                         fallback;
+
     /* Texture maps */
     fastObjTexture              map_Ka;
     fastObjTexture              map_Kd;
@@ -122,6 +125,9 @@ typedef struct
 
     unsigned int                normal_count;
     float*                      normals;
+
+    unsigned int                color_count;
+    float*                      colors;
 
     /* Face data: one element for each face */
     unsigned int                face_count;
@@ -294,7 +300,7 @@ void* file_open(const char* path, void* user_data)
 static
 void file_close(void* file, void* user_data)
 {
-	FILE* f;
+    FILE* f;
     (void)(user_data);
     
     f = (FILE*)(file);
@@ -305,7 +311,7 @@ void file_close(void* file, void* user_data)
 static
 size_t file_read(void* file, void* dst, size_t bytes, void* user_data)
 {
-	FILE* f;
+    FILE* f;
     (void)(user_data);
     
     f = (FILE*)(file);
@@ -320,7 +326,7 @@ unsigned long file_size(void* file, void* user_data)
     long p;
     long n;
     (void)(user_data);
-	
+
     f = (FILE*)(file);
 
     p = ftell(f);
@@ -411,12 +417,6 @@ int is_whitespace(char c)
 }
 
 static
-int is_end_of_name(char c)
-{
-    return (c == '\t' || c == '\r' || c == '\n');
-}
-
-static
 int is_newline(char c)
 {
     return (c == '\n');
@@ -434,6 +434,21 @@ static
 int is_exponent(char c)
 {
     return (c == 'e' || c == 'E');
+}
+
+
+static
+const char* skip_name(const char* ptr)
+{
+    const char* s = ptr;
+
+    while (!is_newline(*ptr))
+        ptr++;
+
+    while (ptr > s && is_whitespace(*(ptr - 1)))
+        ptr--;
+
+    return ptr;
 }
 
 
@@ -655,6 +670,23 @@ const char* parse_vertex(fastObjData* data, const char* ptr)
         array_push(data->mesh->positions, v);
     }
 
+
+    ptr = skip_whitespace(ptr);
+    if (!is_newline(*ptr))
+    {
+        /* Fill the colors array until it matches the size of the positions array */
+        for (ii = array_size(data->mesh->colors); ii < array_size(data->mesh->positions) - 3; ++ii)
+        {
+            array_push(data->mesh->colors, 1.0f);
+        }
+
+        for (ii = 0; ii < 3; ++ii)
+        {
+            ptr = parse_float(ptr, &v);
+            array_push(data->mesh->colors, v);
+        }
+    }
+
     return ptr;
 }
 
@@ -728,8 +760,10 @@ const char* parse_face(fastObjData* data, const char* ptr)
 
         if (v < 0)
             vn.p = (array_size(data->mesh->positions) / 3) - (fastObjUInt)(-v);
-        else
+        else if (v > 0)
             vn.p = (fastObjUInt)(v);
+        else
+            return ptr; /* Skip lines with no valid vertex index */
 
         if (t < 0)
             vn.t = (array_size(data->mesh->texcoords) / 2) - (fastObjUInt)(-t);
@@ -771,9 +805,7 @@ const char* parse_object(fastObjData* data, const char* ptr)
     ptr = skip_whitespace(ptr);
 
     s = ptr;
-    while (!is_end_of_name(*ptr))
-        ptr++;
-
+    ptr = skip_name(ptr);
     e = ptr;
 
     flush_object(data);
@@ -793,9 +825,7 @@ const char* parse_group(fastObjData* data, const char* ptr)
     ptr = skip_whitespace(ptr);
 
     s = ptr;
-    while (!is_end_of_name(*ptr))
-        ptr++;
-
+    ptr = skip_name(ptr);
     e = ptr;
 
     flush_group(data);
@@ -847,6 +877,8 @@ fastObjMaterial mtl_default(void)
     mtl.d     = 1.0;
     mtl.illum = 1;
 
+    mtl.fallback = 0;
+
     mtl.map_Ka   = map_default();
     mtl.map_Kd   = map_default();
     mtl.map_Ks   = map_default();
@@ -874,9 +906,7 @@ const char* parse_usemtl(fastObjData* data, const char* ptr)
 
     /* Parse the material name */
     s = ptr;
-    while (!is_end_of_name(*ptr))
-        ptr++;
-
+    ptr = skip_name(ptr);
     e = ptr;
 
     /* Find an existing material with the same name */
@@ -896,6 +926,7 @@ const char* parse_usemtl(fastObjData* data, const char* ptr)
     {
         fastObjMaterial new_mtl = mtl_default();
         new_mtl.name = string_copy(s, e);
+        new_mtl.fallback = 1;
         array_push(data->mesh->materials, new_mtl);
     }
 
@@ -972,9 +1003,7 @@ const char* read_map(fastObjData* data, const char* ptr, fastObjTexture* map)
 
     /* Read name */
     s = ptr;
-    while (!is_end_of_name(*ptr))
-        ptr++;
-
+    ptr = skip_name(ptr);
     e = ptr;
 
     name = string_copy(s, e);
@@ -1048,8 +1077,7 @@ int read_mtllib(fastObjData* data, void* file, const fastObjCallbacks* callbacks
                     p++;
 
                 s = p;
-                while (!is_end_of_name(*p))
-                    p++;
+                p = skip_name(p);
 
                 mtl.name = string_copy(s, p);
             }
@@ -1191,9 +1219,7 @@ const char* parse_mtllib(fastObjData* data, const char* ptr, const fastObjCallba
     ptr = skip_whitespace(ptr);
 
     s = ptr;
-    while (!is_end_of_name(*ptr))
-        ptr++;
-
+    ptr = skip_name(ptr);
     e = ptr;
 
     lib = string_concat(data->base, s, e);
@@ -1326,6 +1352,15 @@ void parse_buffer(fastObjData* data, const char* ptr, const char* end, const fas
 
         data->line++;
     }
+    if (array_size(data->mesh->colors) > 0)
+    {
+        /* Fill the remaining slots in the colors array */
+        unsigned int ii;
+        for (ii = array_size(data->mesh->colors); ii < array_size(data->mesh->positions); ++ii)
+        {
+            array_push(data->mesh->colors, 1.0f);
+        }
+    }
 }
 
 
@@ -1346,6 +1381,7 @@ void fast_obj_destroy(fastObjMesh* m)
     array_clean(m->positions);
     array_clean(m->texcoords);
     array_clean(m->normals);
+    array_clean(m->colors);
     array_clean(m->face_vertices);
     array_clean(m->face_materials);
     array_clean(m->indices);
@@ -1400,6 +1436,7 @@ fastObjMesh* fast_obj_read_with_callbacks(const char* path, const fastObjCallbac
     m->positions      = 0;
     m->texcoords      = 0;
     m->normals        = 0;
+    m->colors         = 0;
     m->face_vertices  = 0;
     m->face_materials = 0;
     m->indices        = 0;
@@ -1507,6 +1544,7 @@ fastObjMesh* fast_obj_read_with_callbacks(const char* path, const fastObjCallbac
     m->position_count = array_size(m->positions) / 3;
     m->texcoord_count = array_size(m->texcoords) / 2;
     m->normal_count   = array_size(m->normals) / 3;
+    m->color_count    = array_size(m->colors) / 3;
     m->face_count     = array_size(m->face_vertices);
     m->index_count    = array_size(m->indices);
     m->material_count = array_size(m->materials);
