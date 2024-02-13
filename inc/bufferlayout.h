@@ -65,10 +65,11 @@ private:
 		PACK_NONE   = 0, /**< No packing, either the component isn't used or there was no space. */
 		PACK_POSN_W = 1, /**< Packed in the position's \c w (4th) component. */
 		PACK_TEX0_Z = 2, /**< Packed in UV channel 0's \c z (3rd) component. */
-		PACK_NORM_Z = 3, /**< Packed in the encoded normal's \c z (3rd) component. */
-		PACK_NORM_W = 4, /**< Packed in the normal's \c w (4th) component. */
-		PACK_TANS_Z = 5, /**< Packed in the encoded tangent's \c z (3rd) component. */
-		PACK_TANS_W = 6, /**< Packed in the tangent's \c w (4th) component. */
+		PACK_TEX1_Z = 3, /**< Packed in UV channel 1's \c z (3rd) component. */
+		PACK_NORM_Z = 4, /**< Packed in the encoded normal's \c z (3rd) component. */
+		PACK_NORM_W = 5, /**< Packed in the normal's \c w (4th) component. */
+		PACK_TANS_Z = 6, /**< Packed in the encoded tangent's \c z (3rd) component. */
+		PACK_TANS_W = 7, /**< Packed in the tangent's \c w (4th) component. */
 	};
 
 	/**
@@ -88,9 +89,10 @@ private:
 	enum VertexID {
 		VERT_POSN_ID = 0, /**< Vertex positions. */
 		VERT_TEX0_ID = 1, /**< Vertex texture coordinates channel 0. */
-		VERT_NORM_ID = 2, /**< Vertex normals. */
-		VERT_TANS_ID = 3, /**< Vertex tangents. */
-		VERT_BTAN_ID = 4, /**< Vertex bitangents. */
+		VERT_TEX1_ID = 2, /**< Vertex texture coordinates channel 1. */
+		VERT_NORM_ID = 3, /**< Vertex normals. */
+		VERT_TANS_ID = 4, /**< Vertex tangents. */
+		VERT_BTAN_ID = 5, /**< Vertex bitangents. */
 	};
 
 	/**
@@ -212,6 +214,7 @@ private:
 	Packing packSign; /**< Where the single tangent sign was packed. */
 	AttrParams posn;  /**< Position attributes. */
 	AttrParams tex0;  /**< UV channel 0 attributes. */
+	AttrParams tex1;  /**< UV channel 1 attributes. */
 	AttrParams norm;  /**< Normal attributes. */
 	AttrParams tans;  /**< Tangent attributes. */
 	AttrParams btan;  /**< Bitangent attributes. */

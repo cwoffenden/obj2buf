@@ -545,6 +545,7 @@ ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	posn.z = obj->positions[idx->p * 3 + 2];
 	tex0.x = obj->texcoords[idx->t * 2 + 0];
 	tex0.y = obj->texcoords[idx->t * 2 + 1];
+	tex1   = 0.0f;
 	norm.x = obj->normals  [idx->n * 3 + 0];
 	norm.y = obj->normals  [idx->n * 3 + 1];
 	norm.z = obj->normals  [idx->n * 3 + 2];
@@ -564,14 +565,23 @@ ObjVertex::ObjVertex(ufbx_mesh* fbx, size_t const idx) {
 	 * MikkTSpace calculations throughout).
 	 *
 	 * TODO: extract (and support) tex1 from ufbx_uv_set_list
+  	 * TODO: if the FBX contains tangents (in the UV sets) take those?
 	 */
 	impl::copyVec(fbx->vertex_position,  idx, posn);
 	impl::copyVec(fbx->vertex_uv,        idx, tex0);
+	tex1 = 0.0f;
 	impl::copyVec(fbx->vertex_normal,    idx, norm);
 	impl::copyVec(fbx->vertex_color,     idx, rgba);
 	tans = 0.0f;
 	btan = 0.0f;
 	sign = 0.0f;
+
+	// Hack to put tex1 into tex0 for testing
+	/*
+	if (fbx->uv_sets.count > 1) {
+		impl::copyVec(fbx->uv_sets[1].vertex_uv, idx, tex0);
+	}
+	 */
 }
 
 bool ObjVertex::generateTangents(Container& verts, bool const flipG) {
