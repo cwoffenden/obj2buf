@@ -13,7 +13,7 @@
 #include "vec.h"
 
 /**
- * Data structure for the vertex data extracted from an \c obj file.
+ * Data structure for the vertex data extracted from an \c obj or FBX file.
  */
 struct ObjVertex
 {
@@ -74,9 +74,10 @@ struct ObjVertex
 
 	//*************************************************************************/
 
-	vec3 posn; /**< Positions (from the \c .obj file). */
-	vec2 tex0; /**< UV channel 0 (from the \c .obj file). */
-	vec3 norm; /**< Normals (from the \c .obj file). */
+	vec3 posn; /**< Positions (from the \c .obj or FBX file). */
+	vec2 tex0; /**< UV channel 0 (from the \c .obj or FBX file). */
+	vec2 tex1; /**< UV channel 1 (from the FBX file; limitations in the loader). */
+	vec3 norm; /**< Normals (from the \c .obj or FBX file). */
 	vec3 tans; /**< Tangents (generated if needed). */
 	vec3 btan; /**< Bitangents (generated if needed). */
 	vec4 rgba; /**< Vertex colours (standard only in the FBX file). */

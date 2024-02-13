@@ -122,10 +122,13 @@ BufferLayout::BufferLayout(const ToolOptions& opts)
 void BufferLayout::dump() const {
 	posn.dump(stride, "VERT_POSN_ID");
 	tex0.dump(stride, "VERT_TEX0_ID");
+	tex1.dump(stride, "VERT_TEX1_ID");
 	norm.dump(stride, "VERT_NORM_ID");
 	/*
 	 * Tangents are (currently) only ever packed in the normals. The
 	 * bitangent sign, though, varies.
+	 *
+	 * TODO: finish (and tidy)
 	 */
 	if (packTans == PACK_NONE) {
 		tans.dump(stride, "VERT_TANS_ID");
@@ -145,6 +148,10 @@ void BufferLayout::dump() const {
 			element = "tex0.z";
 			numComp = "three";
 			break;
+		case PACK_TEX1_Z:
+			 element = "tex1.z";
+			 numComp = "three";
+			 break;
 		case PACK_NORM_Z:
 			element = "norm.z";
 			numComp = "three";
@@ -329,7 +336,7 @@ VertexPacker::Failed BufferLayout::AttrParams::write(VertexPacker& packer, unsig
 		/*
 		 * This has a limited number of values:
 		 *
-		 * - index: 0..4, equating to VERT_POSN_ID, VERT_TEX0_ID, etc.
+		 * - index: 0..5, equating to VERT_POSN_ID, VERT_TEX0_ID, etc.
 		 * - components: 2..4, xy, xyz & xyzw
 		 * - type: 1..8, TYPE_BYTE to TYPE_FLOAT with the MSB set for normalised
 		 * - offset: 0..44 (given a maximum stride of 56)
