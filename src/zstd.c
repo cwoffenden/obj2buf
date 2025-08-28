@@ -32,7 +32,7 @@
  * re-running without the "-x legacy/zstd_legacy.h" option (it excludes the
  * legacy support at the source level).
  *
- * Note: multithreading is enabled for all platforms apart from Emscripten.
+ * Note: multithreading is disabled for Obj2Buf (it's not needed).
  */
 #define DEBUGLEVEL 0
 #define MEM_MODULE
@@ -43,9 +43,6 @@
 #undef  XXH_INLINE_ALL
 #define XXH_INLINE_ALL
 #define ZSTD_LEGACY_SUPPORT 0
-#ifndef __EMSCRIPTEN__
-#define ZSTD_MULTITHREAD
-#endif
 #define ZSTD_TRACE 0
 /* TODO: Can't amalgamate ASM function */
 #define ZSTD_DISABLE_ASM 1
