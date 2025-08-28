@@ -229,9 +229,12 @@ bool ObjMesh::load(const char* const srcPath, bool const genTans, bool const fli
 }
 
 void ObjMesh::optimise() {
-	meshopt_optimizeVertexCache(index.data(), index.data(), index.size(), verts.size());
-	meshopt_optimizeOverdraw   (index.data(), index.data(), index.size(), verts[0].posn, verts.size(), sizeof(ObjVertex), 1.01f /*allow 1% worse ACMR*/);
-	meshopt_optimizeVertexFetch(verts.data(), index.data(), index.size(), verts.data(),  verts.size(), sizeof(ObjVertex));
+	size_t indexSize = index.size();
+	size_t vertsSize = verts.size();
+	assert(indexSize < INT32_MAX && vertsSize < INT32_MAX);
+	meshopt_optimizeVertexCache(index.data(), index.data(), indexSize, vertsSize);
+	meshopt_optimizeOverdraw   (index.data(), index.data(), indexSize, verts[0].posn, vertsSize, sizeof(ObjVertex), 1.01f /*allow 1% worse ACMR*/);
+	meshopt_optimizeVertexFetch(verts.data(), index.data(), indexSize, verts.data(),  vertsSize, sizeof(ObjVertex));
 }
 
 void ObjMesh::normalise(bool const uniform, bool const unbiased) {
