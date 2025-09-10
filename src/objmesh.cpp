@@ -100,6 +100,14 @@ void extract(fastObjMesh* const obj, bool const genTans, bool const flipG, ObjMe
 		}
 		vertBase += faceVerts;
 	}
+	if (obj->texcoord_count == 1) {
+		// placeholder (but we've no interesting in doing projection, right?)
+		printf("* No UVs in file *\n");
+	}
+	if (obj->normal_count == 1) {
+		// placeholder (this we can generate, but what about mikktspace without UVs?)
+		printf("* No normals in file *\n");
+	}
 	postExtract(verts, genTans, flipG, mesh);
 }
 /**
