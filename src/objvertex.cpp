@@ -538,8 +538,15 @@ ObjVertex::ObjVertex(fastObjMesh* obj, fastObjIndex* idx) {
 	 * places, so the normals benefit from renormalising (plus any encoding is
 	 * off if we don't).
 	 *
-	 * TODO: migrating to 'tinyobjloader' since it support vertex colours and multiple UVs
+	 * Note: indices for p, t, and n are 1-based, and a zero-inited array entry
+	 * always exists with an array cound of 1 (unlike colours, for example,
+	 * which will be null).
+	 *
+	 * TODO: migrating to 'tinyobjloader' since it supports vertex colours and multiple UVs (hmm, fast_obj supports vcols now)
 	 */
+	assert(idx->p < obj->position_count);
+	assert(idx->t < obj->texcoord_count);
+	assert(idx->n < obj->normal_count);
 	posn.x = obj->positions[idx->p * 3 + 0];
 	posn.y = obj->positions[idx->p * 3 + 1];
 	posn.z = obj->positions[idx->p * 3 + 2];
