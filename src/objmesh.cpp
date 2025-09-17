@@ -21,7 +21,7 @@
  * Helpers to extract mesh data (see\c ObjMesh#load() )
  */
 namespace impl {
-/*
+/**
  * Performs work common to both the \c .obj and FBX mesh extraction (tangent
  * generation, then creating vertex and index buffers).
  *
@@ -30,14 +30,19 @@ namespace impl {
  * buffer, whilst the vertex buffer is generated from unique entries after the
  * tangents.
  *
- * \param[in] verts all raw the vertices
+ * \param[in] verts all raw the vertices (grouped into triangles)
+ * \param[in] genNorm \c true if \e face normals should be generated
  * \param[in] genTans \c true if tangents should be generated
  * \param[in] flipG generate tangents for a flipped green channel (by negating the texture's y-axis)
  * \param[out] mesh destination for the indexed mesh content
  */
-void postExtract(ObjVertex::Container& verts, bool const genTans, bool const flipG, ObjMesh& mesh) {
+void postExtract(ObjVertex::Container& verts, bool const genNorm, bool const genTans, bool const flipG, ObjMesh& mesh) {
 	if (size_t maxVerts = verts.size()) {
-		// Optionally create the tangents
+		// Optionally replace any normals (useful only for testing)
+		if (genNorm) {
+			ObjVertex::generateNormals(verts);
+		}
+		// Optionally create the tangents (if they're being exported)
 		if (genTans) {
 			ObjVertex::generateTangents(verts, flipG);
 		}
@@ -100,15 +105,7 @@ void extract(fastObjMesh* const obj, bool const genTans, bool const flipG, ObjMe
 		}
 		vertBase += faceVerts;
 	}
-	if (obj->texcoord_count == 1) {
-		// placeholder (but we've no interesting in doing projection, right?)
-		printf("* No UVs in file *\n");
-	}
-	if (obj->normal_count == 1) {
-		// placeholder (this we can generate, but what about mikktspace without UVs?)
-		printf("* No normals in file *\n");
-	}
-	postExtract(verts, genTans, flipG, mesh);
+	postExtract(verts, obj->normal_count <= 1, genTans, flipG, mesh);
 }
 /**
  * Extracts the FBX mesh data as vertex and index buffers.
@@ -172,7 +169,7 @@ void extract(ufbx_mesh* const fbx, bool const genTans, bool const flipG, ObjMesh
 			}
 		}
 	}
-	postExtract(verts, genTans, flipG, mesh);
+	postExtract(verts, !fbx->vertex_normal.exists, genTans, flipG, mesh);
 }
 }
 

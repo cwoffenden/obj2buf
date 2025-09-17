@@ -45,8 +45,20 @@ struct ObjVertex
 	//****************************** Conversions ******************************/
 
 	/**
-	 * Generates the \c #tans, \c #btan and \c #sign from the extracted \c .obj
-	 * data. \a cont is expected to contain unindexed triangles.
+	 * Generates fallback face \c #norm values from the extracted \c .obj data.
+	 * \a verts is expected to contain unindexed triangles, and since shared
+	 * vertices are not yet known, only face normals are generated.
+	 *
+	 * \note This is for the case where normals were not exported (which should
+	 * only be true for simple tests), with any existing normals overwritten.
+	 *
+	 * \param[in,out] verts collection of triangles
+	 */
+	static void generateNormals(Container& verts);
+
+	/**
+	 * Generates \c #tans, \c #btan and \c #sign from the extracted \c .obj
+	 * data. \a verts is expected to contain unindexed triangles.
 	 *
 	 * \note This \e must be called before running \c #encodeNormals() since it
 	 * requires unencoded normals.
