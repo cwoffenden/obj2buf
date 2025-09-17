@@ -179,12 +179,13 @@ namespace mtsutil {
 }
 
 /**
- * Helper for the encoding (and test decoding) of normal vectors. This paper
- * describes various schemes:
+ * Helper for the encoding (and test decoding) of normal vectors. The paper "A
+ * Survey of Efficient Representations for Independent Unit Vectors" describes
+ * various schemes:
  *
  * \see https://jcgt.org/published/0003/02/01/paper.pdf
  *
- * Some graphical comparisons here:
+ * Some graphical comparisons here in "Octahedron normal vector encoding":
  *
  * \see https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/
  *
@@ -589,6 +590,19 @@ ObjVertex::ObjVertex(ufbx_mesh* fbx, size_t const idx) {
 		impl::copyVec(fbx->uv_sets[1].vertex_uv, idx, tex0);
 	}
 	 */
+}
+
+void ObjVertex::generateNormals(Container& verts) {
+	size_t const faces = verts.size() / 3;
+	for (size_t n = 0, face = 0; n < faces; n++, face += 3) {
+		ObjVertex& a = verts[face + 0];
+		ObjVertex& b = verts[face + 1];
+		ObjVertex& c = verts[face + 2];
+		vec3 norm = vec3::cross(b.posn - a.posn, c.posn - a.posn).normalize();
+		a.norm = norm;
+		b.norm = norm;
+		c.norm = norm;
+	}
 }
 
 bool ObjVertex::generateTangents(Container& verts, bool const flipG) {

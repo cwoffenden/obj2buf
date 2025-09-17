@@ -80,8 +80,10 @@ public:
 	 * Collection of (usually) unique vertices referenced by \c #index.
 	 */
 	ObjVertex::Container verts;
-	/**
-	 * Collection of indices into \c #verts.
+	/*
+	 * Collection of indices into \c #verts. The loader will have triangulated
+	 * anything that isn't already, so this will always be triangles in groups
+	 * of three.
 	 */
 	std::vector<unsigned> index;
 	/**
