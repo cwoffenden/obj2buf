@@ -156,16 +156,16 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		case 'i': // indices
 			idxs = parseType(argv, argc, next);
 			break;
-		case 's': // scaled positions
+		case 'r': // resized positions
 			O2B_SET_OPT(opts, OPTS_POSITIONS_SCALE);
-			if (strcmp(arg + 1, "su") == 0) {
+			if (strcmp(arg + 1, "ru") == 0) {
 				O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
 			}
-			if (strcmp(arg + 1, "sz") == 0) {
+			if (strcmp(arg + 1, "rz") == 0) {
 				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
 			}
-			if (strcmp(arg + 1, "suz") == 0 ||
-				strcmp(arg + 1, "szu") == 0) {
+			if (strcmp(arg + 1, "ruz") == 0 ||
+				strcmp(arg + 1, "rzu") == 0) {
 				O2B_SET_OPT(opts, OPTS_SCALE_UNIFORM);
 				O2B_SET_OPT(opts, OPTS_SCALE_NO_BIAS);
 			}
@@ -176,13 +176,13 @@ int ToolOptions::parseNext(const char* const argv[], int const argc, int next) {
 		case 'g':
 			O2B_SET_OPT(opts, OPTS_TANGENTS_FLIP_G);
 			break;
-		case 'b': // bitangents as sign-only
+		case 's': // bitangents as sign-only
 			O2B_SET_OPT(opts, OPTS_BITANGENTS_SIGN);
 			break;
 		case 'm': // metadata
 			O2B_SET_OPT(opts, OPTS_WRITE_METADATA);
 			break;
-		case 'e': // big endian order
+		case 'b': // big endian order
 			O2B_SET_OPT(opts, OPTS_BIG_ENDIAN);
 			break;
 		case 'l': // legacy GL signing rule
@@ -396,16 +396,16 @@ void ToolOptions::help(const char* const path) {
 	printf("\t-i index buffer type (defaulting to shorts)\n");
 	printf("\t(vertex types are byte|short|half|float|none (none emits no data))\n");
 	printf("\t(index types are byte|short|int|none (none emits unindexed triangles))\n");
-	printf("\t-s normalises the positions to scale them in the range -1 to 1\n");
-	printf("\t-su as -s but with uniform scaling for all axes\n");
-	printf("\t-sz as -s but without a bias, keeping the origin at zero\n");
+	printf("\t-r resizes the positions so all fit a normalised range -1 to 1\n");
+	printf("\t-ru as -r but with uniform scaling for all axes\n");
+	printf("\t-rz as -r but without a bias, keeping the origin at zero\n");
 	printf("\t-o octahedral encoded normals (and tangents) in two components\n");
 	printf("\t(encoded normals having the same type as tangents may be packed)\n");
 	printf("\t-g tangents are generated for an inverted G-channel (e.g. match 3ds Max)\n");
-	printf("\t-b store only the sign for bitangents\n");
+	printf("\t-s store only the sign for bitangents\n");
 	printf("\t(packing the sign if possible where any padding would normally go)\n");
 	printf("\t-m writes metadata describing the buffer offsets, sizes and types\n");
-	printf("\t-e writes multi-byte values in big endian order (e.g. PPC, MIPS)\n");
+	printf("\t-b writes multi-byte values in big endian order (e.g. PPC, MIPS)\n");
 	printf("\t-l use the legacy OpenGL rule for normalised signed values\n");
 	printf("\t-z compresses the output buffer using Zstandard\n");
 	printf("\t-a writes the output as ASCII hex instead of binary\n");
