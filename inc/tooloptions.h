@@ -41,10 +41,10 @@ public:
 	 */
 	enum Options {
 		/**
-		 * Scale the positions so all coordinates fit in the range \c -1 to \c 1
-		 * (see \c #OPTS_SCALE_NO_BIAS, since the default is to apply a bias to
-		 * make full use of the underlying data format's range, and \c
-		 * OPTS_SCALE_UNIFORM, to maintain the proportions).
+		 * Resize the positions so all coordinates are scaled to fit the range
+		 * \c -1 to \c 1 (see \c #OPTS_SCALE_NO_BIAS, since the default is to
+		 * apply a bias to make full use of the underlying data format's range,
+		 * and \c OPTS_SCALE_UNIFORM, to maintain the proportions).
 		 */
 		OPTS_POSITIONS_SCALE = 0,
 		/**

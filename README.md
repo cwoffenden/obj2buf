@@ -26,16 +26,16 @@ Usage: obj2buf [-p|u|n|t|i type] [-s|su|sz] [-o|g|b|m|e|l|z|a] in [out]
 	-i index buffer type (defaulting to shorts)
 	(vertex types are byte|short|half|float|none (none emits no data))
 	(index types are byte|short|int|none (none emits unindexed triangles))
-	-s normalises the positions to scale them in the range -1 to 1
-	-su as -s but with uniform scaling for all axes
-	-sz as -s but without a bias, keeping the origin at zero
+	-r resizes the positions so all fit a normalised range -1 to 1
+	-ru as -r but with uniform scaling for all axes
+	-rz as -r but without a bias, keeping the origin at zero
 	-o octahedral encoded normals (and tangents) in two components
 	(encoded normals having the same type as tangents may be packed)
 	-g tangents are generated for an inverted G-channel (e.g. match 3ds Max)
-	-b store only the sign for bitangents
+	-s store only the sign for bitangents
 	(packing the sign if possible where any padding would normally go)
 	-m writes metadata describing the buffer offsets, sizes and types
-	-e writes multi-byte values in big endian order (e.g. PPC, MIPS)
+	-b writes multi-byte values in big endian order (e.g. PPC, MIPS)
 	-l use the legacy OpenGL rule for normalised signed values
 	-z compresses the output buffer using Zstandard
 	-a writes the output as ASCII hex instead of binary
@@ -56,7 +56,7 @@ A more complex example could be:
 
 1. Vertex positions and UVs as `short`, normals and tangents as `byte`.
 
-2. `-su` option to scale the mesh uniformly in the range `-1` to `1` (allowing any object to be drawn without considering the camera position or mesh size).
+2. `-ru` option to scale the mesh uniformly in the range `-1` to `1` (allowing any object to be drawn without considering the camera position or mesh size).
 
 3. `-o` option to octahedral encode normals and tangents.
 
@@ -64,11 +64,11 @@ A more complex example could be:
 
 5. Since normals and tangents are both bytes and encoded, they will be packed together (normals in `xy`, tangents in `zw`).
 
-6. `-b` option to only store the sign for the bitangents  (which will be packed into the padding for the positions, so the `w` component).
+6. `-s` option to only store the sign for the bitangents  (which will be packed into the padding for the positions, so the `w` component).
 
 7. `-m` option to add metadata.
 ```
-obj2buf -p short -u short -n byte -t byte -su -o -g -b -m -a cube.obj cube.inc
+obj2buf -p short -u short -n byte -t byte -ru -o -g -s -m -a cube.obj cube.inc
 ```
 Or using the `-c` shortcode option, where the options are serialised:
 ```
