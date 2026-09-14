@@ -19,7 +19,7 @@ jobs:
       BUILD_PATH: ${{ github.workspace }}/out/web/${{ matrix.type }}
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: emscripten-core/setup-emsdk@v16
 
     - name: Test Emscripten
